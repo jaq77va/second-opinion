@@ -1,5 +1,7 @@
 import { useState, useRef } from 'react';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
+import { analyzeExercise } from './biomechanicsEngine';
+import type { AnalysisResult } from './biomechanicsEngine';
 
 type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_laterali';
 
@@ -11,7 +13,6 @@ const EXERCISES: { id: Exercise; label: string; viewHint: string }[] = [
   { id: 'alzate_laterali', label: 'Alzate laterali manubri', viewHint: 'Inquadratura frontale dal bacino in su' },
 ];
 
-// Connessioni principali dello scheletro MediaPipe da disegnare
 const POSE_CONNECTIONS = [
   [11, 12], [11, 13], [13, 15], // Braccio sinistro
   [12, 14], [14, 16], // Braccio destro
@@ -24,9 +25,11 @@ export function App() {
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
   const [status, setStatus] = useState<string>('Pronto. Seleziona un video dal rullino.');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const landmarksBufferRef = useRef<any[][]>([]);
 
   const currentHint = EXERCISES.find((ex) => ex.id === selectedExercise)?.viewHint;
 
@@ -35,7 +38,9 @@ export function App() {
     if (!file || !videoRef.current || !canvasRef.current) return;
 
     setIsProcessing(true);
+    setAnalysisResult(null);
     setStatus('Caricamento modello AI in corso...');
+    landmarksBufferRef.current = [];
 
     try {
       const vision = await FilesetResolver.forVisionTasks(
@@ -65,30 +70,35 @@ export function App() {
         };
       });
 
-      setStatus('Analisi e disegno in corso...');
+      setStatus('Analisi biomeccanica in corso...');
       video.play();
 
       const processFrame = () => {
         if (video.ended || video.paused) {
           setIsProcessing(false);
           setStatus('Analisi completata con successo!');
+          
+          // Eseguiamo l'analisi matematica sui frame accumulati
+          const result = analyzeExercise(selectedExercise, landmarksBufferRef.current);
+          setAnalysisResult(result);
+
           landmarker.close();
           return;
         }
 
-        // Rileva i landmark sul frame corrente del video
         const result = landmarker.detectForVideo(video, performance.now());
 
+        if (result.landmarks && result.landmarks.length > 0) {
+          landmarksBufferRef.current.push(result.landmarks[0]);
+        }
+
         if (ctx) {
-          // Pulisci il canvas e ridisegna il fotogramma video corrente
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-          // Disegna lo scheletro se ci sono punti rilevati
           if (result.landmarks && result.landmarks.length > 0) {
             const landmarks = result.landmarks[0];
 
-            // 1. Disegna le linee di connessione
             ctx.strokeStyle = '#00ffcc';
             ctx.lineWidth = 3;
             POSE_CONNECTIONS.forEach(([i, j]) => {
@@ -102,7 +112,6 @@ export function App() {
               }
             });
 
-            // 2. Disegna i nodi articolari
             ctx.fillStyle = '#ff0055';
             landmarks.forEach((lm) => {
               if (lm.visibility && lm.visibility > 0.5) {
@@ -128,7 +137,7 @@ export function App() {
   return (
     <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'sans-serif' }}>
       <h2>Second Opinion</h2>
-      <p style={{ fontSize: 14, color: '#555' }}>Biomercanica locale · Zero upload</p>
+      <p style={{ fontSize: 14, color: '#555' }}>Analisi Biomeccanica Locale · Zero Upload</p>
 
       <label style={{ display: 'block', marginTop: 16, fontWeight: 'bold' }}>1. Scegli esercizio</label>
       <select
@@ -157,7 +166,6 @@ export function App() {
         disabled={isProcessing}
       />
 
-      {/* Area video + Canvas in overlay */}
       <div style={{ position: 'relative', marginTop: 20, width: '100%', background: '#000', borderRadius: 8, overflow: 'hidden' }}>
         <video ref={videoRef} style={{ display: 'none' }} muted playsInline />
         <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
@@ -166,6 +174,16 @@ export function App() {
       <div style={{ marginTop: 15, padding: 12, border: '1px solid #ddd', borderRadius: 6, background: '#fafafa' }}>
         <strong>Stato:</strong> {status}
       </div>
+
+      {analysisResult && (
+        <div style={{ marginTop: 20, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 8, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ margin: '0 0 10px 0', color: '#38bdf8', fontSize: 18 }}>Singolo Cue & Risultato</h3>
+          <p style={{ margin: '6px 0', fontSize: 15 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
+          <div style={{ marginTop: 12, padding: 10, background: '#0f172a', borderRadius: 6, borderLeft: '4px solid #38bdf8' }}>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: '500' }}>💡 {analysisResult.singleCue}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
