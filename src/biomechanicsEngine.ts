@@ -45,6 +45,7 @@ export function analyzeExerciseGeometry(exercise: string, allFramesLandmarks: an
 
     switch (exercise) {
       case 'squat': {
+        // Ginocchio (Anca - Ginocchio - Caviglia)
         const hip = landmarks[LANDMARKS.LEFT_HIP];
         const knee = landmarks[LANDMARKS.LEFT_KNEE];
         const ankle = landmarks[LANDMARKS.LEFT_ANKLE];
@@ -53,7 +54,18 @@ export function analyzeExerciseGeometry(exercise: string, allFramesLandmarks: an
         }
         break;
       }
+      case 'stacco': {
+        // Inclinazione del tronco / Anca (Spalla - Anca - Ginocchio)
+        const shoulder = landmarks[LANDMARKS.LEFT_SHOULDER];
+        const hip = landmarks[LANDMARKS.LEFT_HIP];
+        const knee = landmarks[LANDMARKS.LEFT_KNEE];
+        if (shoulder && hip && knee && shoulder.visibility > 0.5 && hip.visibility > 0.5 && knee.visibility > 0.5) {
+          angles.push(calculateAngle(shoulder, hip, knee));
+        }
+        break;
+      }
       case 'panca_piana': {
+        // Gomito (Spalla - Gomito - Polso)
         const shoulder = landmarks[LANDMARKS.LEFT_SHOULDER];
         const elbow = landmarks[LANDMARKS.LEFT_ELBOW];
         const wrist = landmarks[LANDMARKS.LEFT_WRIST];
@@ -62,7 +74,18 @@ export function analyzeExerciseGeometry(exercise: string, allFramesLandmarks: an
         }
         break;
       }
+      case 'lat_machine': {
+        // Apertura ascella / gomito (Anca - Spalla - Gomito)
+        const hip = landmarks[LANDMARKS.LEFT_HIP];
+        const shoulder = landmarks[LANDMARKS.LEFT_SHOULDER];
+        const elbow = landmarks[LANDMARKS.LEFT_ELBOW];
+        if (hip && shoulder && elbow && hip.visibility > 0.5 && shoulder.visibility > 0.5 && elbow.visibility > 0.5) {
+          angles.push(calculateAngle(hip, shoulder, elbow));
+        }
+        break;
+      }
       case 'alzate_laterali': {
+        // Apertura braccio (Anca - Spalla - Gomito)
         const hip = landmarks[LANDMARKS.LEFT_HIP];
         const shoulder = landmarks[LANDMARKS.LEFT_SHOULDER];
         const elbow = landmarks[LANDMARKS.LEFT_ELBOW];
@@ -84,12 +107,12 @@ export function analyzeExerciseGeometry(exercise: string, allFramesLandmarks: an
   });
 
   if (angles.length === 0) {
-    return { minAngle: 0, maxAngle: 0, trendSummary: "Impossibile tracciare l'articolazione chiave." };
+    return { minAngle: 0, maxAngle: 0, trendSummary: "Impossibile tracciare l'articolazione chiave per questo esercizio." };
   }
 
   const minAngle = Math.min(...angles);
   const maxAngle = Math.max(...angles);
-  const trendSummary = `Rilevati ${angles.length} frame validi. L'angolo parte da circa ${Math.round(angles[0])}°, scende al minimo di ${Math.round(minAngle)}° nel punto di inversione e chiude a ${Math.round(angles[angles.length - 1])}°.`;
+  const trendSummary = `Rilevati ${angles.length} frame validi per ${exercise}. Angolo iniziale: ${Math.round(angles[0])}°, Minimo: ${Math.round(minAngle)}°, Massimo: ${Math.round(maxAngle)}°.`;
 
   return { minAngle: Math.round(minAngle), maxAngle: Math.round(maxAngle), trendSummary };
 }

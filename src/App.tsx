@@ -23,8 +23,7 @@ const POSE_CONNECTIONS = [
 
 export function App() {
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
-  const [apiKey, setApiKey] = useState<string>('');
-  const [status, setStatus] = useState<string>('Pronto. Inserisci la tua API Key e carica un video.');
+  const [status, setStatus] = useState<string>('Pronto. Seleziona un esercizio e carica il video.');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [aiFeedback, setAiFeedback] = useState<string>('');
@@ -86,24 +85,21 @@ export function App() {
           const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
           setAnalysisResult(geomResult);
 
-          // 2. Richiesta di coaching tramite Gemini API
-          if (apiKey.trim()) {
-            setIsAiLoading(true);
-            setStatus('Generazione del feedback intelligente con Gemini...');
-            getGeminiFeedback(apiKey, selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
-              .then((feedback) => {
-                setAiFeedback(feedback);
-                setIsAiLoading(false);
-                setStatus('Analisi e Coaching completati con successo!');
-              })
-              .catch((err) => {
-                setAiFeedback(`Errore AI: ${err.message}`);
-                setIsAiLoading(false);
-                setStatus('Completato con errore IA.');
-              });
-          } else {
-            setAiFeedback("Inserisci una Google AI Studio API Key per ricevere il consiglio dell'IA.");
-          }
+          // 2. Richiesta di coaching protetta tramite il backend
+          setIsAiLoading(true);
+          setStatus('Generazione del feedback intelligente con Gemini (Server)...');
+          
+          getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
+            .then((feedback) => {
+              setAiFeedback(feedback);
+              setIsAiLoading(false);
+              setStatus('Analisi e Coaching completati con successo!');
+            })
+            .catch((err) => {
+              setAiFeedback(`Errore AI: ${err.message}`);
+              setIsAiLoading(false);
+              setStatus('Completato con errore IA.');
+            });
 
           landmarker.close();
           return;
@@ -160,19 +156,7 @@ export function App() {
   return (
     <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'sans-serif' }}>
       <h2>Second Opinion</h2>
-      <p style={{ fontSize: 14, color: '#555' }}>Biomeccanica Locale + Gemini AI Coach</p>
-
-      {/* Configurazione API Key */}
-      <div style={{ marginTop: 14, padding: 10, background: '#f8fafc', borderRadius: 6, border: '1px solid #e2e8f0' }}>
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>Google AI Studio API Key</label>
-        <input
-          type="password"
-          placeholder="Incolla qui la tua API Key..."
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          style={{ width: '100%', padding: 8, fontSize: 14, boxSizing: 'border-box' }}
-        />
-      </div>
+      <p style={{ fontSize: 14, color: '#555' }}>Biomeccanica Locale · Zero Upload Video</p>
 
       <label style={{ display: 'block', marginTop: 16, fontWeight: 'bold' }}>1. Scegli esercizio</label>
       <select
@@ -219,7 +203,7 @@ export function App() {
           <div style={{ marginTop: 16, borderTop: '1px solid #334155', paddingTop: 12 }}>
             <h4 style={{ margin: '0 0 8px 0', color: '#f43f5e', fontSize: 16 }}>🤖 Gemini AI Coach (Singolo Cue)</h4>
             {isAiLoading ? (
-              <p style={{ fontSize: 14, fontStyle: 'italic', color: '#cbd5e1' }}>L'intelligenza artificiale sta elaborando i dati geometrici...</p>
+              <p style={{ fontSize: 14, fontStyle: 'italic', color: '#cbd5e1' }}>Il server sta interrogando Gemini con i dati geometrici...</p>
             ) : (
               <div style={{ padding: 10, background: '#0f172a', borderRadius: 6, borderLeft: '4px solid #f43f5e' }}>
                 <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5 }}>{aiFeedback}</p>
