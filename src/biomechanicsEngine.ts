@@ -1,4 +1,3 @@
-// Indici dei landmark di MediaPipe Pose
 export const LANDMARKS = {
   LEFT_SHOULDER: 11,
   RIGHT_SHOULDER: 12,
@@ -14,7 +13,6 @@ export const LANDMARKS = {
   RIGHT_ANKLE: 28,
 };
 
-// Funzione matematica per calcolare l'angolo tra tre punti (Vertice in B)
 export function calculateAngle(
   a: { x: number; y: number },
   b: { x: number; y: number },
@@ -32,13 +30,12 @@ export function calculateAngle(
 export interface AnalysisResult {
   minAngle: number;
   maxAngle: number;
-  singleCue: string;
+  trendSummary: string;
 }
 
-// Analizzatore specifico per i 5 esercizi
-export function analyzeExercise(exercise: string, allFramesLandmarks: any[][]): AnalysisResult {
+export function analyzeExerciseGeometry(exercise: string, allFramesLandmarks: any[][]): AnalysisResult {
   if (!allFramesLandmarks || allFramesLandmarks.length === 0) {
-    return { minAngle: 0, maxAngle: 0, singleCue: "Nessun dato sufficiente rilevato nel video." };
+    return { minAngle: 0, maxAngle: 0, trendSummary: "Dati insufficienti." };
   }
 
   let angles: number[] = [];
@@ -48,7 +45,6 @@ export function analyzeExercise(exercise: string, allFramesLandmarks: any[][]): 
 
     switch (exercise) {
       case 'squat': {
-        // Angolo del ginocchio sinistro (Anca: 23, Ginocchio: 25, Caviglia: 27)
         const hip = landmarks[LANDMARKS.LEFT_HIP];
         const knee = landmarks[LANDMARKS.LEFT_KNEE];
         const ankle = landmarks[LANDMARKS.LEFT_ANKLE];
@@ -58,7 +54,6 @@ export function analyzeExercise(exercise: string, allFramesLandmarks: any[][]): 
         break;
       }
       case 'panca_piana': {
-        // Angolo del gomito sinistro (Spalla: 11, Gomito: 13, Polso: 15)
         const shoulder = landmarks[LANDMARKS.LEFT_SHOULDER];
         const elbow = landmarks[LANDMARKS.LEFT_ELBOW];
         const wrist = landmarks[LANDMARKS.LEFT_WRIST];
@@ -68,7 +63,6 @@ export function analyzeExercise(exercise: string, allFramesLandmarks: any[][]): 
         break;
       }
       case 'alzate_laterali': {
-        // Angolo tra tronco e braccio (Anca: 23, Spalla: 11, Gomito: 13)
         const hip = landmarks[LANDMARKS.LEFT_HIP];
         const shoulder = landmarks[LANDMARKS.LEFT_SHOULDER];
         const elbow = landmarks[LANDMARKS.LEFT_ELBOW];
@@ -78,7 +72,6 @@ export function analyzeExercise(exercise: string, allFramesLandmarks: any[][]): 
         break;
       }
       default: {
-        // Fallback generico basato su anca-ginocchio-caviglia
         const hip = landmarks[LANDMARKS.LEFT_HIP];
         const knee = landmarks[LANDMARKS.LEFT_KNEE];
         const ankle = landmarks[LANDMARKS.LEFT_ANKLE];
@@ -91,36 +84,12 @@ export function analyzeExercise(exercise: string, allFramesLandmarks: any[][]): 
   });
 
   if (angles.length === 0) {
-    return { minAngle: 0, maxAngle: 0, singleCue: "Inquadratura non ottimale: assicurati di riprendere l'intero corpo." };
+    return { minAngle: 0, maxAngle: 0, trendSummary: "Impossibile tracciare l'articolazione chiave." };
   }
 
   const minAngle = Math.min(...angles);
   const maxAngle = Math.max(...angles);
+  const trendSummary = `Rilevati ${angles.length} frame validi. L'angolo parte da circa ${Math.round(angles[0])}°, scende al minimo di ${Math.round(minAngle)}° nel punto di inversione e chiude a ${Math.round(angles[angles.length - 1])}°.`;
 
-  // Generazione della regola del Singolo Cue in base all'esercizio
-  let singleCue = "Movimento stabile e fluido. Ottimo lavoro!";
-
-  if (exercise === 'squat') {
-    if (minAngle > 100) {
-      singleCue = "Affondo incompleto: prova a scendere con il bacino sotto la linea delle ginocchia.";
-    } else if (minAngle < 60) {
-      singleCue = "Ottima profondità! Ricorda di mantenere il petto ben aperto in risalita.";
-    } else {
-      singleCue = "Gestione del ROM corretta. Spingi forte con l'intero piede sul pavimento.";
-    }
-  } else if (exercise === 'panca_piana') {
-    if (minAngle > 90) {
-      singleCue = "Il bilanciere non tocca il petto: controlla il fermo al petto nella fase di discesa.";
-    } else {
-      singleCue = "Ottimo controllo al petto: spingi simmetricamente verso l'alto.";
-    }
-  } else if (exercise === 'alzate_laterali') {
-    if (maxAngle < 75) {
-      singleCue = "Arialo di più: porta i gomiti all'altezza delle spalle senza slanci di bacino.";
-    } else {
-      singleCue = "Buona apertura dei gomiti: controlla la fase negativa (discesa lenta).";
-    }
-  }
-
-  return { minAngle: Math.round(minAngle), maxAngle: Math.round(maxAngle), singleCue };
+  return { minAngle: Math.round(minAngle), maxAngle: Math.round(maxAngle), trendSummary };
 }

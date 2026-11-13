@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
-import { analyzeExercise } from './biomechanicsEngine';
-import type { AnalysisResult } from './biomechanicsEngine';
+import { analyzeExerciseGeometry, type AnalysisResult } from './biomechanicsEngine';
+import { getGeminiFeedback } from './geminiCoach';
 
 type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_laterali';
 
@@ -14,18 +14,21 @@ const EXERCISES: { id: Exercise; label: string; viewHint: string }[] = [
 ];
 
 const POSE_CONNECTIONS = [
-  [11, 12], [11, 13], [13, 15], // Braccio sinistro
-  [12, 14], [14, 16], // Braccio destro
-  [11, 23], [12, 24], [23, 24], // Torso / Bacino
-  [23, 25], [25, 27], // Gamba sinistra
-  [24, 26], [26, 28], // Gamba destra
+  [11, 12], [11, 13], [13, 15],
+  [12, 14], [14, 16],
+  [11, 23], [12, 24], [23, 24],
+  [23, 25], [25, 27],
+  [24, 26], [26, 28],
 ];
 
 export function App() {
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
-  const [status, setStatus] = useState<string>('Pronto. Seleziona un video dal rullino.');
+  const [apiKey, setApiKey] = useState<string>('');
+  const [status, setStatus] = useState<string>('Pronto. Inserisci la tua API Key e carica un video.');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [aiFeedback, setAiFeedback] = useState<string>('');
+  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -39,7 +42,8 @@ export function App() {
 
     setIsProcessing(true);
     setAnalysisResult(null);
-    setStatus('Caricamento modello AI in corso...');
+    setAiFeedback('');
+    setStatus('Caricamento modello AI locale in corso...');
     landmarksBufferRef.current = [];
 
     try {
@@ -70,17 +74,36 @@ export function App() {
         };
       });
 
-      setStatus('Analisi biomeccanica in corso...');
+      setStatus('Analisi biomeccanica locale in corso...');
       video.play();
 
       const processFrame = () => {
         if (video.ended || video.paused) {
           setIsProcessing(false);
-          setStatus('Analisi completata con successo!');
+          setStatus('Analisi geometrica completata!');
           
-          // Eseguiamo l'analisi matematica sui frame accumulati
-          const result = analyzeExercise(selectedExercise, landmarksBufferRef.current);
-          setAnalysisResult(result);
+          // 1. Calcolo geometrico locale
+          const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
+          setAnalysisResult(geomResult);
+
+          // 2. Richiesta di coaching tramite Gemini API
+          if (apiKey.trim()) {
+            setIsAiLoading(true);
+            setStatus('Generazione del feedback intelligente con Gemini...');
+            getGeminiFeedback(apiKey, selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
+              .then((feedback) => {
+                setAiFeedback(feedback);
+                setIsAiLoading(false);
+                setStatus('Analisi e Coaching completati con successo!');
+              })
+              .catch((err) => {
+                setAiFeedback(`Errore AI: ${err.message}`);
+                setIsAiLoading(false);
+                setStatus('Completato con errore IA.');
+              });
+          } else {
+            setAiFeedback("Inserisci una Google AI Studio API Key per ricevere il consiglio dell'IA.");
+          }
 
           landmarker.close();
           return;
@@ -137,7 +160,19 @@ export function App() {
   return (
     <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'sans-serif' }}>
       <h2>Second Opinion</h2>
-      <p style={{ fontSize: 14, color: '#555' }}>Analisi Biomeccanica Locale · Zero Upload</p>
+      <p style={{ fontSize: 14, color: '#555' }}>Biomeccanica Locale + Gemini AI Coach</p>
+
+      {/* Configurazione API Key */}
+      <div style={{ marginTop: 14, padding: 10, background: '#f8fafc', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>Google AI Studio API Key</label>
+        <input
+          type="password"
+          placeholder="Incolla qui la tua API Key..."
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          style={{ width: '100%', padding: 8, fontSize: 14, boxSizing: 'border-box' }}
+        />
+      </div>
 
       <label style={{ display: 'block', marginTop: 16, fontWeight: 'bold' }}>1. Scegli esercizio</label>
       <select
@@ -176,11 +211,20 @@ export function App() {
       </div>
 
       {analysisResult && (
-        <div style={{ marginTop: 20, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 8, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-          <h3 style={{ margin: '0 0 10px 0', color: '#38bdf8', fontSize: 18 }}>Singolo Cue & Risultato</h3>
-          <p style={{ margin: '6px 0', fontSize: 15 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
-          <div style={{ marginTop: 12, padding: 10, background: '#0f172a', borderRadius: 6, borderLeft: '4px solid #38bdf8' }}>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: '500' }}>💡 {analysisResult.singleCue}</p>
+        <div style={{ marginTop: 20, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 8 }}>
+          <h3 style={{ margin: '0 0 10px 0', color: '#38bdf8', fontSize: 18 }}>Analisi Geometrica Locale</h3>
+          <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
+          <p style={{ margin: '6px 0', fontSize: 13, color: '#94a3b8' }}>{analysisResult.trendSummary}</p>
+
+          <div style={{ marginTop: 16, borderTop: '1px solid #334155', paddingTop: 12 }}>
+            <h4 style={{ margin: '0 0 8px 0', color: '#f43f5e', fontSize: 16 }}>🤖 Gemini AI Coach (Singolo Cue)</h4>
+            {isAiLoading ? (
+              <p style={{ fontSize: 14, fontStyle: 'italic', color: '#cbd5e1' }}>L'intelligenza artificiale sta elaborando i dati geometrici...</p>
+            ) : (
+              <div style={{ padding: 10, background: '#0f172a', borderRadius: 6, borderLeft: '4px solid #f43f5e' }}>
+                <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5 }}>{aiFeedback}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
