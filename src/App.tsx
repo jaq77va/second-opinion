@@ -8,9 +8,9 @@ type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_lat
 const EXERCISES: { id: Exercise; label: string; icon: string; viewHint: string }[] = [
   { id: 'squat', label: 'Squat', icon: '🏋️‍♂️', viewHint: 'Inquadratura laterale o frontale a figura intera' },
   { id: 'stacco', label: 'Stacco da terra', icon: '⚡', viewHint: 'Inquadratura laterale a altezza bacino' },
-  { id: 'panca_piana', label: 'Panca piana', icon: '🏛️', viewHint: 'Inquadratura laterale o obliqua a 45°' },
+  { id: 'panca_piana', label: 'Panca piana', icon: '/images/panca.png', viewHint: 'Inquadratura laterale o obliqua a 45°' },
   { id: 'lat_machine', label: 'Lat machine', icon: '🦾', viewHint: 'Inquadratura posteriore o laterale' },
-  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🦅', viewHint: 'Inquadratura frontale dal bacino in su' },
+  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '/images/alzate.png', viewHint: 'Inquadratura frontale dal bacino in su' },
 ];
 
 const POSE_CONNECTIONS = [
@@ -35,7 +35,6 @@ export function App() {
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [repCount, setRepCount] = useState<number>(0);
   
-  // Doppi indicatori di sforzo separati per fase
   const [eccentricEffort, setEccentricEffort] = useState<number>(0);
   const [concentricEffort, setConcentricEffort] = useState<number>(0);
 
@@ -92,6 +91,7 @@ export function App() {
 
         video.src = URL.createObjectURL(file);
 
+        // RIPRISTINATE LE OTTIMIZZAZIONI MOBILE
         const MAX_WIDTH = 480;
         const FRAME_SKIP = 3;
         let frameCounter = 0;
@@ -153,6 +153,7 @@ export function App() {
             frameCounter++;
             let currentLandmarks: any = null;
 
+            // IL FRAME SKIPPING AGISCE QUI
             if (frameCounter % FRAME_SKIP === 0) {
               const result = landmarker.detectForVideo(video, performance.now());
               if (result.landmarks && result.landmarks.length > 0) {
@@ -169,7 +170,6 @@ export function App() {
                     primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
                   }
 
-                  // Determinazione della fase in base alla variazione dell'angolo rispetto al frame precedente
                   const isDescending = primaryAngle < prevAngle;
                   const minAngleBound = 70;
                   const maxAngleBound = 180;
@@ -177,10 +177,8 @@ export function App() {
                   currentEffort = Math.max(0, Math.min(100, Math.round(currentEffort)));
 
                   if (isDescending) {
-                    // Fase Eccentrica (discesa / allungamento)
                     setEccentricEffort(currentEffort);
                   } else {
-                    // Fase Concentrica (salita / spinta)
                     setConcentricEffort(currentEffort);
                   }
 
@@ -199,6 +197,7 @@ export function App() {
 
             if (ctx) {
               ctx.clearRect(0, 0, canvas.width, canvas.height);
+              // RENDERIZZAZIONE SUL CANVAS DOWNSCALATO A 480PX
               ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
 
               if (currentLandmarks) {
@@ -253,7 +252,6 @@ export function App() {
     }}>
       <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
         
-        {/* Intestazione */}
         <div style={{ textAlign: 'center', marginBottom: 24, paddingTop: 10 }}>
           <h1 style={{ margin: '0 0 6px 0', fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', color: '#38bdf8' }}>
             Second Opinion
@@ -267,7 +265,6 @@ export function App() {
           1. Scorri e clicca per selezionare l'esercizio
         </label>
 
-        {/* Carosello Singola Card */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             type="button"
@@ -382,7 +379,6 @@ export function App() {
           </button>
         </div>
 
-        {/* Voce Esercizio Selezionato */}
         <div
           style={{
             marginTop: 14,
@@ -427,7 +423,6 @@ export function App() {
           </div>
         )}
 
-        {/* Box Contatore Reps + Doppi Level Meter (Eccentrico & Concentrico) */}
         <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
           <div>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Ripetizioni</span>
@@ -435,7 +430,6 @@ export function App() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {/* Barra Fase Eccentrica */}
             <div style={{ textAlign: 'center' }}>
               <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', fontWeight: 700, marginBottom: 2 }}>ECC</span>
               <div style={{ width: 14, height: 50, background: '#0f172a', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', border: '1px solid #334155', margin: '0 auto' }}>
@@ -453,7 +447,6 @@ export function App() {
               </span>
             </div>
 
-            {/* Barra Fase Concentrica */}
             <div style={{ textAlign: 'center' }}>
               <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', fontWeight: 700, marginBottom: 2 }}>CON</span>
               <div style={{ width: 14, height: 50, background: '#0f172a', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', border: '1px solid #334155', margin: '0 auto' }}>
