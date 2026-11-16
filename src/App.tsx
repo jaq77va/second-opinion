@@ -160,38 +160,74 @@ export function App() {
                 currentLandmarks = result.landmarks[0];
                 landmarksBufferRef.current.push(currentLandmarks);
 
-                try {
-                  let primaryAngle = 180;
-                  if (selectedExercise === 'squat' || selectedExercise === 'stacco') {
-                    primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
-                  } else if (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
-                    primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
-                  } else if (selectedExercise === 'alzate_laterali') {
-                    primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
+              try {
+                let primaryAngle = 180;
+                let minThresh = 110;
+                let maxThresh = 150;
+
+                if (selectedExercise === 'squat' || selectedExercise === 'stacco') {
+                  primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
+                  minThresh = 110; // Sotto questo angolo si scende (bottom dello squat)
+                  maxThresh = 150; // Sopra questo angolo la rep è chiusa
+                } else if (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
+                  primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
+                  minThresh = 90;  
+                  maxThresh = 150;
+                } else if (selectedExercise === 'alzate_laterali') {
+                  // Per le alzate laterali, l'angolo tra anca(23), spalla(11) e gomito(13) diminuisce 
+                  // quando sollevi le braccia lateralmente (portandole in fuori/alto).
+                  primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
+                  minThresh = 85;  // Braccia sollevate (massima abduzione)
+                  maxThresh = 140; // Braccia lungo i fianchi (posizione di partenza)
+                }
+
+                // Calcolo dello sforzo in percentuale
+                const minAngleBound = selectedExercise === 'alzate_laterali' ? 60 : 70;
+                const maxAngleBound = selectedExercise === 'alzate_laterali' ? 160 : 180;
+                let currentEffort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
+                currentEffort = Math.max(0, Math.min(100, Math.round(currentEffort)));
+
+                const isDescending = primaryAngle < prevAngle;
+
+                if (selectedExercise === 'alzate_laterali') {
+                  // Nelle alzate laterali la fase concentrica è la salita (angolo che diminuisce)
+                  if (isDescending) {
+                    setConcentricEffort(currentEffort);
+                  } else {
+                    setEccentricEffort(currentEffort);
                   }
-
-                  const isDescending = primaryAngle < prevAngle;
-                  const minAngleBound = 70;
-                  const maxAngleBound = 180;
-                  let currentEffort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
-                  currentEffort = Math.max(0, Math.min(100, Math.round(currentEffort)));
-
+                } else {
+                  // Negli esercizi come lo squat la fase eccentrica è la discesa
                   if (isDescending) {
                     setEccentricEffort(currentEffort);
                   } else {
                     setConcentricEffort(currentEffort);
                   }
+                }
 
-                  prevAngle = primaryAngle;
+                prevAngle = primaryAngle;
 
-                  if (repState === 'UP' && primaryAngle < 110) {
+                // Macchina a stati per il conteggio delle ripetizioni
+                if (selectedExercise === 'alzate_laterali') {
+                  // Nelle alzate laterali si parte in basso (angolo alto ~140°), si sale (angolo < 85°) e si torna giù
+                  if (repState === 'UP' && primaryAngle < minThresh) {
+                    repState = 'DOWN'; // Apice dell'alzata
+                  } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
+                    repState = 'UP';   // Ritorno alla posizione di partenza
+                    localReps++;
+                    setRepCount(localReps);
+                  }
+                } else {
+                  // Logica standard per Squat / Stacco
+                  if (repState === 'UP' && primaryAngle < minThresh) {
                     repState = 'DOWN';
-                  } else if (repState === 'DOWN' && primaryAngle > 150) {
+                  } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
                     repState = 'UP';
                     localReps++;
                     setRepCount(localReps);
                   }
-                } catch (err) {}
+                }
+              } catch (err) {}
               }
             }
 
