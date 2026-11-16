@@ -5,12 +5,12 @@ import { getGeminiFeedback } from './geminiCoach';
 
 type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_laterali';
 
-const EXERCISES: { id: Exercise; label: string; viewHint: string }[] = [
-  { id: 'squat', label: 'Squat', viewHint: 'Inquadratura laterale o frontale a figura intera' },
-  { id: 'stacco', label: 'Stacco da terra', viewHint: 'Inquadratura laterale a altezza bacino' },
-  { id: 'panca_piana', label: 'Panca piana', viewHint: 'Inquadratura laterale o obliqua a 45°' },
-  { id: 'lat_machine', label: 'Lat machine', viewHint: 'Inquadratura posteriore o laterale' },
-  { id: 'alzate_laterali', label: 'Alzate laterali manubri', viewHint: 'Inquadratura frontale dal bacino in su' },
+const EXERCISES: { id: Exercise; label: string; icon: string; viewHint: string }[] = [
+  { id: 'squat', label: 'Squat', icon: '🏋️‍♂️', viewHint: 'Inquadratura laterale o frontale a figura intera' },
+  { id: 'stacco', label: 'Stacco da terra', icon: '⚡', viewHint: 'Inquadratura laterale a altezza bacino' },
+  { id: 'panca_piana', label: 'Panca piana', icon: '🏛️', viewHint: 'Inquadratura laterale o obliqua a 45°' },
+  { id: 'lat_machine', label: 'Lat machine', icon: '🦾', viewHint: 'Inquadratura posteriore o laterale' },
+  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🦅', viewHint: 'Inquadratura frontale dal bacino in su' },
 ];
 
 const POSE_CONNECTIONS = [
@@ -215,34 +215,57 @@ export function App() {
   };
 
   return (
-    <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'sans-serif' }}>
-      <h2>Second Opinion</h2>
-      <p style={{ fontSize: 14, color: '#555' }}>Biomeccanica Locale · Zero Upload Video</p>
-
-      <label style={{ display: 'block', marginTop: 16, fontWeight: 'bold' }}>1. Scegli esercizio</label>
-      <select
-        value={selectedExercise}
-        onChange={(e) => setSelectedExercise(e.target.value as Exercise)}
-        style={{ width: '100%', padding: 10, marginTop: 6, fontSize: 16 }}
-        disabled={isProcessing}
-      >
-        {EXERCISES.map((ex) => (
-          <option key={ex.id} value={ex.id}>
-            {ex.label}
-          </option>
-        ))}
-      </select>
-
-      <div style={{ background: '#f4f6f8', padding: 10, borderRadius: 6, marginTop: 10, fontSize: 13 }}>
-        <strong>Inquadratura consigliata:</strong> {currentHint}
+    <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'sans-serif', color: '#1e293b' }}>
+      <div style={{ textAlign: 'center', marginBottom: 20 }}>
+        <h2 style={{ margin: '0 0 4px 0', fontSize: 24, color: '#0f172a' }}>Second Opinion</h2>
+        <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>Biomeccanica Locale · Zero Upload Video</p>
       </div>
 
-      <label style={{ display: 'block', marginTop: 20, fontWeight: 'bold' }}>2. Carica video</label>
+      <label style={{ display: 'block', marginBottom: 8, fontWeight: 'bold', fontSize: 14 }}>1. Scegli esercizio</label>
+      
+      {/* Carosello Orizzontale a Card */}
+      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 8, scrollbarWidth: 'none' }}>
+        {EXERCISES.map((ex) => {
+          const isSelected = selectedExercise === ex.id;
+          return (
+            <button
+              key={ex.id}
+              onClick={() => setSelectedExercise(ex.id)}
+              disabled={isProcessing}
+              style={{
+                flex: '0 0 auto',
+                width: 100,
+                padding: '12px 8px',
+                borderRadius: 12,
+                border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                background: isSelected ? '#eff6ff' : '#ffffff',
+                color: isSelected ? '#0369a1' : '#334155',
+                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: isSelected ? '0 4px 12px rgba(2, 132, 199, 0.15)' : '0 2px 4px rgba(0,0,0,0.02)',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span style={{ fontSize: 24 }}>{ex.icon}</span>
+              <span style={{ fontSize: 12, fontWeight: isSelected ? 'bold' : '600', textAlign: 'center' }}>{ex.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, marginTop: 12, fontSize: 13, border: '1px solid #e2e8f0', color: '#475569' }}>
+        <strong>💡 Inquadratura consigliata:</strong> {currentHint}
+      </div>
+
+      <label style={{ display: 'block', marginTop: 20, marginBottom: 8, fontWeight: 'bold', fontSize: 14 }}>2. Carica video</label>
       <input
         type="file"
         accept="video/*"
         onChange={handleVideoUpload}
-        style={{ marginTop: 8, width: '100%' }}
+        style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 14 }}
         disabled={isProcessing}
       />
 
@@ -258,20 +281,21 @@ export function App() {
         </div>
       )}
 
-      <div style={{ marginTop: 15, padding: 15, background: '#0f172a', color: '#fff', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Box Contatore Reps + Level Meter Verticale */}
+      <div style={{ marginTop: 15, padding: 15, background: '#0f172a', color: '#fff', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
         <div>
-          <span style={{ fontSize: 15, fontWeight: 'bold', color: '#94a3b8', display: 'block' }}>Ripetizioni completate</span>
-          <span style={{ fontSize: 28, fontWeight: '900', color: '#38bdf8' }}>{repCount}</span>
+          <span style={{ fontSize: 13, fontWeight: '600', color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ripetizioni</span>
+          <span style={{ fontSize: 32, fontWeight: '900', color: '#38bdf8', lineHeight: 1.1 }}>{repCount}</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: 11, color: '#94a3b8', display: 'block' }}>Sforzo Corrente</span>
-            <span style={{ fontSize: 13, fontWeight: 'bold', color: getEffortColor(currentEffortPercent) }}>
+            <span style={{ fontSize: 11, color: '#94a3b8', display: 'block' }}>Sforzo</span>
+            <span style={{ fontSize: 14, fontWeight: 'bold', color: getEffortColor(currentEffortPercent) }}>
               {currentEffortPercent}%
             </span>
           </div>
-          <div style={{ width: 14, height: 45, background: '#1e293b', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', border: '1px solid #334155' }}>
+          <div style={{ width: 14, height: 48, background: '#1e293b', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', border: '1px solid #334155' }}>
             <div 
               style={{ 
                 width: '100%', 
@@ -284,17 +308,17 @@ export function App() {
         </div>
       </div>
 
-      <div style={{ position: 'relative', marginTop: 15, width: '100%', background: '#000', borderRadius: 8, overflow: 'hidden' }}>
+      <div style={{ position: 'relative', marginTop: 15, width: '100%', background: '#000', borderRadius: 10, overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
         <video ref={videoRef} style={{ display: 'none' }} muted playsInline />
         <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
       </div>
 
-      <div style={{ marginTop: 15, padding: 12, border: '1px solid #ddd', borderRadius: 6, background: '#fafafa' }}>
+      <div style={{ marginTop: 15, padding: 12, border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc', fontSize: 14 }}>
         <strong>Stato:</strong> {status}
       </div>
 
       {analysisResult && (
-        <div style={{ marginTop: 20, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 8 }}>
+        <div style={{ marginTop: 20, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 10, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
           <h3 style={{ margin: '0 0 10px 0', color: '#38bdf8', fontSize: 18 }}>Analisi Geometrica Locale</h3>
           <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Ripetizioni valide:</strong> {repCount}</p>
           <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
@@ -305,7 +329,7 @@ export function App() {
             {isAiLoading ? (
               <p style={{ fontSize: 14, fontStyle: 'italic', color: '#cbd5e1' }}>Il server sta interrogando Gemini con i dati geometrici...</p>
             ) : (
-              <div style={{ padding: 10, background: '#0f172a', borderRadius: 6, borderLeft: '4px solid #f43f5e' }}>
+              <div style={{ padding: 12, background: '#0f172a', borderRadius: 8, borderLeft: '4px solid #f43f5e' }}>
                 <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5 }}>{aiFeedback}</p>
               </div>
             )}
