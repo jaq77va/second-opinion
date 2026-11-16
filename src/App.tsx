@@ -5,12 +5,12 @@ import { getGeminiFeedback } from './geminiCoach';
 
 type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_laterali';
 
-const EXERCISES: { id: Exercise; label: string; icon: string; viewHint: string }[] = [
-  { id: 'squat', label: 'Squat', icon: '🏋️‍♂️', viewHint: 'Inquadratura laterale o frontale a figura intera' },
-  { id: 'stacco', label: 'Stacco da terra', icon: '⚡', viewHint: 'Inquadratura laterale a altezza bacino' },
-  { id: 'panca_piana', label: 'Panca piana', icon: '🏛️', viewHint: 'Inquadratura laterale o obliqua a 45°' },
-  { id: 'lat_machine', label: 'Lat machine', icon: '🦾', viewHint: 'Inquadratura posteriore o laterale' },
-  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🦅', viewHint: 'Inquadratura frontale dal bacino in su' },
+const EXERCISES: { id: Exercise; label: string; image: string; viewHint: string }[] = [
+  { id: 'squat', label: 'Squat', image: '/images/squat.png', viewHint: 'Inquadratura laterale o frontale a figura intera' },
+  { id: 'stacco', label: 'Stacco da terra', image: '/images/stacco.png', viewHint: 'Inquadratura laterale a altezza bacino' },
+  { id: 'panca_piana', label: 'Panca piana', image: '/images/panca.png', viewHint: 'Inquadratura laterale o obliqua a 45°' },
+  { id: 'lat_machine', label: 'Lat machine', image: '/images/lat.png', viewHint: 'Inquadratura posteriore o laterale' },
+  { id: 'alzate_laterali', label: 'Alzate laterali', image: '/images/alzate.png', viewHint: 'Inquadratura frontale dal bacino in su' },
 ];
 
 const POSE_CONNECTIONS = [
@@ -42,8 +42,21 @@ export function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const landmarksBufferRef = useRef<any[][]>([]);
+  const carouselRef = useRef<HTMLDivElement | null>(null);
 
-  const currentHint = EXERCISES.find((ex) => ex.id === selectedExercise)?.viewHint;
+  const selectedExerciseObj = EXERCISES.find((ex) => ex.id === selectedExercise) || EXERCISES[0];
+  const currentHint = selectedExerciseObj.viewHint;
+
+  // Scorrimento carosello tramite frecce (PC)
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    if (!carouselRef.current) return;
+    const container = carouselRef.current;
+    const scrollAmount = container.clientWidth;
+    container.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth',
+    });
+  };
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -221,42 +234,150 @@ export function App() {
         <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>Biomeccanica Locale · Zero Upload Video</p>
       </div>
 
-      <label style={{ display: 'block', marginBottom: 8, fontWeight: 'bold', fontSize: 14 }}>1. Scegli esercizio</label>
-      
-      {/* Carosello Orizzontale a Card */}
-      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 8, scrollbarWidth: 'none' }}>
-        {EXERCISES.map((ex) => {
-          const isSelected = selectedExercise === ex.id;
-          return (
-            <button
-              key={ex.id}
-              onClick={() => setSelectedExercise(ex.id)}
-              disabled={isProcessing}
-              style={{
-                flex: '0 0 auto',
-                width: 100,
-                padding: '12px 8px',
-                borderRadius: 12,
-                border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
-                background: isSelected ? '#eff6ff' : '#ffffff',
-                color: isSelected ? '#0369a1' : '#334155',
-                cursor: isProcessing ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 6,
-                boxShadow: isSelected ? '0 4px 12px rgba(2, 132, 199, 0.15)' : '0 2px 4px rgba(0,0,0,0.02)',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <span style={{ fontSize: 24 }}>{ex.icon}</span>
-              <span style={{ fontSize: 12, fontWeight: isSelected ? 'bold' : '600', textAlign: 'center' }}>{ex.label}</span>
-            </button>
-          );
-        })}
+      <label style={{ display: 'block', marginBottom: 8, fontWeight: 'bold', fontSize: 14 }}>
+        1. Scorri e clicca per selezionare l'esercizio
+      </label>
+
+      {/* Carosello Singola Card (Swipe su Mobile + Frecce su PC) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          type="button"
+          onClick={() => scrollCarousel('left')}
+          disabled={isProcessing}
+          aria-label="Esercizio precedente"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: '50%',
+            border: '1px solid #cbd5e1',
+            background: '#ffffff',
+            color: '#0f172a',
+            fontSize: 16,
+            fontWeight: 'bold',
+            cursor: isProcessing ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
+          }}
+        >
+          ◀
+        </button>
+
+        <div
+          ref={carouselRef}
+          style={{
+            flex: 1,
+            display: 'flex',
+            overflowX: 'auto',
+            scrollSnapType: 'x mandatory',
+            scrollBehavior: 'smooth',
+            scrollbarWidth: 'none',
+            borderRadius: 14,
+          }}
+        >
+          {EXERCISES.map((ex) => {
+            const isSelected = selectedExercise === ex.id;
+            return (
+              <div
+                key={ex.id}
+                onClick={() => !isProcessing && setSelectedExercise(ex.id)}
+                style={{
+                  flex: '0 0 100%',
+                  scrollSnapAlign: 'center',
+                  boxSizing: 'border-box',
+                  padding: 10,
+                  borderRadius: 14,
+                  border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                  background: isSelected ? '#eff6ff' : '#ffffff',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 8,
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <div style={{ position: 'relative', width: '100%', height: 145, borderRadius: 10, overflow: 'hidden', background: '#0f172a' }}>
+                  <img
+                    src={ex.image}
+                    alt={ex.label}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                  {isSelected && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        background: '#0284c7',
+                        color: '#fff',
+                        fontSize: 11,
+                        fontWeight: 'bold',
+                        padding: '4px 8px',
+                        borderRadius: 20,
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+                      }}
+                    >
+                      ✓ Attivo
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: 15, fontWeight: 'bold', color: isSelected ? '#0369a1' : '#334155' }}>
+                  {ex.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => scrollCarousel('right')}
+          disabled={isProcessing}
+          aria-label="Esercizio successivo"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: '50%',
+            border: '1px solid #cbd5e1',
+            background: '#ffffff',
+            color: '#0f172a',
+            fontSize: 16,
+            fontWeight: 'bold',
+            cursor: isProcessing ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
+          }}
+        >
+          ▶
+        </button>
       </div>
 
-      <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, marginTop: 12, fontSize: 13, border: '1px solid #e2e8f0', color: '#475569' }}>
+      {/* Voce Esercizio Selezionato */}
+      <div
+        style={{
+          marginTop: 12,
+          padding: '10px 14px',
+          borderRadius: 8,
+          background: '#e0f2fe',
+          border: '1px solid #7dd3fc',
+          color: '#0c4a6e',
+          fontSize: 14,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <span><strong>Esercizio selezionato:</strong></span>
+        <span style={{ fontWeight: 'bold', fontSize: 15 }}>{selectedExerciseObj.label}</span>
+      </div>
+
+      <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, marginTop: 10, fontSize: 13, border: '1px solid #e2e8f0', color: '#475569' }}>
         <strong>💡 Inquadratura consigliata:</strong> {currentHint}
       </div>
 
