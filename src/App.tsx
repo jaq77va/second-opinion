@@ -8,9 +8,9 @@ type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_lat
 const EXERCISES: { id: Exercise; label: string; icon: string; viewHint: string }[] = [
   { id: 'squat', label: 'Squat', icon: '🏋️‍♂️', viewHint: 'Inquadratura laterale o frontale a figura intera' },
   { id: 'stacco', label: 'Stacco da terra', icon: '⚡', viewHint: 'Inquadratura laterale a altezza bacino' },
-  { id: 'panca_piana', label: 'Panca piana', icon: '/images/panca.png', viewHint: 'Inquadratura laterale o obliqua a 45°' },
+  { id: 'panca_piana', label: 'Panca piana', icon: '🏛️', viewHint: 'Inquadratura laterale o obliqua a 45°' },
   { id: 'lat_machine', label: 'Lat machine', icon: '🦾', viewHint: 'Inquadratura posteriore o laterale' },
-  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '/images/alzate.png', viewHint: 'Inquadratura frontale dal bacino in su' },
+  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🦅', viewHint: 'Inquadratura frontale dal bacino in su' },
 ];
 
 const POSE_CONNECTIONS = [
