@@ -65,15 +65,31 @@ export function App() {
 
       video.src = URL.createObjectURL(file);
 
+      // Parametri di ottimizzazione per mobile (Redmi Note 14 e dispositivi simili)
+      const MAX_WIDTH = 480; // Larghezza massima ridotta per alleggerire la CPU/RAM
+      const FRAME_SKIP = 3;  // Elabora 1 fotogramma ogni 3 (salta gli altri 2)
+      let frameCounter = 0;
+
+      let targetWidth = 640;
+      let targetHeight = 480;
+
       await new Promise<void>((resolve) => {
         video.onloadedmetadata = () => {
-          canvas.width = video.videoWidth || 640;
-          canvas.height = video.videoHeight || 480;
+          const originalWidth = video.videoWidth || 640;
+          const originalHeight = video.videoHeight || 480;
+
+          // Ridimensionamento aggressivo mantenendo le proporzioni
+          const scale = MAX_WIDTH / originalWidth;
+          targetWidth = MAX_WIDTH;
+          targetHeight = Math.round(originalHeight * scale);
+
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
           resolve();
         };
       });
 
-      setStatus('Analisi biomeccanica locale in corso...');
+      setStatus('Analisi biomeccanica locale ottimizzata in corso...');
       video.play();
 
       const processFrame = () => {
@@ -105,37 +121,42 @@ export function App() {
           return;
         }
 
-        const result = landmarker.detectForVideo(video, performance.now());
+        frameCounter++;
+        let currentLandmarks: any = null;
 
-        if (result.landmarks && result.landmarks.length > 0) {
-          landmarksBufferRef.current.push(result.landmarks[0]);
+        // FRAME SKIPPING: Esegue il rilevamento Pose solo sul frame stabilito
+        if (frameCounter % FRAME_SKIP === 0) {
+          const result = landmarker.detectForVideo(video, performance.now());
+          if (result.landmarks && result.landmarks.length > 0) {
+            currentLandmarks = result.landmarks[0];
+            landmarksBufferRef.current.push(currentLandmarks);
+          }
         }
 
         if (ctx) {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          // Disegna il video scalato sul canvas ridotto
+          ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
 
-          if (result.landmarks && result.landmarks.length > 0) {
-            const landmarks = result.landmarks[0];
-
+          if (currentLandmarks) {
             ctx.strokeStyle = '#00ffcc';
             ctx.lineWidth = 3;
             POSE_CONNECTIONS.forEach(([i, j]) => {
-              const p1 = landmarks[i];
-              const p2 = landmarks[j];
+              const p1 = currentLandmarks[i];
+              const p2 = currentLandmarks[j];
               if (p1 && p2 && p1.visibility && p1.visibility > 0.5 && p2.visibility && p2.visibility > 0.5) {
                 ctx.beginPath();
-                ctx.moveTo(p1.x * canvas.width, p1.y * canvas.height);
-                ctx.lineTo(p2.x * canvas.width, p2.y * canvas.height);
+                ctx.moveTo(p1.x * targetWidth, p1.y * targetHeight);
+                ctx.lineTo(p2.x * targetWidth, p2.y * targetHeight);
                 ctx.stroke();
               }
             });
 
             ctx.fillStyle = '#ff0055';
-            landmarks.forEach((lm) => {
+            currentLandmarks.forEach((lm: any) => {
               if (lm.visibility && lm.visibility > 0.5) {
                 ctx.beginPath();
-                ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 4, 0, 2 * Math.PI);
+                ctx.arc(lm.x * targetWidth, lm.y * targetHeight, 4, 0, 2 * Math.PI);
                 ctx.fill();
               }
             });
