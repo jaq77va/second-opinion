@@ -5,12 +5,12 @@ import { getGeminiFeedback } from './geminiCoach';
 
 type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_laterali';
 
-const EXERCISES: { id: Exercise; label: string; image: string; viewHint: string }[] = [
-  { id: 'squat', label: 'Squat', image: '/images/squat.png', viewHint: 'Inquadratura laterale o frontale a figura intera' },
-  { id: 'stacco', label: 'Stacco da terra', image: '/images/stacco.png', viewHint: 'Inquadratura laterale a altezza bacino' },
-  { id: 'panca_piana', label: 'Panca piana', image: '/images/panca.png', viewHint: 'Inquadratura laterale o obliqua a 45°' },
-  { id: 'lat_machine', label: 'Lat machine', image: '/images/lat.png', viewHint: 'Inquadratura posteriore o laterale' },
-  { id: 'alzate_laterali', label: 'Alzate laterali', image: '/images/alzate.png', viewHint: 'Inquadratura frontale dal bacino in su' },
+const EXERCISES: { id: Exercise; label: string; icon: string; viewHint: string }[] = [
+  { id: 'squat', label: 'Squat', icon: '🏋️‍♂️', viewHint: 'Inquadratura laterale o frontale a figura intera' },
+  { id: 'stacco', label: 'Stacco da terra', icon: '⚡', viewHint: 'Inquadratura laterale a altezza bacino' },
+  { id: 'panca_piana', label: 'Panca piana', icon: '🏛️', viewHint: 'Inquadratura laterale o obliqua a 45°' },
+  { id: 'lat_machine', label: 'Lat machine', icon: '🦾', viewHint: 'Inquadratura posteriore o laterale' },
+  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🦅', viewHint: 'Inquadratura frontale dal bacino in su' },
 ];
 
 const POSE_CONNECTIONS = [
@@ -237,7 +237,7 @@ export function App() {
         1. Scorri e clicca per selezionare l'esercizio
       </label>
 
-      {/* Carosello Singola Card con Icone Fotografiche */}
+      {/* Carosello Singola Card con Icone (Emoji) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <button
           type="button"
@@ -286,7 +286,7 @@ export function App() {
                   flex: '0 0 100%',
                   scrollSnapAlign: 'center',
                   boxSizing: 'border-box',
-                  padding: 10,
+                  padding: 16,
                   borderRadius: 14,
                   border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
                   background: isSelected ? '#eff6ff' : '#ffffff',
@@ -294,36 +294,31 @@ export function App() {
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 8,
+                  gap: 10,
                   transition: 'all 0.2s ease',
+                  position: 'relative',
                 }}
               >
-                <div style={{ position: 'relative', width: '100%', height: 145, borderRadius: 10, overflow: 'hidden', background: '#0f172a' }}>
-                  <img
-                    src={ex.image}
-                    alt={ex.label}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  />
-                  {isSelected && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        top: 8,
-                        right: 8,
-                        background: '#0284c7',
-                        color: '#fff',
-                        fontSize: 11,
-                        fontWeight: 'bold',
-                        padding: '4px 8px',
-                        borderRadius: 20,
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
-                      }}
-                    >
-                      ✓ Attivo
-                    </span>
-                  )}
-                </div>
-                <span style={{ fontSize: 15, fontWeight: 'bold', color: isSelected ? '#0369a1' : '#334155' }}>
+                {isSelected && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      background: '#0284c7',
+                      color: '#fff',
+                      fontSize: 11,
+                      fontWeight: 'bold',
+                      padding: '3px 8px',
+                      borderRadius: 20,
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                    }}
+                  >
+                    ✓ Attivo
+                  </span>
+                )}
+                <span style={{ fontSize: 40, lineHeight: 1 }}>{ex.icon}</span>
+                <span style={{ fontSize: 16, fontWeight: 'bold', color: isSelected ? '#0369a1' : '#334155' }}>
                   {ex.label}
                 </span>
               </div>
