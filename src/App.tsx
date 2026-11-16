@@ -21,10 +21,19 @@ const POSE_CONNECTIONS = [
   [24, 26], [26, 28],
 ];
 
+function calculateLiveAngle(a: any, b: any, c: any): number {
+  const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+  let angle = Math.abs((radians * 180.0) / Math.PI);
+  if (angle > 180.0) angle = 360 - angle;
+  return Math.round(angle);
+}
+
 export function App() {
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
   const [status, setStatus] = useState<string>('Pronto. Seleziona un esercizio e carica il video.');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [progressPercent, setProgressPercent] = useState<number>(0);
+  const [repCount, setRepCount] = useState<number>(0);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
@@ -35,143 +44,159 @@ export function App() {
 
   const currentHint = EXERCISES.find((ex) => ex.id === selectedExercise)?.viewHint;
 
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !videoRef.current || !canvasRef.current) return;
 
     setIsProcessing(true);
+    setProgressPercent(0);
     setAnalysisResult(null);
     setAiFeedback('');
+    setRepCount(0);
     setStatus('Caricamento modello AI locale in corso...');
     landmarksBufferRef.current = [];
 
-    try {
-      const vision = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
-      );
-
-      const landmarker = await PoseLandmarker.createFromOptions(vision, {
+    FilesetResolver.forVisionTasks(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+    ).then((vision) => {
+      PoseLandmarker.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath: './models/pose_landmarker_lite.task',
           delegate: 'GPU',
         },
         runningMode: 'VIDEO',
         numPoses: 1,
-      });
+      }).then((landmarker) => {
+        const video = videoRef.current!;
+        const canvas = canvasRef.current!;
+        const ctx = canvas.getContext('2d');
 
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
+        video.src = URL.createObjectURL(file);
 
-      video.src = URL.createObjectURL(file);
+        const MAX_WIDTH = 480;
+        const FRAME_SKIP = 3;
+        let frameCounter = 0;
+        let targetWidth = 640;
+        let targetHeight = 480;
 
-      // Parametri di ottimizzazione per mobile (Redmi Note 14 e dispositivi simili)
-      const MAX_WIDTH = 480; // Larghezza massima ridotta per alleggerire la CPU/RAM
-      const FRAME_SKIP = 3;  // Elabora 1 fotogramma ogni 3 (salta gli altri 2)
-      let frameCounter = 0;
+        let repState = 'UP';
+        let localReps = 0;
 
-      let targetWidth = 640;
-      let targetHeight = 480;
-
-      await new Promise<void>((resolve) => {
         video.onloadedmetadata = () => {
           const originalWidth = video.videoWidth || 640;
           const originalHeight = video.videoHeight || 480;
-
-          // Ridimensionamento aggressivo mantenendo le proporzioni
           const scale = MAX_WIDTH / originalWidth;
           targetWidth = MAX_WIDTH;
           targetHeight = Math.round(originalHeight * scale);
 
           canvas.width = targetWidth;
           canvas.height = targetHeight;
-          resolve();
+
+          setStatus('Analisi biomeccanica e conteggio reps in corso...');
+          video.play();
+
+          const processFrame = () => {
+            if (video.duration) {
+              const currentProgress = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
+              setProgressPercent(currentProgress);
+            }
+
+            if (video.ended || video.paused) {
+              setIsProcessing(false);
+              setProgressPercent(100);
+              setStatus('Analisi geometrica completata!');
+              
+              const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
+              setAnalysisResult(geomResult);
+
+              setIsAiLoading(true);
+              setStatus('Generazione del feedback intelligente con Gemini (Server)...');
+              
+              getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
+                .then((feedback) => {
+                  setAiFeedback(feedback);
+                  setIsAiLoading(false);
+                  setStatus('Analisi e Coaching completati con successo!');
+                })
+                .catch((err) => {
+                  setAiFeedback(`Errore AI: ${err.message}`);
+                  setIsAiLoading(false);
+                  setStatus('Completato con errore IA.');
+                });
+
+              landmarker.close();
+              return;
+            }
+
+            frameCounter++;
+            let currentLandmarks: any = null;
+
+            if (frameCounter % FRAME_SKIP === 0) {
+              const result = landmarker.detectForVideo(video, performance.now());
+              if (result.landmarks && result.landmarks.length > 0) {
+                currentLandmarks = result.landmarks[0];
+                landmarksBufferRef.current.push(currentLandmarks);
+
+                try {
+                  let primaryAngle = 180;
+                  if (selectedExercise === 'squat' || selectedExercise === 'stacco') {
+                    primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
+                  } else if (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
+                    primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
+                  } else if (selectedExercise === 'alzate_laterali') {
+                    primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
+                  }
+
+                  if (repState === 'UP' && primaryAngle < 110) {
+                    repState = 'DOWN';
+                  } else if (repState === 'DOWN' && primaryAngle > 150) {
+                    repState = 'UP';
+                    localReps++;
+                    setRepCount(localReps);
+                  }
+                } catch (err) {}
+              }
+            }
+
+            if (ctx) {
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+
+              if (currentLandmarks) {
+                ctx.strokeStyle = '#00ffcc';
+                ctx.lineWidth = 3;
+                POSE_CONNECTIONS.forEach(([i, j]) => {
+                  const p1 = currentLandmarks[i];
+                  const p2 = currentLandmarks[j];
+                  if (p1 && p2 && p1.visibility && p1.visibility > 0.5 && p2.visibility && p2.visibility > 0.5) {
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x * targetWidth, p1.y * targetHeight);
+                    ctx.lineTo(p2.x * targetWidth, p2.y * targetHeight);
+                    ctx.stroke();
+                  }
+                });
+
+                ctx.fillStyle = '#ff0055';
+                currentLandmarks.forEach((lm: any) => {
+                  if (lm.visibility && lm.visibility > 0.5) {
+                    ctx.beginPath();
+                    ctx.arc(lm.x * targetWidth, lm.y * targetHeight, 4, 0, 2 * Math.PI);
+                    ctx.fill();
+                  }
+                });
+              }
+            }
+
+            requestAnimationFrame(processFrame);
+          };
+
+          requestAnimationFrame(processFrame);
         };
       });
-
-      setStatus('Analisi biomeccanica locale ottimizzata in corso...');
-      video.play();
-
-      const processFrame = () => {
-        if (video.ended || video.paused) {
-          setIsProcessing(false);
-          setStatus('Analisi geometrica completata!');
-          
-          // 1. Calcolo geometrico locale
-          const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
-          setAnalysisResult(geomResult);
-
-          // 2. Richiesta di coaching protetta tramite il backend
-          setIsAiLoading(true);
-          setStatus('Generazione del feedback intelligente con Gemini (Server)...');
-          
-          getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
-            .then((feedback) => {
-              setAiFeedback(feedback);
-              setIsAiLoading(false);
-              setStatus('Analisi e Coaching completati con successo!');
-            })
-            .catch((err) => {
-              setAiFeedback(`Errore AI: ${err.message}`);
-              setIsAiLoading(false);
-              setStatus('Completato con errore IA.');
-            });
-
-          landmarker.close();
-          return;
-        }
-
-        frameCounter++;
-        let currentLandmarks: any = null;
-
-        // FRAME SKIPPING: Esegue il rilevamento Pose solo sul frame stabilito
-        if (frameCounter % FRAME_SKIP === 0) {
-          const result = landmarker.detectForVideo(video, performance.now());
-          if (result.landmarks && result.landmarks.length > 0) {
-            currentLandmarks = result.landmarks[0];
-            landmarksBufferRef.current.push(currentLandmarks);
-          }
-        }
-
-        if (ctx) {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          // Disegna il video scalato sul canvas ridotto
-          ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
-
-          if (currentLandmarks) {
-            ctx.strokeStyle = '#00ffcc';
-            ctx.lineWidth = 3;
-            POSE_CONNECTIONS.forEach(([i, j]) => {
-              const p1 = currentLandmarks[i];
-              const p2 = currentLandmarks[j];
-              if (p1 && p2 && p1.visibility && p1.visibility > 0.5 && p2.visibility && p2.visibility > 0.5) {
-                ctx.beginPath();
-                ctx.moveTo(p1.x * targetWidth, p1.y * targetHeight);
-                ctx.lineTo(p2.x * targetWidth, p2.y * targetHeight);
-                ctx.stroke();
-              }
-            });
-
-            ctx.fillStyle = '#ff0055';
-            currentLandmarks.forEach((lm: any) => {
-              if (lm.visibility && lm.visibility > 0.5) {
-                ctx.beginPath();
-                ctx.arc(lm.x * targetWidth, lm.y * targetHeight, 4, 0, 2 * Math.PI);
-                ctx.fill();
-              }
-            });
-          }
-        }
-
-        requestAnimationFrame(processFrame);
-      };
-
-      requestAnimationFrame(processFrame);
-
-    } catch (err) {
+    }).catch((err) => {
       setIsProcessing(false);
-      setStatus(`Errore: ${(err as Error).message}`);
-    }
+      setStatus(`Errore caricamento modello: ${(err as Error).message}`);
+    });
   };
 
   return (
@@ -206,7 +231,24 @@ export function App() {
         disabled={isProcessing}
       />
 
-      <div style={{ position: 'relative', marginTop: 20, width: '100%', background: '#000', borderRadius: 8, overflow: 'hidden' }}>
+      {isProcessing && (
+        <div style={{ marginTop: 15, padding: 12, background: '#1e293b', borderRadius: 8, color: '#fff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13 }}>
+            <span>Avanzamento analisi:</span>
+            <span style={{ fontWeight: 'bold', color: '#38bdf8' }}>{progressPercent}%</span>
+          </div>
+          <div style={{ width: '100%', background: '#334155', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ width: `${progressPercent}%`, background: '#38bdf8', height: '100%', transition: 'width 0.1s linear' }} />
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 15, padding: 15, background: '#0f172a', color: '#fff', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 15, fontWeight: 'bold', color: '#94a3b8' }}>Ripetizioni completate:</span>
+        <span style={{ fontSize: 28, fontWeight: '900', color: '#38bdf8' }}>{repCount}</span>
+      </div>
+
+      <div style={{ position: 'relative', marginTop: 15, width: '100%', background: '#000', borderRadius: 8, overflow: 'hidden' }}>
         <video ref={videoRef} style={{ display: 'none' }} muted playsInline />
         <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
       </div>
@@ -218,6 +260,7 @@ export function App() {
       {analysisResult && (
         <div style={{ marginTop: 20, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 8 }}>
           <h3 style={{ margin: '0 0 10px 0', color: '#38bdf8', fontSize: 18 }}>Analisi Geometrica Locale</h3>
+          <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Ripetizioni valide:</strong> {repCount}</p>
           <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
           <p style={{ margin: '6px 0', fontSize: 13, color: '#94a3b8' }}>{analysisResult.trendSummary}</p>
 
