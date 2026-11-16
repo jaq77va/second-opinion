@@ -5,12 +5,12 @@ import { getGeminiFeedback } from './geminiCoach';
 
 type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_laterali';
 
-const EXERCISES: { id: Exercise; label: string; icon: string; viewHint: string }[] = [
-  { id: 'squat', label: 'Squat', icon: '🏋️‍♂️', viewHint: 'Inquadratura laterale o frontale a figura intera' },
-  { id: 'stacco', label: 'Stacco da terra', icon: '⚡', viewHint: 'Inquadratura laterale a altezza bacino' },
-  { id: 'panca_piana', label: 'Panca piana', icon: '🏛️', viewHint: 'Inquadratura laterale o obliqua a 45°' },
-  { id: 'lat_machine', label: 'Lat machine', icon: '🦾', viewHint: 'Inquadratura posteriore o laterale' },
-  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🦅', viewHint: 'Inquadratura frontale dal bacino in su' },
+const EXERCISES: { id: Exercise; label: string; image: string; viewHint: string }[] = [
+  { id: 'squat', label: 'Squat', image: './images/squat.png', viewHint: 'Inquadratura laterale o frontale a figura intera' },
+  { id: 'stacco', label: 'Stacco da terra', image: './images/stacco.png', viewHint: 'Inquadratura laterale a altezza bacino' },
+  { id: 'panca_piana', label: 'Panca piana', image: './images/panca.png', viewHint: 'Inquadratura laterale o obliqua a 45°' },
+  { id: 'lat_machine', label: 'Lat machine', image: './images/lat.png', viewHint: 'Inquadratura posteriore o laterale' },
+  { id: 'alzate_laterali', label: 'Alzate laterali', image: './images/alzate.png', viewHint: 'Inquadratura frontale dal bacino in su' },
 ];
 
 const POSE_CONNECTIONS = [
@@ -223,7 +223,7 @@ export function App() {
 
       <label style={{ display: 'block', marginBottom: 8, fontWeight: 'bold', fontSize: 14 }}>1. Scegli esercizio</label>
       
-      {/* Carosello Orizzontale a Card */}
+      {/* Carosello Orizzontale a Card con Icone Fotografiche */}
       <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 8, scrollbarWidth: 'none' }}>
         {EXERCISES.map((ex) => {
           const isSelected = selectedExercise === ex.id;
@@ -234,12 +234,11 @@ export function App() {
               disabled={isProcessing}
               style={{
                 flex: '0 0 auto',
-                width: 100,
-                padding: '12px 8px',
+                width: 105,
+                padding: 6,
                 borderRadius: 12,
                 border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
                 background: isSelected ? '#eff6ff' : '#ffffff',
-                color: isSelected ? '#0369a1' : '#334155',
                 cursor: isProcessing ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
@@ -249,8 +248,14 @@ export function App() {
                 transition: 'all 0.2s ease',
               }}
             >
-              <span style={{ fontSize: 24 }}>{ex.icon}</span>
-              <span style={{ fontSize: 12, fontWeight: isSelected ? 'bold' : '600', textAlign: 'center' }}>{ex.label}</span>
+              <img 
+                src={ex.image} 
+                alt={ex.label} 
+                style={{ width: '100%', height: 56, objectFit: 'cover', borderRadius: 8 }} 
+              />
+              <span style={{ fontSize: 11, fontWeight: isSelected ? 'bold' : '600', textAlign: 'center', color: isSelected ? '#0369a1' : '#334155' }}>
+                {ex.label}
+              </span>
             </button>
           );
         })}
