@@ -227,230 +227,244 @@ export function App() {
   };
 
   return (
-    <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'sans-serif', color: '#1e293b' }}>
-      <div style={{ textAlign: 'center', marginBottom: 20 }}>
-        <h2 style={{ margin: '0 0 4px 0', fontSize: 24, color: '#0f172a' }}>Second Opinion</h2>
-        <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>Biomeccanica Locale · Zero Upload Video</p>
-      </div>
+    <div style={{ 
+      minHeight: '100vh', 
+      background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)', 
+      color: '#f8fafc',
+      paddingBottom: 40
+    }}>
+      <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+        
+        {/* Intestazione */}
+        <div style={{ textAlign: 'center', marginBottom: 24, paddingTop: 10 }}>
+          <h1 style={{ margin: '0 0 6px 0', fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', color: '#38bdf8' }}>
+            Second Opinion
+          </h1>
+          <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, fontWeight: 500, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+            Analisi Biomeccanica Intelligente
+          </p>
+        </div>
 
-      <label style={{ display: 'block', marginBottom: 8, fontWeight: 'bold', fontSize: 14 }}>
-        1. Scorri e clicca per selezionare l'esercizio
-      </label>
+        <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
+          1. Scorri e clicca per selezionare l'esercizio
+        </label>
 
-      {/* Carosello Singola Card con Icone (Emoji) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button
-          type="button"
-          onClick={() => scrollCarousel('left')}
-          disabled={isProcessing}
-          aria-label="Esercizio precedente"
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: '50%',
-            border: '1px solid #cbd5e1',
-            background: '#ffffff',
-            color: '#0f172a',
-            fontSize: 16,
-            fontWeight: 'bold',
-            cursor: isProcessing ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
-          }}
-        >
-          ◀
-        </button>
+        {/* Carosello Singola Card con Icone (Emoji) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => scrollCarousel('left')}
+            disabled={isProcessing}
+            aria-label="Esercizio precedente"
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              border: '1px solid #334155',
+              background: '#1e293b',
+              color: '#f8fafc',
+              fontSize: 16,
+              fontWeight: 'bold',
+              cursor: isProcessing ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)',
+            }}
+          >
+            ◀
+          </button>
 
-        <div
-          ref={carouselRef}
-          style={{
-            flex: 1,
-            display: 'flex',
-            overflowX: 'auto',
-            scrollSnapType: 'x mandatory',
-            scrollBehavior: 'smooth',
-            scrollbarWidth: 'none',
-            borderRadius: 14,
-          }}
-        >
-          {EXERCISES.map((ex) => {
-            const isSelected = selectedExercise === ex.id;
-            return (
-              <div
-                key={ex.id}
-                onClick={() => !isProcessing && setSelectedExercise(ex.id)}
-                style={{
-                  flex: '0 0 100%',
-                  scrollSnapAlign: 'center',
-                  boxSizing: 'border-box',
-                  padding: 16,
-                  borderRadius: 14,
-                  border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
-                  background: isSelected ? '#eff6ff' : '#ffffff',
-                  cursor: isProcessing ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 10,
-                  transition: 'all 0.2s ease',
-                  position: 'relative',
-                }}
-              >
-                {isSelected && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 8,
-                      background: '#0284c7',
-                      color: '#fff',
-                      fontSize: 11,
-                      fontWeight: 'bold',
-                      padding: '3px 8px',
-                      borderRadius: 20,
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                    }}
-                  >
-                    ✓ Attivo
+          <div
+            ref={carouselRef}
+            style={{
+              flex: 1,
+              display: 'flex',
+              overflowX: 'auto',
+              scrollSnapType: 'x mandatory',
+              scrollBehavior: 'smooth',
+              scrollbarWidth: 'none',
+              borderRadius: 14,
+            }}
+          >
+            {EXERCISES.map((ex) => {
+              const isSelected = selectedExercise === ex.id;
+              return (
+                <div
+                  key={ex.id}
+                  onClick={() => !isProcessing && setSelectedExercise(ex.id)}
+                  style={{
+                    flex: '0 0 100%',
+                    scrollSnapAlign: 'center',
+                    boxSizing: 'border-box',
+                    padding: 18,
+                    borderRadius: 14,
+                    border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
+                    background: isSelected ? '#1e293b' : '#0f172a',
+                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 10,
+                    transition: 'all 0.2s ease',
+                    position: 'relative',
+                    boxShadow: isSelected ? '0 10px 15px -3px rgba(56, 189, 248, 0.15)' : 'none',
+                  }}
+                >
+                  {isSelected && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: 10,
+                        right: 10,
+                        background: '#38bdf8',
+                        color: '#0f172a',
+                        fontSize: 11,
+                        fontWeight: 800,
+                        padding: '3px 9px',
+                        borderRadius: 20,
+                      }}
+                    >
+                      ✓ Attivo
+                    </span>
+                  )}
+                  <span style={{ fontSize: 42, lineHeight: 1 }}>{ex.icon}</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#38bdf8' : '#cbd5e1' }}>
+                    {ex.label}
                   </span>
-                )}
-                <span style={{ fontSize: 40, lineHeight: 1 }}>{ex.icon}</span>
-                <span style={{ fontSize: 16, fontWeight: 'bold', color: isSelected ? '#0369a1' : '#334155' }}>
-                  {ex.label}
-                </span>
-              </div>
-            );
-          })}
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => scrollCarousel('right')}
+            disabled={isProcessing}
+            aria-label="Esercizio successivo"
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              border: '1px solid #334155',
+              background: '#1e293b',
+              color: '#f8fafc',
+              fontSize: 16,
+              fontWeight: 'bold',
+              cursor: isProcessing ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)',
+            }}
+          >
+            ▶
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => scrollCarousel('right')}
-          disabled={isProcessing}
-          aria-label="Esercizio successivo"
+        {/* Voce Esercizio Selezionato */}
+        <div
           style={{
-            width: 38,
-            height: 38,
-            borderRadius: '50%',
-            border: '1px solid #cbd5e1',
-            background: '#ffffff',
-            color: '#0f172a',
-            fontSize: 16,
-            fontWeight: 'bold',
-            cursor: isProcessing ? 'not-allowed' : 'pointer',
+            marginTop: 14,
+            padding: '12px 16px',
+            borderRadius: 10,
+            background: '#1e293b',
+            border: '1px solid #334155',
+            color: '#f8fafc',
+            fontSize: 14,
             display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.2)',
           }}
         >
-          ▶
-        </button>
-      </div>
-
-      {/* Voce Esercizio Selezionato */}
-      <div
-        style={{
-          marginTop: 12,
-          padding: '10px 14px',
-          borderRadius: 8,
-          background: '#e0f2fe',
-          border: '1px solid #7dd3fc',
-          color: '#0c4a6e',
-          fontSize: 14,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <span><strong>Esercizio selezionato:</strong></span>
-        <span style={{ fontWeight: 'bold', fontSize: 15 }}>{selectedExerciseObj.label}</span>
-      </div>
-
-      <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, marginTop: 10, fontSize: 13, border: '1px solid #e2e8f0', color: '#475569' }}>
-        <strong>💡 Inquadratura consigliata:</strong> {currentHint}
-      </div>
-
-      <label style={{ display: 'block', marginTop: 20, marginBottom: 8, fontWeight: 'bold', fontSize: 14 }}>2. Carica video</label>
-      <input
-        type="file"
-        accept="video/*"
-        onChange={handleVideoUpload}
-        style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 14 }}
-        disabled={isProcessing}
-      />
-
-      {isProcessing && (
-        <div style={{ marginTop: 15, padding: 12, background: '#1e293b', borderRadius: 8, color: '#fff' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13 }}>
-            <span>Avanzamento analisi:</span>
-            <span style={{ fontWeight: 'bold', color: '#38bdf8' }}>{progressPercent}%</span>
-          </div>
-          <div style={{ width: '100%', background: '#334155', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-            <div style={{ width: `${progressPercent}%`, background: '#38bdf8', height: '100%', transition: 'width 0.1s linear' }} />
-          </div>
-        </div>
-      )}
-
-      {/* Box Contatore Reps + Level Meter Verticale */}
-      <div style={{ marginTop: 15, padding: 15, background: '#0f172a', color: '#fff', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-        <div>
-          <span style={{ fontSize: 13, fontWeight: '600', color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ripetizioni</span>
-          <span style={{ fontSize: 32, fontWeight: '900', color: '#38bdf8', lineHeight: 1.1 }}>{repCount}</span>
+          <span style={{ color: '#94a3b8' }}>Esercizio selezionato:</span>
+          <span style={{ fontWeight: 800, fontSize: 15, color: '#38bdf8' }}>{selectedExerciseObj.label}</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: 11, color: '#94a3b8', display: 'block' }}>Sforzo</span>
-            <span style={{ fontSize: 14, fontWeight: 'bold', color: getEffortColor(currentEffortPercent) }}>
-              {currentEffortPercent}%
-            </span>
+        <div style={{ background: '#1e293b', padding: 12, borderRadius: 10, marginTop: 12, fontSize: 13, border: '1px solid #334155', color: '#94a3b8' }}>
+          <strong style={{ color: '#e2e8f0' }}>💡 Inquadratura consigliata:</strong> {currentHint}
+        </div>
+
+        <label style={{ display: 'block', marginTop: 22, marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>2. Carica video</label>
+        <input
+          type="file"
+          accept="video/*"
+          onChange={handleVideoUpload}
+          style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid #334155', background: '#1e293b', color: '#f8fafc', fontSize: 14, cursor: 'pointer' }}
+          disabled={isProcessing}
+        />
+
+        {isProcessing && (
+          <div style={{ marginTop: 16, padding: 14, background: '#1e293b', borderRadius: 10, border: '1px solid #334155', color: '#fff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+              <span style={{ color: '#94a3b8' }}>Avanzamento analisi:</span>
+              <span style={{ fontWeight: 800, color: '#38bdf8' }}>{progressPercent}%</span>
+            </div>
+            <div style={{ width: '100%', background: '#0f172a', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ width: `${progressPercent}%`, background: '#38bdf8', height: '100%', transition: 'width 0.1s linear' }} />
+            </div>
           </div>
-          <div style={{ width: 14, height: 48, background: '#1e293b', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', border: '1px solid #334155' }}>
-            <div 
-              style={{ 
-                width: '100%', 
-                height: `${currentEffortPercent}%`, 
-                background: getEffortColor(currentEffortPercent),
-                transition: 'height 0.1s ease, background 0.2s ease' 
-              }} 
-            />
+        )}
+
+        {/* Box Contatore Reps + Level Meter Verticale */}
+        <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+          <div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Ripetizioni</span>
+            <span style={{ fontSize: 34, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>{repCount}</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', fontWeight: 600 }}>Sforzo</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: getEffortColor(currentEffortPercent) }}>
+                {currentEffortPercent}%
+              </span>
+            </div>
+            <div style={{ width: 14, height: 50, background: '#0f172a', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', border: '1px solid #334155' }}>
+              <div 
+                style={{ 
+                  width: '100%', 
+                  height: `${currentEffortPercent}%`, 
+                  background: getEffortColor(currentEffortPercent),
+                  transition: 'height 0.1s ease, background 0.2s ease' 
+                }} 
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      <div style={{ position: 'relative', marginTop: 15, width: '100%', background: '#000', borderRadius: 10, overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-        <video ref={videoRef} style={{ display: 'none' }} muted playsInline />
-        <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
-      </div>
-
-      <div style={{ marginTop: 15, padding: 12, border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc', fontSize: 14 }}>
-        <strong>Stato:</strong> {status}
-      </div>
-
-      {analysisResult && (
-        <div style={{ marginTop: 20, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 10, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-          <h3 style={{ margin: '0 0 10px 0', color: '#38bdf8', fontSize: 18 }}>Analisi Geometrica Locale</h3>
-          <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Ripetizioni valide:</strong> {repCount}</p>
-          <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
-          <p style={{ margin: '6px 0', fontSize: 13, color: '#94a3b8' }}>{analysisResult.trendSummary}</p>
-
-          <div style={{ marginTop: 16, borderTop: '1px solid #334155', paddingTop: 12 }}>
-            <h4 style={{ margin: '0 0 8px 0', color: '#f43f5e', fontSize: 16 }}>🤖 Gemini AI Coach (Singolo Cue)</h4>
-            {isAiLoading ? (
-              <p style={{ fontSize: 14, fontStyle: 'italic', color: '#cbd5e1' }}>Il server sta interrogando Gemini con i dati geometrici...</p>
-            ) : (
-              <div style={{ padding: 12, background: '#0f172a', borderRadius: 8, borderLeft: '4px solid #f43f5e' }}>
-                <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5 }}>{aiFeedback}</p>
-              </div>
-            )}
-          </div>
+        <div style={{ position: 'relative', marginTop: 16, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+          <video ref={videoRef} style={{ display: 'none' }} muted playsInline />
+          <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
         </div>
-      )}
+
+        <div style={{ marginTop: 16, padding: 14, border: '1px solid #334155', borderRadius: 10, background: '#1e293b', fontSize: 14, color: '#cbd5e1' }}>
+          <strong style={{ color: '#38bdf8' }}>Stato:</strong> {status}
+        </div>
+
+        {analysisResult && (
+          <div style={{ marginTop: 20, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin: '0 0 12px 0', color: '#38bdf8', fontSize: 18, fontWeight: 800 }}>Analisi Geometrica Locale</h3>
+            <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Ripetizioni valide:</strong> {repCount}</p>
+            <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
+            <p style={{ margin: '6px 0', fontSize: 13, color: '#94a3b8' }}>{analysisResult.trendSummary}</p>
+
+            <div style={{ marginTop: 18, borderTop: '1px solid #334155', paddingTop: 14 }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>🤖 Gemini AI Coach (Singolo Cue)</h4>
+              {isAiLoading ? (
+                <p style={{ fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Il server sta interrogando Gemini con i dati geometrici...</p>
+              ) : (
+                <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #f43f5e', border: '1px solid #334155' }}>
+                  <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: '#f8fafc' }}>{aiFeedback}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
