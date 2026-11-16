@@ -34,7 +34,11 @@ export function App() {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [repCount, setRepCount] = useState<number>(0);
-  const [currentEffortPercent, setCurrentEffortPercent] = useState<number>(0);
+  
+  // Doppi indicatori di sforzo separati per fase
+  const [eccentricEffort, setEccentricEffort] = useState<number>(0);
+  const [concentricEffort, setConcentricEffort] = useState<number>(0);
+
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
@@ -66,7 +70,8 @@ export function App() {
     setAnalysisResult(null);
     setAiFeedback('');
     setRepCount(0);
-    setCurrentEffortPercent(0);
+    setEccentricEffort(0);
+    setConcentricEffort(0);
     setStatus('Caricamento modello AI locale in corso...');
     landmarksBufferRef.current = [];
 
@@ -95,6 +100,7 @@ export function App() {
 
         let repState = 'UP';
         let localReps = 0;
+        let prevAngle = 180;
 
         video.onloadedmetadata = () => {
           const originalWidth = video.videoWidth || 640;
@@ -118,7 +124,8 @@ export function App() {
             if (video.ended || video.paused) {
               setIsProcessing(false);
               setProgressPercent(100);
-              setCurrentEffortPercent(0);
+              setEccentricEffort(0);
+              setConcentricEffort(0);
               setStatus('Analisi geometrica completata!');
               
               const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
@@ -162,11 +169,22 @@ export function App() {
                     primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
                   }
 
+                  // Determinazione della fase in base alla variazione dell'angolo rispetto al frame precedente
+                  const isDescending = primaryAngle < prevAngle;
                   const minAngleBound = 70;
                   const maxAngleBound = 180;
-                  let effort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
-                  effort = Math.max(0, Math.min(100, Math.round(effort)));
-                  setCurrentEffortPercent(effort);
+                  let currentEffort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
+                  currentEffort = Math.max(0, Math.min(100, Math.round(currentEffort)));
+
+                  if (isDescending) {
+                    // Fase Eccentrica (discesa / allungamento)
+                    setEccentricEffort(currentEffort);
+                  } else {
+                    // Fase Concentrica (salita / spinta)
+                    setConcentricEffort(currentEffort);
+                  }
+
+                  prevAngle = primaryAngle;
 
                   if (repState === 'UP' && primaryAngle < 110) {
                     repState = 'DOWN';
@@ -249,7 +267,7 @@ export function App() {
           1. Scorri e clicca per selezionare l'esercizio
         </label>
 
-        {/* Carosello Singola Card con Icone (Emoji) */}
+        {/* Carosello Singola Card */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             type="button"
@@ -409,29 +427,48 @@ export function App() {
           </div>
         )}
 
-        {/* Box Contatore Reps + Level Meter Verticale */}
+        {/* Box Contatore Reps + Doppi Level Meter (Eccentrico & Concentrico) */}
         <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
           <div>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Ripetizioni</span>
             <span style={{ fontSize: 34, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>{repCount}</span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', fontWeight: 600 }}>Sforzo</span>
-              <span style={{ fontSize: 14, fontWeight: 800, color: getEffortColor(currentEffortPercent) }}>
-                {currentEffortPercent}%
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Barra Fase Eccentrica */}
+            <div style={{ textAlign: 'center' }}>
+              <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', fontWeight: 700, marginBottom: 2 }}>ECC</span>
+              <div style={{ width: 14, height: 50, background: '#0f172a', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', border: '1px solid #334155', margin: '0 auto' }}>
+                <div 
+                  style={{ 
+                    width: '100%', 
+                    height: `${eccentricEffort}%`, 
+                    background: getEffortColor(eccentricEffort),
+                    transition: 'height 0.1s ease, background 0.2s ease' 
+                  }} 
+                />
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 800, color: getEffortColor(eccentricEffort), display: 'block', marginTop: 2 }}>
+                {eccentricEffort}%
               </span>
             </div>
-            <div style={{ width: 14, height: 50, background: '#0f172a', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', border: '1px solid #334155' }}>
-              <div 
-                style={{ 
-                  width: '100%', 
-                  height: `${currentEffortPercent}%`, 
-                  background: getEffortColor(currentEffortPercent),
-                  transition: 'height 0.1s ease, background 0.2s ease' 
-                }} 
-              />
+
+            {/* Barra Fase Concentrica */}
+            <div style={{ textAlign: 'center' }}>
+              <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', fontWeight: 700, marginBottom: 2 }}>CON</span>
+              <div style={{ width: 14, height: 50, background: '#0f172a', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', border: '1px solid #334155', margin: '0 auto' }}>
+                <div 
+                  style={{ 
+                    width: '100%', 
+                    height: `${concentricEffort}%`, 
+                    background: getEffortColor(concentricEffort),
+                    transition: 'height 0.1s ease, background 0.2s ease' 
+                  }} 
+                />
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 800, color: getEffortColor(concentricEffort), display: 'block', marginTop: 2 }}>
+                {concentricEffort}%
+              </span>
             </div>
           </div>
         </div>
