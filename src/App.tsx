@@ -161,73 +161,94 @@ export function App() {
                 landmarksBufferRef.current.push(currentLandmarks);
 
               try {
-                let primaryAngle = 180;
-                let minThresh = 110;
-                let maxThresh = 150;
+                  let primaryAngle = 180;
+                  let minThresh = 90;
+                  let maxThresh = 150;
 
-                if (selectedExercise === 'squat' || selectedExercise === 'stacco') {
-                  primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
-                  minThresh = 110; // Sotto questo angolo si scende (bottom dello squat)
-                  maxThresh = 150; // Sopra questo angolo la rep è chiusa
-                } else if (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
-                  primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
-                  minThresh = 90;  
-                  maxThresh = 150;
-                } else if (selectedExercise === 'alzate_laterali') {
-                  // Per le alzate laterali, l'angolo tra anca(23), spalla(11) e gomito(13) diminuisce 
-                  // quando sollevi le braccia lateralmente (portandole in fuori/alto).
-                  primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
-                  minThresh = 85;  // Braccia sollevate (massima abduzione)
-                  maxThresh = 140; // Braccia lungo i fianchi (posizione di partenza)
-                }
+                  // 1. Calcolo dell'angolo e delle soglie in base all'esercizio selezionato
+                  if (selectedExercise === 'squat') {
+                    // Angolo del ginocchio (anca: 23, ginocchio: 25, caviglia: 27)
+                    primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
+                    minThresh = 110; // Punto di massimo accosciamento (bottom)
+                    maxThresh = 150; // Risalita / Gambe distese
+                  } else if (selectedExercise === 'stacco') {
+                    // Angolo dell'anca/schiena (spalla: 11, anca: 23, ginocchio: 25)
+                    primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[23], currentLandmarks[25]);
+                    minThresh = 100; // Massima flessione del busto in basso (altezze dischi)
+                    maxThresh = 150; // Chiusura dell'alzata in piedi
+                  } else if (selectedExercise === 'panca_piana') {
+                    // Angolo del gomito (spalla: 11, gomito: 13, polso: 15)
+                    primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
+                    minThresh = 90;  // Bilanciere al petto (gomiti flessi)
+                    maxThresh = 150; // Braccia distese in alto
+                  } else if (selectedExercise === 'lat_machine') {
+                    // Angolo del gomito o asse di trazione (spalla: 11, gomito: 13, polso: 15)
+                    primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
+                    minThresh = 80;  // Barra al petto / massima trazione
+                    maxThresh = 140; // Braccia completamente distese in alto
+                  } else if (selectedExercise === 'alzate_laterali') {
+                    // Angolo di abduzione della spalla (anca: 23, spalla: 11, gomito: 13)
+                    primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
+                    minThresh = 85;  // Braccia sollevate lateralmente (apice)
+                    maxThresh = 140; // Braccia lungo i fianchi (partenza)
+                  }
 
-                // Calcolo dello sforzo in percentuale
-                const minAngleBound = selectedExercise === 'alzate_laterali' ? 60 : 70;
-                const maxAngleBound = selectedExercise === 'alzate_laterali' ? 160 : 180;
-                let currentEffort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
-                currentEffort = Math.max(0, Math.min(100, Math.round(currentEffort)));
+                  // 2. Calcolo della percentuale di sforzo dinamico (ECC / CON)
+                  const minAngleBound = selectedExercise === 'alzate_laterali' ? 60 : 70;
+                  const maxAngleBound = selectedExercise === 'alzate_laterali' ? 160 : 180;
+                  let currentEffort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
+                  currentEffort = Math.max(0, Math.min(100, Math.round(currentEffort)));
 
-                const isDescending = primaryAngle < prevAngle;
+                  const isDescending = primaryAngle < prevAngle;
 
-                if (selectedExercise === 'alzate_laterali') {
-                  // Nelle alzate laterali la fase concentrica è la salita (angolo che diminuisce)
-                  if (isDescending) {
-                    setConcentricEffort(currentEffort);
+                  // Assegnazione sforzo a fase Eccentrica o Concentrica in base al tipo di esercizio
+                  if (selectedExercise === 'alzate_laterali' || selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
+                    if (isDescending) {
+                      setConcentricEffort(currentEffort); // Fase attiva di spinta/trazione
+                    } else {
+                      setEccentricEffort(currentEffort); // Fase di ritorno/rilascio
+                    }
                   } else {
-                    setEccentricEffort(currentEffort);
+                    // Squat e Stacco (lavoro contro gravità in discesa/salita)
+                    if (isDescending) {
+                      setEccentricEffort(currentEffort);
+                    } else {
+                      setConcentricEffort(currentEffort);
+                    }
                   }
-                } else {
-                  // Negli esercizi come lo squat la fase eccentrica è la discesa
-                  if (isDescending) {
-                    setEccentricEffort(currentEffort);
+
+                  prevAngle = primaryAngle;
+
+                  // 3. Macchina a stati per il conteggio delle ripetizioni
+                  if (selectedExercise === 'alzate_laterali') {
+                    // Nelle alzate laterali l'angolo si chiude scendendo sotto la soglia minima
+                    if (repState === 'UP' && primaryAngle < minThresh) {
+                      repState = 'DOWN';
+                    } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
+                      repState = 'UP';
+                      localReps++;
+                      setRepCount(localReps);
+                    }
+                  } else if (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
+                    // Panca e Lat Machine seguono una logica di flessione del gomito simile
+                    if (repState === 'UP' && primaryAngle < minThresh) {
+                      repState = 'DOWN';
+                    } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
+                      repState = 'UP';
+                      localReps++;
+                      setRepCount(localReps);
+                    }
                   } else {
-                    setConcentricEffort(currentEffort);
+                    // Squat e Stacco (standard)
+                    if (repState === 'UP' && primaryAngle < minThresh) {
+                      repState = 'DOWN';
+                    } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
+                      repState = 'UP';
+                      localReps++;
+                      setRepCount(localReps);
+                    }
                   }
-                }
-
-                prevAngle = primaryAngle;
-
-                // Macchina a stati per il conteggio delle ripetizioni
-                if (selectedExercise === 'alzate_laterali') {
-                  // Nelle alzate laterali si parte in basso (angolo alto ~140°), si sale (angolo < 85°) e si torna giù
-                  if (repState === 'UP' && primaryAngle < minThresh) {
-                    repState = 'DOWN'; // Apice dell'alzata
-                  } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
-                    repState = 'UP';   // Ritorno alla posizione di partenza
-                    localReps++;
-                    setRepCount(localReps);
-                  }
-                } else {
-                  // Logica standard per Squat / Stacco
-                  if (repState === 'UP' && primaryAngle < minThresh) {
-                    repState = 'DOWN';
-                  } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
-                    repState = 'UP';
-                    localReps++;
-                    setRepCount(localReps);
-                  }
-                }
-              } catch (err) {}
+                } catch (err) {}
               }
             }
 
