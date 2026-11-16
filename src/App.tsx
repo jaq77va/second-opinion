@@ -47,7 +47,6 @@ export function App() {
   const selectedExerciseObj = EXERCISES.find((ex) => ex.id === selectedExercise) || EXERCISES[0];
   const currentHint = selectedExerciseObj.viewHint;
 
-  // Scorrimento carosello tramite frecce (PC)
   const scrollCarousel = (direction: 'left' | 'right') => {
     if (!carouselRef.current) return;
     const container = carouselRef.current;
@@ -238,7 +237,7 @@ export function App() {
         1. Scorri e clicca per selezionare l'esercizio
       </label>
 
-      {/* Carosello Singola Card (Swipe su Mobile + Frecce su PC) */}
+      {/* Carosello Singola Card con Icone Fotografiche */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <button
           type="button"
