@@ -6,11 +6,11 @@ import { getGeminiFeedback } from './geminiCoach';
 type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_laterali';
 
 const EXERCISES: { id: Exercise; label: string; image: string; viewHint: string }[] = [
-  { id: 'squat', label: 'Squat', image: './images/squat.png', viewHint: 'Inquadratura laterale o frontale a figura intera' },
-  { id: 'stacco', label: 'Stacco da terra', image: './images/stacco.png', viewHint: 'Inquadratura laterale a altezza bacino' },
-  { id: 'panca_piana', label: 'Panca piana', image: './images/panca.png', viewHint: 'Inquadratura laterale o obliqua a 45°' },
-  { id: 'lat_machine', label: 'Lat machine', image: './images/lat.png', viewHint: 'Inquadratura posteriore o laterale' },
-  { id: 'alzate_laterali', label: 'Alzate laterali', image: './images/alzate.png', viewHint: 'Inquadratura frontale dal bacino in su' },
+  { id: 'squat', label: 'Squat', image: '/images/squat.png', viewHint: 'Inquadratura laterale o frontale a figura intera' },
+  { id: 'stacco', label: 'Stacco da terra', image: '/images/stacco.png', viewHint: 'Inquadratura laterale a altezza bacino' },
+  { id: 'panca_piana', label: 'Panca piana', image: '/images/panca.png', viewHint: 'Inquadratura laterale o obliqua a 45°' },
+  { id: 'lat_machine', label: 'Lat machine', image: '/images/lat.png', viewHint: 'Inquadratura posteriore o laterale' },
+  { id: 'alzate_laterali', label: 'Alzate laterali', image: '/images/alzate.png', viewHint: 'Inquadratura frontale dal bacino in su' },
 ];
 
 const POSE_CONNECTIONS = [
