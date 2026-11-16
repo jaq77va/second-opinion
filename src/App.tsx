@@ -34,6 +34,7 @@ export function App() {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [repCount, setRepCount] = useState<number>(0);
+  const [currentEffortPercent, setCurrentEffortPercent] = useState<number>(0);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
@@ -53,6 +54,7 @@ export function App() {
     setAnalysisResult(null);
     setAiFeedback('');
     setRepCount(0);
+    setCurrentEffortPercent(0);
     setStatus('Caricamento modello AI locale in corso...');
     landmarksBufferRef.current = [];
 
@@ -104,6 +106,7 @@ export function App() {
             if (video.ended || video.paused) {
               setIsProcessing(false);
               setProgressPercent(100);
+              setCurrentEffortPercent(0);
               setStatus('Analisi geometrica completata!');
               
               const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
@@ -146,6 +149,12 @@ export function App() {
                   } else if (selectedExercise === 'alzate_laterali') {
                     primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
                   }
+
+                  const minAngleBound = 70;
+                  const maxAngleBound = 180;
+                  let effort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
+                  effort = Math.max(0, Math.min(100, Math.round(effort)));
+                  setCurrentEffortPercent(effort);
 
                   if (repState === 'UP' && primaryAngle < 110) {
                     repState = 'DOWN';
@@ -199,6 +208,12 @@ export function App() {
     });
   };
 
+  const getEffortColor = (effort: number) => {
+    if (effort < 50) return '#22c55e';
+    if (effort < 80) return '#eab308';
+    return '#ef4444';
+  };
+
   return (
     <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'sans-serif' }}>
       <h2>Second Opinion</h2>
@@ -244,8 +259,29 @@ export function App() {
       )}
 
       <div style={{ marginTop: 15, padding: 15, background: '#0f172a', color: '#fff', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 15, fontWeight: 'bold', color: '#94a3b8' }}>Ripetizioni completate:</span>
-        <span style={{ fontSize: 28, fontWeight: '900', color: '#38bdf8' }}>{repCount}</span>
+        <div>
+          <span style={{ fontSize: 15, fontWeight: 'bold', color: '#94a3b8', display: 'block' }}>Ripetizioni completate</span>
+          <span style={{ fontSize: 28, fontWeight: '900', color: '#38bdf8' }}>{repCount}</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ fontSize: 11, color: '#94a3b8', display: 'block' }}>Sforzo Corrente</span>
+            <span style={{ fontSize: 13, fontWeight: 'bold', color: getEffortColor(currentEffortPercent) }}>
+              {currentEffortPercent}%
+            </span>
+          </div>
+          <div style={{ width: 14, height: 45, background: '#1e293b', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', border: '1px solid #334155' }}>
+            <div 
+              style={{ 
+                width: '100%', 
+                height: `${currentEffortPercent}%`, 
+                background: getEffortColor(currentEffortPercent),
+                transition: 'height 0.1s ease, background 0.2s ease' 
+              }} 
+            />
+          </div>
+        </div>
       </div>
 
       <div style={{ position: 'relative', marginTop: 15, width: '100%', background: '#000', borderRadius: 8, overflow: 'hidden' }}>
