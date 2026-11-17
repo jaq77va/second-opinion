@@ -36,7 +36,7 @@ function areLandmarksVisible(landmarks: any[], indices: number[], minVis = 0.45)
 
 export function App() {
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
-  const [weightKg, setWeightKg] = useState<number>(20); // Peso iniziale predefinito
+  const [weightKg, setWeightKg] = useState<number>(20);
   const [status, setStatus] = useState<string>('Pronto. Seleziona un esercizio, imposta il peso e carica il video.');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progressPercent, setProgressPercent] = useState<number>(0);
@@ -114,10 +114,10 @@ export function App() {
         let hasReachedInitialPosition = false;
         let localReps = 0;
         let angleHistory: number[] = [];
+        let powerHistory: number[] = []; // Buffer per stabilizzare i Watt
         let transitionStreak = 0;
         let hasStarted = false;
 
-        // Calcolo effettivo della massa totale in base all'attrezzo
         const effectiveMass = selectedExerciseObj.isDumbbell ? weightKg * 2 : weightKg;
 
         const startProcessingWhenReady = () => {
@@ -147,7 +147,7 @@ export function App() {
 
             const processFrame = () => {
               const now = performance.now();
-              const deltaTime = (now - lastFrameTime) / 1000; // in secondi
+              const deltaTime = (now - lastFrameTime) / 1000;
               lastFrameTime = now;
 
               if (video.duration && !isNaN(video.duration)) {
@@ -253,14 +253,25 @@ export function App() {
                       rom = Math.max(0, Math.min(100, Math.round(rom)));
                       setRomQuality(rom);
 
-                      // --- CALCOLO POTENZA (Watt stimati) ---
-                      // Stima basata su Massa effettiva * Variazione angolare per unità di tempo (velocità stimata)
+                      // --- CALCOLO POTENZA STABILIZZATA (WATT) ---
                       const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
-                      const velocityFactor = deltaTime > 0 ? angleDelta / (deltaTime * 10) : 0;
-                      // Formula euristica di potenza meccanica in Watt (Massa * Fattore di velocità * Costante di scala)
-                      let estimatedPower = Math.round(effectiveMass * velocityFactor * 1.8);
-                      estimatedPower = Math.max(0, Math.min(1200, estimatedPower)); // Limite max verosimile per UI
-                      setPowerScore(estimatedPower);
+                      
+                      // Soglia minima di movimento (ignora micro-oscillazioni a riposo)
+                      let instantPower = 0;
+                      if (angleDelta >= 1.5 && deltaTime > 0) {
+                        const velocityFactor = angleDelta / (deltaTime * 10);
+                        instantPower = effectiveMass * velocityFactor * 1.5;
+                      }
+
+                      powerHistory.push(instantPower);
+                      if (powerHistory.length > 5) powerHistory.shift(); // Media mobile su 5 campioni
+
+                      // Media dei Watt per azzerare le fluttuazioni
+                      const smoothedPower = Math.round(
+                        powerHistory.reduce((acc, v) => acc + v, 0) / powerHistory.length
+                      );
+                      
+                      setPowerScore(smoothedPower);
 
                       // Macchina a stati robusta
                       if (selectedExercise === 'alzate_laterali') {
@@ -610,7 +621,7 @@ export function App() {
           </div>
         )}
 
-        {/* --- INDICATORI ROM E POTENZA IN TEMPO REALE --- */}
+        {/* --- INDICATORI ROM E POTENZA STABILIZZATA --- */}
         <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div>
