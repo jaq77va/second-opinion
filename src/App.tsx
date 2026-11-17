@@ -196,8 +196,8 @@ export function App() {
                       maxThresh = 140;
                     } else if (selectedExercise === 'alzate_laterali') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
-                      minThresh = 95;  // Apice dell'alzata (braccia su)
-                      maxThresh = 105; // Ritorno alla base (abbassato da 130 a 105 in base al tuo log)
+                      minThresh = 95;  // Apice dell'alzata (braccia sollevate)
+                      maxThresh = 115; // Posizione di partenza (portato a 115 per chiudere facilmente la rep)
                     }
                     // --- LOG DI DEBUG PER LE ALZATE LATERALI ---
                     if (selectedExercise === 'alzate_laterali') {
