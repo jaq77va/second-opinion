@@ -199,7 +199,10 @@ export function App() {
                       minThresh = 95;
                       maxThresh = 130;
                     }
-
+                    // --- LOG DI DEBUG PER LE ALZATE LATERALI ---
+                    if (selectedExercise === 'alzate_laterali') {
+                      console.log(`[ALZATE] Angolo: ${primaryAngle}° | Stato: ${repState} | MinThresh: ${minThresh} | MaxThresh: ${maxThresh}`);
+                    }
                     const minAngleBound = selectedExercise === 'alzate_laterali' ? 50 : 70;
                     const maxAngleBound = selectedExercise === 'alzate_laterali' ? 150 : 180;
                     let currentEffort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
@@ -225,10 +228,12 @@ export function App() {
 
                     if (repState === 'UP' && primaryAngle < minThresh) {
                       repState = 'DOWN';
+                      if (selectedExercise === 'alzate_laterali') console.log('[ALZATE] Stato passato a DOWN (Apice raggiunto)');
                     } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
                       repState = 'UP';
                       localReps++;
                       setRepCount(localReps);
+                      if (selectedExercise === 'alzate_laterali') console.log(`[ALZATE] Ripetizione contata! Totale: ${localReps}`);
                     }
                   }
                 } catch (err) {}
