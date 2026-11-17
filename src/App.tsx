@@ -28,6 +28,12 @@ function calculateLiveAngle(a: any, b: any, c: any): number {
   return Math.round(angle);
 }
 
+function areLandmarksVisible(landmarks: any[], indices: number[], minVis = 0.45): boolean {
+  return indices.every(
+    (idx) => landmarks[idx] && (landmarks[idx].visibility ?? 1) >= minVis
+  );
+}
+
 export function App() {
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
   const [status, setStatus] = useState<string>('Pronto. Seleziona un esercizio e carica il video.');
@@ -92,15 +98,20 @@ export function App() {
         video.src = URL.createObjectURL(file);
         video.load();
 
+        // Parametri ottimizzati per prestazioni mobile
         const MAX_WIDTH = 480;
         const FRAME_SKIP = 3;
         let frameCounter = 0;
         let targetWidth = 640;
         let targetHeight = 480;
 
-        let repState = 'UP';
+        // Stato macchina a stati e filtro smoothing
+        let repPhase: 'START' | 'ACTIVE' = 'START';
+        let hasReachedInitialPosition = false;
         let localReps = 0;
-        let prevAngle = 180;
+        let prevAngle = selectedExercise === 'alzate_laterali' ? 35 : 175;
+        let angleHistory: number[] = [];
+        let transitionStreak = 0;
         let hasStarted = false;
 
         const startProcessingWhenReady = () => {
@@ -173,94 +184,165 @@ export function App() {
                     currentLandmarks = result.landmarks[0];
                     landmarksBufferRef.current.push(currentLandmarks);
 
-                    let primaryAngle = 180;
-                    let minThresh = 90;
-                    let maxThresh = 150;
+                    let rawAngle: number | null = null;
 
                     if (selectedExercise === 'squat') {
-                      primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
-                      minThresh = 105;
-                      maxThresh = 142; // Abbassato a 142 per chiudere correttamente la rep visto che nei log arrivi intorno a 141-142°
+                      // Usa il lato più visibile (sinistro [23,25,27] o destro [24,26,28])
+                      const leftOk = areLandmarksVisible(currentLandmarks, [23, 25, 27], 0.45);
+                      const rightOk = areLandmarksVisible(currentLandmarks, [24, 26, 28], 0.45);
+                      if (leftOk && rightOk) {
+                        const lAng = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
+                        const rAng = calculateLiveAngle(currentLandmarks[24], currentLandmarks[26], currentLandmarks[28]);
+                        rawAngle = Math.round((lAng + rAng) / 2);
+                      } else if (leftOk) {
+                        rawAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
+                      } else if (rightOk) {
+                        rawAngle = calculateLiveAngle(currentLandmarks[24], currentLandmarks[26], currentLandmarks[28]);
+                      }
                     } else if (selectedExercise === 'stacco') {
-                      primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[23], currentLandmarks[25]);
-                      minThresh = 100;
-                      maxThresh = 150;
+                      if (areLandmarksVisible(currentLandmarks, [11, 23, 25], 0.45)) {
+                        rawAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[23], currentLandmarks[25]);
+                      }
                     } else if (selectedExercise === 'panca_piana') {
-                      primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
-                      minThresh = 90;
-                      maxThresh = 150;
+                      if (areLandmarksVisible(currentLandmarks, [11, 13, 15], 0.45)) {
+                        rawAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
+                      }
                     } else if (selectedExercise === 'lat_machine') {
-                      primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
-                      minThresh = 80;
-                      maxThresh = 140;
-                    } else if (selectedExercise === 'alzate_laterali') {
-                      primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
-                      minThresh = 45;  
-                      maxThresh = 102;
-                    }
-
-                    console.log(
-                      `[DEBUG] Esercizio: ${selectedExercise} | ` +
-                      `Angolo: ${primaryAngle}° | ` +
-                      `Stato: ${repState} | ` +
-                      `Soglie (Min: ${minThresh}, Max: ${maxThresh})`
-                    );
-
-                    const minAngleBound = selectedExercise === 'alzate_laterali' ? 40 : 70;
-                    const maxAngleBound = selectedExercise === 'alzate_laterali' ? 120 : 180;
-                    let currentEffort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
-                    currentEffort = Math.max(0, Math.min(100, Math.round(currentEffort)));
-
-                    const isDescending = primaryAngle < prevAngle;
-
-                    if (selectedExercise === 'alzate_laterali' || selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
-                      if (isDescending) {
-                        setConcentricEffort(currentEffort);
-                      } else {
-                        setEccentricEffort(currentEffort);
-                      }
-                    } else {
-                      if (isDescending) {
-                        setEccentricEffort(currentEffort);
-                      } else {
-                        setConcentricEffort(currentEffort);
-                      }
-                    }
-
-                    // Macchina a stati con blocco iniziale di sicurezza per lo Squat
-                    if (selectedExercise === 'squat') {
-                      if (repState === 'UP' && primaryAngle < minThresh && prevAngle > 130) {
-                        repState = 'DOWN';
-                        console.log(`[STATO SQUAT] -> DOWN (Inversione corretta)`);
-                      } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
-                        repState = 'UP';
-                        localReps++;
-                        setRepCount(localReps);
-                        console.log(`[REP COMPLETA SQUAT] 🎉 Totale: ${localReps}`);
+                      if (areLandmarksVisible(currentLandmarks, [11, 13, 15], 0.45)) {
+                        rawAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
                       }
                     } else if (selectedExercise === 'alzate_laterali') {
-                      if (repState === 'UP' && primaryAngle < minThresh) {
-                        repState = 'DOWN';
-                        console.log(`[STATO ALZATE] -> DOWN (Apice raggiunto)`);
-                      } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
-                        repState = 'UP';
-                        localReps++;
-                        setRepCount(localReps);
-                        console.log(`[REP COMPLETA ALZATE] 🎉 Totale: ${localReps}`);
-                      }
-                    } else {
-                      if (repState === 'UP' && primaryAngle < minThresh) {
-                        repState = 'DOWN';
-                        console.log(`[STATO] -> DOWN (Inversione movimento rilevata)`);
-                      } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
-                        repState = 'UP';
-                        localReps++;
-                        setRepCount(localReps);
-                        console.log(`[REP COMPLETA] 🎉 Totale ripetizioni: ${localReps}`);
+                      // Media delle due braccia (Anca - Spalla - Gomito) per stabilità frontale
+                      const leftOk = areLandmarksVisible(currentLandmarks, [23, 11, 13], 0.45);
+                      const rightOk = areLandmarksVisible(currentLandmarks, [24, 12, 14], 0.45);
+                      if (leftOk && rightOk) {
+                        const lAng = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
+                        const rAng = calculateLiveAngle(currentLandmarks[24], currentLandmarks[12], currentLandmarks[14]);
+                        rawAngle = Math.round((lAng + rAng) / 2);
+                      } else if (leftOk) {
+                        rawAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
+                      } else if (rightOk) {
+                        rawAngle = calculateLiveAngle(currentLandmarks[24], currentLandmarks[12], currentLandmarks[14]);
                       }
                     }
 
-                    prevAngle = primaryAngle;
+                    if (rawAngle !== null) {
+                      // Media mobile su 3 rilevazioni per filtrare jitter di 1 frame
+                      angleHistory.push(rawAngle);
+                      if (angleHistory.length > 3) angleHistory.shift();
+                      const smoothAngle = Math.round(
+                        angleHistory.reduce((acc, v) => acc + v, 0) / angleHistory.length
+                      );
+
+                      // Calcolo barre sforzo ECC / CON
+                      if (selectedExercise === 'alzate_laterali') {
+                        // Nelle alzate laterali: 35° (riposo) -> 100° (apice)
+                        let effort = ((smoothAngle - 35) / (100 - 35)) * 100;
+                        effort = Math.max(0, Math.min(100, Math.round(effort)));
+                        if (smoothAngle > prevAngle) {
+                          setConcentricEffort(effort);
+                        } else {
+                          setEccentricEffort(effort);
+                        }
+                      } else {
+                        const minBound = 65;
+                        const maxBound = 175;
+                        let effort = ((maxBound - smoothAngle) / (maxBound - minBound)) * 100;
+                        effort = Math.max(0, Math.min(100, Math.round(effort)));
+                        const isClosing = smoothAngle < prevAngle;
+                        if (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
+                          if (isClosing) setConcentricEffort(effort);
+                          else setEccentricEffort(effort);
+                        } else {
+                          if (isClosing) setEccentricEffort(effort);
+                          else setConcentricEffort(effort);
+                        }
+                      }
+
+                      // Macchina a stati robusta con conferma su 2 rilevazioni consecutive
+                      if (selectedExercise === 'alzate_laterali') {
+                        // Start: braccia giù (< 55°) | Active/Apice: braccia alte (> 88°)
+                        const REST_MAX = 55;
+                        const APEX_MIN = 88;
+
+                        if (!hasReachedInitialPosition) {
+                          if (smoothAngle <= REST_MAX) {
+                            hasReachedInitialPosition = true;
+                          }
+                        } else if (repPhase === 'START') {
+                          if (smoothAngle >= APEX_MIN) {
+                            transitionStreak++;
+                            if (transitionStreak >= 2) {
+                              repPhase = 'ACTIVE';
+                              transitionStreak = 0;
+                            }
+                          } else {
+                            transitionStreak = 0;
+                          }
+                        } else if (repPhase === 'ACTIVE') {
+                          if (smoothAngle <= REST_MAX) {
+                            transitionStreak++;
+                            if (transitionStreak >= 1) {
+                              repPhase = 'START';
+                              transitionStreak = 0;
+                              localReps++;
+                              setRepCount(localReps);
+                            }
+                          } else {
+                            transitionStreak = 0;
+                          }
+                        }
+                      } else {
+                        // Squat, Stacco, Panca, Lat Machine:
+                        // Start: estensione (> 150°) | Active/Fondo: flessione (< bottomThresh)
+                        const TOP_MIN = selectedExercise === 'lat_machine' ? 140 : 150;
+                        const BOTTOM_MAX =
+                          selectedExercise === 'squat'
+                            ? 95
+                            : selectedExercise === 'stacco'
+                            ? 105
+                            : selectedExercise === 'lat_machine'
+                            ? 85
+                            : 95;
+
+                        if (!hasReachedInitialPosition) {
+                          // Richiede che l'utente sia stabilmente in piedi/esteso prima di iniziare il conteggio
+                          if (smoothAngle >= TOP_MIN) {
+                            transitionStreak++;
+                            if (transitionStreak >= 2) {
+                              hasReachedInitialPosition = true;
+                              transitionStreak = 0;
+                            }
+                          } else {
+                            transitionStreak = 0;
+                          }
+                        } else if (repPhase === 'START') {
+                          if (smoothAngle <= BOTTOM_MAX) {
+                            transitionStreak++;
+                            if (transitionStreak >= 2) {
+                              repPhase = 'ACTIVE';
+                              transitionStreak = 0;
+                            }
+                          } else {
+                            transitionStreak = 0;
+                          }
+                        } else if (repPhase === 'ACTIVE') {
+                          if (smoothAngle >= TOP_MIN) {
+                            transitionStreak++;
+                            if (transitionStreak >= 2) {
+                              repPhase = 'START';
+                              transitionStreak = 0;
+                              localReps++;
+                              setRepCount(localReps);
+                            }
+                          } else {
+                            transitionStreak = 0;
+                          }
+                        }
+                      }
+
+                      prevAngle = smoothAngle;
+                    }
                   }
                 } catch (err) {}
               }

@@ -39,58 +39,102 @@ export function analyzeExerciseGeometry(exercise: string, allFramesLandmarks: an
   }
 
   let angles: number[] = [];
+  const minVis = 0.45;
 
   allFramesLandmarks.forEach((landmarks) => {
     if (!landmarks) return;
 
     switch (exercise) {
       case 'squat': {
-        // Ginocchio (Anca - Ginocchio - Caviglia)
-        const hip = landmarks[LANDMARKS.LEFT_HIP];
-        const knee = landmarks[LANDMARKS.LEFT_KNEE];
-        const ankle = landmarks[LANDMARKS.LEFT_ANKLE];
-        if (hip && knee && ankle && hip.visibility > 0.5 && knee.visibility > 0.5 && ankle.visibility > 0.5) {
-          angles.push(calculateAngle(hip, knee, ankle));
+        // Ginocchio (Anca - Ginocchio - Caviglia): Valuta ibrido DX / SX
+        const lHip = landmarks[LANDMARKS.LEFT_HIP];
+        const lKnee = landmarks[LANDMARKS.LEFT_KNEE];
+        const lAnkle = landmarks[LANDMARKS.LEFT_ANKLE];
+        const rHip = landmarks[LANDMARKS.RIGHT_HIP];
+        const rKnee = landmarks[LANDMARKS.RIGHT_KNEE];
+        const rAnkle = landmarks[LANDMARKS.RIGHT_ANKLE];
+
+        const leftOk = lHip && lKnee && lAnkle && lHip.visibility > minVis && lKnee.visibility > minVis && lAnkle.visibility > minVis;
+        const rightOk = rHip && rKnee && rAnkle && rHip.visibility > minVis && rKnee.visibility > minVis && rAnkle.visibility > minVis;
+
+        if (leftOk && rightOk) {
+          const lAng = calculateAngle(lHip, lKnee, lAnkle);
+          const rAng = calculateAngle(rHip, rKnee, rAnkle);
+          angles.push((lAng + rAng) / 2);
+        } else if (leftOk) {
+          angles.push(calculateAngle(lHip, lKnee, lAnkle));
+        } else if (rightOk) {
+          angles.push(calculateAngle(rHip, rKnee, rAnkle));
         }
         break;
       }
       case 'stacco': {
-        // Inclinazione del tronco / Anca (Spalla - Anca - Ginocchio)
-        const shoulder = landmarks[LANDMARKS.LEFT_SHOULDER];
-        const hip = landmarks[LANDMARKS.LEFT_HIP];
-        const knee = landmarks[LANDMARKS.LEFT_KNEE];
-        if (shoulder && hip && knee && shoulder.visibility > 0.5 && hip.visibility > 0.5 && knee.visibility > 0.5) {
-          angles.push(calculateAngle(shoulder, hip, knee));
+        // Tronco / Anca (Spalla - Anca - Ginocchio): ibrido DX / SX
+        const lSh = landmarks[LANDMARKS.LEFT_SHOULDER];
+        const lHip = landmarks[LANDMARKS.LEFT_HIP];
+        const lKnee = landmarks[LANDMARKS.LEFT_KNEE];
+        const rSh = landmarks[LANDMARKS.RIGHT_SHOULDER];
+        const rHip = landmarks[LANDMARKS.RIGHT_HIP];
+        const rKnee = landmarks[LANDMARKS.RIGHT_KNEE];
+
+        const leftOk = lSh && lHip && lKnee && lSh.visibility > minVis && lHip.visibility > minVis && lKnee.visibility > minVis;
+        const rightOk = rSh && rHip && rKnee && rSh.visibility > minVis && rHip.visibility > minVis && rKnee.visibility > minVis;
+
+        if (leftOk && rightOk) {
+          const lAng = calculateAngle(lSh, lHip, lKnee);
+          const rAng = calculateAngle(rSh, rHip, rKnee);
+          angles.push((lAng + rAng) / 2);
+        } else if (leftOk) {
+          angles.push(calculateAngle(lSh, lHip, lKnee));
+        } else if (rightOk) {
+          angles.push(calculateAngle(rSh, rHip, rKnee));
         }
         break;
       }
-      case 'panca_piana': {
-        // Gomito (Spalla - Gomito - Polso)
-        const shoulder = landmarks[LANDMARKS.LEFT_SHOULDER];
-        const elbow = landmarks[LANDMARKS.LEFT_ELBOW];
-        const wrist = landmarks[LANDMARKS.LEFT_WRIST];
-        if (shoulder && elbow && wrist && shoulder.visibility > 0.5 && elbow.visibility > 0.5 && wrist.visibility > 0.5) {
-          angles.push(calculateAngle(shoulder, elbow, wrist));
-        }
-        break;
-      }
+      case 'panca_piana':
       case 'lat_machine': {
-        // Apertura ascella / gomito (Anca - Spalla - Gomito)
-        const hip = landmarks[LANDMARKS.LEFT_HIP];
-        const shoulder = landmarks[LANDMARKS.LEFT_SHOULDER];
-        const elbow = landmarks[LANDMARKS.LEFT_ELBOW];
-        if (hip && shoulder && elbow && hip.visibility > 0.5 && shoulder.visibility > 0.5 && elbow.visibility > 0.5) {
-          angles.push(calculateAngle(hip, shoulder, elbow));
+        // Gomito (Spalla - Gomito - Polso): ibrido DX / SX
+        const lSh = landmarks[LANDMARKS.LEFT_SHOULDER];
+        const lEl = landmarks[LANDMARKS.LEFT_ELBOW];
+        const lWr = landmarks[LANDMARKS.LEFT_WRIST];
+        const rSh = landmarks[LANDMARKS.RIGHT_SHOULDER];
+        const rEl = landmarks[LANDMARKS.RIGHT_ELBOW];
+        const rWr = landmarks[LANDMARKS.RIGHT_WRIST];
+
+        const leftOk = lSh && lEl && lWr && lSh.visibility > minVis && lEl.visibility > minVis && lWr.visibility > minVis;
+        const rightOk = rSh && rEl && rWr && rSh.visibility > minVis && rEl.visibility > minVis && rWr.visibility > minVis;
+
+        if (leftOk && rightOk) {
+          const lAng = calculateAngle(lSh, lEl, lWr);
+          const rAng = calculateAngle(rSh, rEl, rWr);
+          angles.push((lAng + rAng) / 2);
+        } else if (leftOk) {
+          angles.push(calculateAngle(lSh, lEl, lWr));
+        } else if (rightOk) {
+          angles.push(calculateAngle(rSh, rEl, rWr));
         }
         break;
       }
       case 'alzate_laterali': {
-        // Apertura braccio (Anca - Spalla - Gomito)
-        const hip = landmarks[LANDMARKS.LEFT_HIP];
-        const shoulder = landmarks[LANDMARKS.LEFT_SHOULDER];
-        const elbow = landmarks[LANDMARKS.LEFT_ELBOW];
-        if (hip && shoulder && elbow && hip.visibility > 0.5 && shoulder.visibility > 0.5 && elbow.visibility > 0.5) {
-          angles.push(calculateAngle(hip, shoulder, elbow));
+        // Apertura braccio (Anca - Spalla - Gomito): ibrido DX / SX simmetrico
+        const lHp = landmarks[LANDMARKS.LEFT_HIP];
+        const lSh = landmarks[LANDMARKS.LEFT_SHOULDER];
+        const lEl = landmarks[LANDMARKS.LEFT_ELBOW];
+        const rHp = landmarks[LANDMARKS.RIGHT_HIP];
+        const rSh = landmarks[LANDMARKS.RIGHT_SHOULDER];
+        const rEl = landmarks[LANDMARKS.RIGHT_ELBOW];
+
+        const leftOk = lHp && lSh && lEl && lHp.visibility > minVis && lSh.visibility > minVis && lEl.visibility > minVis;
+        const rightOk = rHp && rSh && rEl && rHp.visibility > minVis && rSh.visibility > minVis && rEl.visibility > minVis;
+
+        if (leftOk && rightOk) {
+          const lAng = calculateAngle(lHp, lSh, lEl);
+          const rAng = calculateAngle(rHp, rSh, rEl);
+          angles.push((lAng + rAng) / 2);
+        } else if (leftOk) {
+          angles.push(calculateAngle(lHp, lSh, lEl));
+        } else if (rightOk) {
+          angles.push(calculateAngle(rHp, rSh, rEl));
         }
         break;
       }
@@ -112,7 +156,7 @@ export function analyzeExerciseGeometry(exercise: string, allFramesLandmarks: an
 
   const minAngle = Math.min(...angles);
   const maxAngle = Math.max(...angles);
-  const trendSummary = `Rilevati ${angles.length} frame validi per ${exercise}. Angolo iniziale: ${Math.round(angles[0])}°, Minimo: ${Math.round(minAngle)}°, Massimo: ${Math.round(maxAngle)}°.`;
+  const trendSummary = `Rilevati ${angles.length} frame validi per ${exercise} (motore ibrido adattivo). Angolo iniziale: ${Math.round(angles[0])}°, Minimo: ${Math.round(minAngle)}°, Massimo: ${Math.round(maxAngle)}°.`;
 
   return { minAngle: Math.round(minAngle), maxAngle: Math.round(maxAngle), trendSummary };
 }
