@@ -88,10 +88,11 @@ export function App() {
         const video = videoRef.current!;
         const canvas = canvasRef.current!;
         const ctx = canvas.getContext('2d');
-        /*
+
         video.src = URL.createObjectURL(file);
+        video.load();
 
-        // RIPRISTINATE LE OTTIMIZZAZIONI MOBILE
+        // Ottimizzazioni Mobile: Downscaling 480px e Frame Skipping 1:3
         const MAX_WIDTH = 480;
         const FRAME_SKIP = 3;
         let frameCounter = 0;
@@ -101,30 +102,20 @@ export function App() {
         let repState = 'UP';
         let localReps = 0;
         let prevAngle = 180;
-        */
-       video.src = URL.createObjectURL(file);
-        video.load(); // Forza il reset e la lettura del file video sul mobile
+        let hasStarted = false; // Evita avvii doppi su mobile
 
-        const MAX_WIDTH = 480;
-        const FRAME_SKIP = 3;
-        let frameCounter = 0;
-        let targetWidth = 640;
-        let targetHeight = 480;
-
-        let repState = 'UP';
-        let localReps = 0;
-        let prevAngle = 180;
-
-        // Funzione di avvio sicura slegata dai capricci dei singoli eventi mobile
         const startProcessingWhenReady = () => {
-          const originalWidth = video.videoWidth || 640;
-          const originalHeight = video.videoHeight || 480;
+          if (hasStarted) return;
+
+          const originalWidth = video.videoWidth || 0;
+          const originalHeight = video.videoHeight || 0;
           
           if (originalWidth === 0 || originalHeight === 0) {
-            // Se i metadata non sono ancora pronti, riprova un attimo dopo
             setTimeout(startProcessingWhenReady, 100);
             return;
           }
+
+          hasStarted = true;
 
           const scale = MAX_WIDTH / originalWidth;
           targetWidth = MAX_WIDTH;
@@ -135,7 +126,6 @@ export function App() {
 
           setStatus('Analisi biomeccanica e conteggio reps in corso...');
           
-          // Forza la riproduzione con gestione della promessa (evita blocchi su policy autoplay mobile)
           video.play().then(() => {
             const processFrame = () => {
               if (video.duration && !isNaN(video.duration)) {
@@ -185,21 +175,37 @@ export function App() {
                     landmarksBufferRef.current.push(currentLandmarks);
 
                     let primaryAngle = 180;
+                    let minThresh = 90;
+                    let maxThresh = 150;
+
                     if (selectedExercise === 'squat') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
+                      minThresh = 110;
+                      maxThresh = 150;
                     } else if (selectedExercise === 'stacco') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[23], currentLandmarks[25]);
-                    } else if (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
+                      minThresh = 100;
+                      maxThresh = 150;
+                    } else if (selectedExercise === 'panca_piana') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
+                      minThresh = 90;
+                      maxThresh = 150;
+                    } else if (selectedExercise === 'lat_machine') {
+                      primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
+                      minThresh = 80;
+                      maxThresh = 140;
                     } else if (selectedExercise === 'alzate_laterali') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
+                      minThresh = 95;
+                      maxThresh = 130;
                     }
 
-                    const isDescending = primaryAngle < prevAngle;
-                    const minAngleBound = selectedExercise === 'alzate_laterali' ? 60 : 70;
-                    const maxAngleBound = selectedExercise === 'alzate_laterali' ? 160 : 180;
+                    const minAngleBound = selectedExercise === 'alzate_laterali' ? 50 : 70;
+                    const maxAngleBound = selectedExercise === 'alzate_laterali' ? 150 : 180;
                     let currentEffort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
                     currentEffort = Math.max(0, Math.min(100, Math.round(currentEffort)));
+
+                    const isDescending = primaryAngle < prevAngle;
 
                     if (selectedExercise === 'alzate_laterali' || selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
                       if (isDescending) {
@@ -216,9 +222,6 @@ export function App() {
                     }
 
                     prevAngle = primaryAngle;
-
-                    let minThresh = selectedExercise === 'alzate_laterali' ? 85 : (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine' ? 80 : 110);
-                    let maxThresh = selectedExercise === 'alzate_laterali' ? 140 : (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine' ? 140 : 150);
 
                     if (repState === 'UP' && primaryAngle < minThresh) {
                       repState = 'DOWN';
@@ -241,7 +244,7 @@ export function App() {
                   POSE_CONNECTIONS.forEach(([i, j]) => {
                     const p1 = currentLandmarks[i];
                     const p2 = currentLandmarks[j];
-                    if (p1 && p2 && p1.visibility && p1.visibility > 0.5 && p2.visibility && p2.visibility > 0.5) {
+                    if (p1 && p2 && p1.visibility && p1.visibility > 0.3 && p2.visibility && p2.visibility > 0.3) {
                       ctx.beginPath();
                       ctx.moveTo(p1.x * targetWidth, p1.y * targetHeight);
                       ctx.lineTo(p2.x * targetWidth, p2.y * targetHeight);
@@ -251,7 +254,7 @@ export function App() {
 
                   ctx.fillStyle = '#ff0055';
                   currentLandmarks.forEach((lm: any) => {
-                    if (lm.visibility && lm.visibility > 0.5) {
+                    if (lm.visibility && lm.visibility > 0.3) {
                       ctx.beginPath();
                       ctx.arc(lm.x * targetWidth, lm.y * targetHeight, 4, 0, 2 * Math.PI);
                       ctx.fill();
@@ -270,198 +273,9 @@ export function App() {
           });
         };
 
-        // Aggancio multiplo degli eventi per coprire tutti i comportamenti dei browser mobile
         video.onloadedmetadata = startProcessingWhenReady;
         video.oncanplay = startProcessingWhenReady;
-        
-        // Fallback di sicurezza nel caso in cui gli eventi sopra falliscano a intermittenza
         setTimeout(startProcessingWhenReady, 500);
-        
-        video.onloadedmetadata = () => {
-          const originalWidth = video.videoWidth || 640;
-          const originalHeight = video.videoHeight || 480;
-          const scale = MAX_WIDTH / originalWidth;
-          targetWidth = MAX_WIDTH;
-          targetHeight = Math.round(originalHeight * scale);
-
-          canvas.width = targetWidth;
-          canvas.height = targetHeight;
-
-          setStatus('Analisi biomeccanica e conteggio reps in corso...');
-          video.play();
-
-          const processFrame = () => {
-            if (video.duration) {
-              const currentProgress = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
-              setProgressPercent(currentProgress);
-            }
-
-            if (video.ended || video.paused) {
-              setIsProcessing(false);
-              setProgressPercent(100);
-              setEccentricEffort(0);
-              setConcentricEffort(0);
-              setStatus('Analisi geometrica completata!');
-              
-              const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
-              setAnalysisResult(geomResult);
-
-              setIsAiLoading(true);
-              setStatus('Generazione del feedback intelligente con Gemini (Server)...');
-              
-              getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
-                .then((feedback) => {
-                  setAiFeedback(feedback);
-                  setIsAiLoading(false);
-                  setStatus('Analisi e Coaching completati con successo!');
-                })
-                .catch((err) => {
-                  setAiFeedback(`Errore AI: ${err.message}`);
-                  setIsAiLoading(false);
-                  setStatus('Completato con errore IA.');
-                });
-
-              landmarker.close();
-              return;
-            }
-
-            frameCounter++;
-            let currentLandmarks: any = null;
-
-            // IL FRAME SKIPPING AGISCE QUI
-            if (frameCounter % FRAME_SKIP === 0) {
-              const result = landmarker.detectForVideo(video, performance.now());
-              if (result.landmarks && result.landmarks.length > 0) {
-                currentLandmarks = result.landmarks[0];
-                landmarksBufferRef.current.push(currentLandmarks);
-
-              try {
-                  let primaryAngle = 180;
-                  let minThresh = 90;
-                  let maxThresh = 150;
-
-                  // 1. Calcolo dell'angolo e delle soglie in base all'esercizio selezionato
-                  if (selectedExercise === 'squat') {
-                    // Angolo del ginocchio (anca: 23, ginocchio: 25, caviglia: 27)
-                    primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
-                    minThresh = 110; // Punto di massimo accosciamento (bottom)
-                    maxThresh = 150; // Risalita / Gambe distese
-                  } else if (selectedExercise === 'stacco') {
-                    // Angolo dell'anca/schiena (spalla: 11, anca: 23, ginocchio: 25)
-                    primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[23], currentLandmarks[25]);
-                    minThresh = 100; // Massima flessione del busto in basso (altezze dischi)
-                    maxThresh = 150; // Chiusura dell'alzata in piedi
-                  } else if (selectedExercise === 'panca_piana') {
-                    // Angolo del gomito (spalla: 11, gomito: 13, polso: 15)
-                    primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
-                    minThresh = 90;  // Bilanciere al petto (gomiti flessi)
-                    maxThresh = 150; // Braccia distese in alto
-                  } else if (selectedExercise === 'lat_machine') {
-                    // Angolo del gomito o asse di trazione (spalla: 11, gomito: 13, polso: 15)
-                    primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
-                    minThresh = 80;  // Barra al petto / massima trazione
-                    maxThresh = 140; // Braccia completamente distese in alto
-                  } else if (selectedExercise === 'alzate_laterali') {
-                    // Angolo di abduzione della spalla (anca: 23, spalla: 11, gomito: 13)
-                    primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
-                    minThresh = 85;  // Braccia sollevate lateralmente (apice)
-                    maxThresh = 140; // Braccia lungo i fianchi (partenza)
-                  }
-
-                  // 2. Calcolo della percentuale di sforzo dinamico (ECC / CON)
-                  const minAngleBound = selectedExercise === 'alzate_laterali' ? 60 : 70;
-                  const maxAngleBound = selectedExercise === 'alzate_laterali' ? 160 : 180;
-                  let currentEffort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
-                  currentEffort = Math.max(0, Math.min(100, Math.round(currentEffort)));
-
-                  const isDescending = primaryAngle < prevAngle;
-
-                  // Assegnazione sforzo a fase Eccentrica o Concentrica in base al tipo di esercizio
-                  if (selectedExercise === 'alzate_laterali' || selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
-                    if (isDescending) {
-                      setConcentricEffort(currentEffort); // Fase attiva di spinta/trazione
-                    } else {
-                      setEccentricEffort(currentEffort); // Fase di ritorno/rilascio
-                    }
-                  } else {
-                    // Squat e Stacco (lavoro contro gravità in discesa/salita)
-                    if (isDescending) {
-                      setEccentricEffort(currentEffort);
-                    } else {
-                      setConcentricEffort(currentEffort);
-                    }
-                  }
-
-                  prevAngle = primaryAngle;
-
-                  // 3. Macchina a stati per il conteggio delle ripetizioni
-                  if (selectedExercise === 'alzate_laterali') {
-                    // Nelle alzate laterali l'angolo si chiude scendendo sotto la soglia minima
-                    if (repState === 'UP' && primaryAngle < minThresh) {
-                      repState = 'DOWN';
-                    } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
-                      repState = 'UP';
-                      localReps++;
-                      setRepCount(localReps);
-                    }
-                  } else if (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
-                    // Panca e Lat Machine seguono una logica di flessione del gomito simile
-                    if (repState === 'UP' && primaryAngle < minThresh) {
-                      repState = 'DOWN';
-                    } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
-                      repState = 'UP';
-                      localReps++;
-                      setRepCount(localReps);
-                    }
-                  } else {
-                    // Squat e Stacco (standard)
-                    if (repState === 'UP' && primaryAngle < minThresh) {
-                      repState = 'DOWN';
-                    } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
-                      repState = 'UP';
-                      localReps++;
-                      setRepCount(localReps);
-                    }
-                  }
-                } catch (err) {}
-              }
-            }
-
-            if (ctx) {
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
-              // RENDERIZZAZIONE SUL CANVAS DOWNSCALATO A 480PX
-              ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
-
-              if (currentLandmarks) {
-                ctx.strokeStyle = '#00ffcc';
-                ctx.lineWidth = 3;
-                POSE_CONNECTIONS.forEach(([i, j]) => {
-                  const p1 = currentLandmarks[i];
-                  const p2 = currentLandmarks[j];
-                  if (p1 && p2 && p1.visibility && p1.visibility > 0.5 && p2.visibility && p2.visibility > 0.5) {
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x * targetWidth, p1.y * targetHeight);
-                    ctx.lineTo(p2.x * targetWidth, p2.y * targetHeight);
-                    ctx.stroke();
-                  }
-                });
-
-                ctx.fillStyle = '#ff0055';
-                currentLandmarks.forEach((lm: any) => {
-                  if (lm.visibility && lm.visibility > 0.5) {
-                    ctx.beginPath();
-                    ctx.arc(lm.x * targetWidth, lm.y * targetHeight, 4, 0, 2 * Math.PI);
-                    ctx.fill();
-                  }
-                });
-              }
-            }
-
-            requestAnimationFrame(processFrame);
-          };
-
-          requestAnimationFrame(processFrame);
-        };
       });
     }).catch((err) => {
       setIsProcessing(false);
