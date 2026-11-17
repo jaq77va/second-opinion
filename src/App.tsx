@@ -180,8 +180,8 @@ export function App() {
 
                     if (selectedExercise === 'squat') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
-                      minThresh = 110;
-                      maxThresh = 150;
+                      minThresh = 110; // Sotto questo angolo sei in basso (bottom dello squat)
+                      maxThresh = 150; // Sopra questo angolo la rep è completata in piedi
                     } else if (selectedExercise === 'stacco') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[23], currentLandmarks[25]);
                       minThresh = 100;
@@ -196,20 +196,22 @@ export function App() {
                       maxThresh = 140;
                     } else if (selectedExercise === 'alzate_laterali') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
-                      minThresh = 45;  // Apice dell'alzata (l'angolo scende sotto i 45°)
-                      maxThresh = 98;  // Ritorno alla base (l'angolo supera i 98°, intercettando i tuoi 104°-105°)
+                      minThresh = 45;  // Apice dell'alzata
+                      maxThresh = 98;  // Ritorno alla base
                     }
                     // --- LOG DI DEBUG PER LE ALZATE LATERALI ---
                     if (selectedExercise === 'alzate_laterali') {
                       console.log(`[ALZATE] Angolo: ${primaryAngle}° | Stato: ${repState} | MinThresh: ${minThresh} | MaxThresh: ${maxThresh}`);
                     }
-                    const minAngleBound = selectedExercise === 'alzate_laterali' ? 50 : 70;
-                    const maxAngleBound = selectedExercise === 'alzate_laterali' ? 150 : 180;
+                    // Calcolo dello sforzo percentuale
+                    const minAngleBound = selectedExercise === 'alzate_laterali' ? 40 : 70;
+                    const maxAngleBound = selectedExercise === 'alzate_laterali' ? 120 : 180;
                     let currentEffort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
                     currentEffort = Math.max(0, Math.min(100, Math.round(currentEffort)));
 
                     const isDescending = primaryAngle < prevAngle;
 
+                    // Gestione sforzo ECC / CON
                     if (selectedExercise === 'alzate_laterali' || selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
                       if (isDescending) {
                         setConcentricEffort(currentEffort);
@@ -226,14 +228,25 @@ export function App() {
 
                     prevAngle = primaryAngle;
 
-                    if (repState === 'UP' && primaryAngle < minThresh) {
-                      repState = 'DOWN';
-                      if (selectedExercise === 'alzate_laterali') console.log('[ALZATE] Stato passato a DOWN (Apice raggiunto)');
-                    } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
-                      repState = 'UP';
-                      localReps++;
-                      setRepCount(localReps);
-                      if (selectedExercise === 'alzate_laterali') console.log(`[ALZATE] Ripetizione contata! Totale: ${localReps}`);
+                    // Macchina a stati distinta per esercizi a chiusura inversa (alzate laterali) vs standard (squat, panca, ecc.)
+                    if (selectedExercise === 'alzate_laterali') {
+                      // Nelle alzate l'angolo diminuisce salendo
+                      if (repState === 'UP' && primaryAngle < minThresh) {
+                        repState = 'DOWN';
+                      } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
+                        repState = 'UP';
+                        localReps++;
+                        setRepCount(localReps);
+                      }
+                    } else {
+                      // Per Squat, Stacco, Panca, Lat Machine (l'angolo diminuisce scendendo e sale chiudendo la rep)
+                      if (repState === 'UP' && primaryAngle < minThresh) {
+                        repState = 'DOWN';
+                      } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
+                        repState = 'UP';
+                        localReps++;
+                        setRepCount(localReps);
+                      }
                     }
                   }
                 } catch (err) {}
