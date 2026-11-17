@@ -98,14 +98,12 @@ export function App() {
         video.src = URL.createObjectURL(file);
         video.load();
 
-        // Parametri ottimizzati per prestazioni mobile
         const MAX_WIDTH = 480;
         const FRAME_SKIP = 3;
         let frameCounter = 0;
         let targetWidth = 640;
         let targetHeight = 480;
 
-        // Stato macchina a stati e filtro smoothing
         let repPhase: 'START' | 'ACTIVE' = 'START';
         let hasReachedInitialPosition = false;
         let localReps = 0;
@@ -187,7 +185,6 @@ export function App() {
                     let rawAngle: number | null = null;
 
                     if (selectedExercise === 'squat') {
-                      // Usa il lato più visibile (sinistro [23,25,27] o destro [24,26,28])
                       const leftOk = areLandmarksVisible(currentLandmarks, [23, 25, 27], 0.45);
                       const rightOk = areLandmarksVisible(currentLandmarks, [24, 26, 28], 0.45);
                       if (leftOk && rightOk) {
@@ -212,7 +209,6 @@ export function App() {
                         rawAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
                       }
                     } else if (selectedExercise === 'alzate_laterali') {
-                      // Media delle due braccia (Anca - Spalla - Gomito) per stabilità frontale
                       const leftOk = areLandmarksVisible(currentLandmarks, [23, 11, 13], 0.45);
                       const rightOk = areLandmarksVisible(currentLandmarks, [24, 12, 14], 0.45);
                       if (leftOk && rightOk) {
@@ -227,41 +223,68 @@ export function App() {
                     }
 
                     if (rawAngle !== null) {
-                      // Media mobile su 3 rilevazioni per filtrare jitter di 1 frame
                       angleHistory.push(rawAngle);
                       if (angleHistory.length > 3) angleHistory.shift();
                       const smoothAngle = Math.round(
                         angleHistory.reduce((acc, v) => acc + v, 0) / angleHistory.length
                       );
 
-                      // Calcolo barre sforzo ECC / CON
+                      // --- LOGICA EFFORT MIGLIORATA E STABILE A RIPOSO ---
+                      const isDescending = smoothAngle < prevAngle;
+
                       if (selectedExercise === 'alzate_laterali') {
-                        // Nelle alzate laterali: 35° (riposo) -> 100° (apice)
-                        let effort = ((smoothAngle - 35) / (100 - 35)) * 100;
-                        effort = Math.max(0, Math.min(100, Math.round(effort)));
-                        if (smoothAngle > prevAngle) {
-                          setConcentricEffort(effort);
+                        // Sotto i 45° a riposo l'effort è 0
+                        if (smoothAngle <= 45) {
+                          setEccentricEffort(0);
+                          setConcentricEffort(0);
                         } else {
-                          setEccentricEffort(effort);
+                          let rawEff = (smoothAngle - 45) / (100 - 45);
+                          rawEff = Math.max(0, Math.min(1, rawEff));
+                          // Esponenziale per dare molta più evidenza al picco
+                          let effort = Math.round(Math.pow(rawEff, 1.5) * 100);
+
+                          if (isDescending) {
+                            setEccentricEffort(effort);
+                            setConcentricEffort(0);
+                          } else {
+                            setConcentricEffort(effort);
+                            setEccentricEffort(0);
+                          }
                         }
                       } else {
-                        const minBound = 65;
-                        const maxBound = 175;
-                        let effort = ((maxBound - smoothAngle) / (maxBound - minBound)) * 100;
-                        effort = Math.max(0, Math.min(100, Math.round(effort)));
-                        const isClosing = smoothAngle < prevAngle;
-                        if (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
-                          if (isClosing) setConcentricEffort(effort);
-                          else setEccentricEffort(effort);
+                        // Per squat / stacco / panca / lat: sopra i 155° a riposo l'effort è 0
+                        if (smoothAngle >= 155) {
+                          setEccentricEffort(0);
+                          setConcentricEffort(0);
                         } else {
-                          if (isClosing) setEccentricEffort(effort);
-                          else setConcentricEffort(effort);
+                          let rawEff = (155 - smoothAngle) / (155 - 65);
+                          rawEff = Math.max(0, Math.min(1, rawEff));
+                          // Esponenziale per marcare la differenza di sforzo verso il basso
+                          let effort = Math.round(Math.pow(rawEff, 1.5) * 100);
+
+                          const isClosing = isDescending;
+                          if (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
+                            if (isClosing) {
+                              setConcentricEffort(effort);
+                              setEccentricEffort(0);
+                            } else {
+                              setEccentricEffort(effort);
+                              setConcentricEffort(0);
+                            }
+                          } else {
+                            if (isClosing) {
+                              setEccentricEffort(effort);
+                              setConcentricEffort(0);
+                            } else {
+                              setConcentricEffort(effort);
+                              setEccentricEffort(0);
+                            }
+                          }
                         }
                       }
 
-                      // Macchina a stati robusta con conferma su 2 rilevazioni consecutive
+                      // Macchina a stati robusta
                       if (selectedExercise === 'alzate_laterali') {
-                        // Start: braccia giù (< 55°) | Active/Apice: braccia alte (> 88°)
                         const REST_MAX = 55;
                         const APEX_MIN = 88;
 
@@ -293,8 +316,6 @@ export function App() {
                           }
                         }
                       } else {
-                        // Squat, Stacco, Panca, Lat Machine:
-                        // Start: estensione (> 150°) | Active/Fondo: flessione (< bottomThresh)
                         const TOP_MIN = selectedExercise === 'lat_machine' ? 140 : 150;
                         const BOTTOM_MAX =
                           selectedExercise === 'squat'
@@ -306,7 +327,6 @@ export function App() {
                             : 95;
 
                         if (!hasReachedInitialPosition) {
-                          // Richiede che l'utente sia stabilmente in piedi/esteso prima di iniziare il conteggio
                           if (smoothAngle >= TOP_MIN) {
                             transitionStreak++;
                             if (transitionStreak >= 2) {
@@ -582,45 +602,50 @@ export function App() {
           </div>
         )}
 
-        <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-          <div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Ripetizioni</span>
-            <span style={{ fontSize: 34, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>{repCount}</span>
+        {/* --- INDICATORI RIPETIZIONI ED EFFORT ORIZZONTALI --- */}
+        <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Ripetizioni</span>
+              <span style={{ fontSize: 34, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>{repCount}</span>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', fontWeight: 700, marginBottom: 2 }}>ECC</span>
-              <div style={{ width: 14, height: 50, background: '#0f172a', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', border: '1px solid #334155', margin: '0 auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid #334155', paddingTop: 12 }}>
+            {/* Barra ECC Orizzontale */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                <span style={{ color: '#94a3b8' }}>ECC (Eccentrica)</span>
+                <span style={{ color: getEffortColor(eccentricEffort) }}>{eccentricEffort}%</span>
+              </div>
+              <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
                 <div 
                   style={{ 
-                    width: '100%', 
-                    height: `${eccentricEffort}%`, 
+                    width: `${eccentricEffort}%`, 
+                    height: '100%', 
                     background: getEffortColor(eccentricEffort),
-                    transition: 'height 0.1s ease, background 0.2s ease' 
+                    transition: 'width 0.1s ease, background 0.2s ease' 
                   }} 
                 />
               </div>
-              <span style={{ fontSize: 10, fontWeight: 800, color: getEffortColor(eccentricEffort), display: 'block', marginTop: 2 }}>
-                {eccentricEffort}%
-              </span>
             </div>
 
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', fontWeight: 700, marginBottom: 2 }}>CON</span>
-              <div style={{ width: 14, height: 50, background: '#0f172a', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', border: '1px solid #334155', margin: '0 auto' }}>
+            {/* Barra CON Orizzontale */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                <span style={{ color: '#94a3b8' }}>CON (Concentrica)</span>
+                <span style={{ color: getEffortColor(concentricEffort) }}>{concentricEffort}%</span>
+              </div>
+              <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
                 <div 
                   style={{ 
-                    width: '100%', 
-                    height: `${concentricEffort}%`, 
+                    width: `${concentricEffort}%`, 
+                    height: '100%', 
                     background: getEffortColor(concentricEffort),
-                    transition: 'height 0.1s ease, background 0.2s ease' 
+                    transition: 'width 0.1s ease, background 0.2s ease' 
                   }} 
                 />
               </div>
-              <span style={{ fontSize: 10, fontWeight: 800, color: getEffortColor(concentricEffort), display: 'block', marginTop: 2 }}>
-                {concentricEffort}%
-              </span>
             </div>
           </div>
         </div>
