@@ -179,8 +179,8 @@ export function App() {
 
                     if (selectedExercise === 'squat') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
-                      minThresh = 110;
-                      maxThresh = 150;
+                      minThresh = 105; // Abbassato leggermente per beccare bene il fondo dello squat
+                      maxThresh = 155; // Alzato a 155 per chiudere con certezza la rep in piedi
                     } else if (selectedExercise === 'stacco') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[23], currentLandmarks[25]);
                       minThresh = 100;
@@ -195,8 +195,8 @@ export function App() {
                       maxThresh = 140;
                     } else if (selectedExercise === 'alzate_laterali') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
-                      minThresh = 45;
-                      maxThresh = 98;
+                      minThresh = 45;  
+                      maxThresh = 102; // Portato a 102 per intercettare perfettamente il ritorno ai fianchi visto nei log (104°-105°)
                     }
 
                     // LOG UNIVERSALE DI DEBUG (SQUAT, ALZATE E ALTRI)
