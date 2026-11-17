@@ -5,12 +5,12 @@ import { getGeminiFeedback } from './geminiCoach';
 
 type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_laterali';
 
-const EXERCISES: { id: Exercise; label: string; icon: string; viewHint: string }[] = [
-  { id: 'squat', label: 'Squat', icon: '🏋️‍♂️', viewHint: 'Inquadratura laterale o frontale a figura intera' },
-  { id: 'stacco', label: 'Stacco da terra', icon: '⚡', viewHint: 'Inquadratura laterale a altezza bacino' },
-  { id: 'panca_piana', label: 'Panca piana', icon: '🏛️', viewHint: 'Inquadratura laterale o obliqua a 45°' },
-  { id: 'lat_machine', label: 'Lat machine', icon: '🦾', viewHint: 'Inquadratura posteriore o laterale' },
-  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🦅', viewHint: 'Inquadratura frontale dal bacino in su' },
+const EXERCISES: { id: Exercise; label: string; icon: string; viewHint: string; isDumbbell: boolean }[] = [
+  { id: 'squat', label: 'Squat', icon: '🏋️‍♂️', viewHint: 'Inquadratura laterale o frontale a figura intera', isDumbbell: false },
+  { id: 'stacco', label: 'Stacco da terra', icon: '⚡', viewHint: 'Inquadratura laterale a altezza bacino', isDumbbell: false },
+  { id: 'panca_piana', label: 'Panca piana', icon: '🏛️', viewHint: 'Inquadratura laterale o obliqua a 45°', isDumbbell: false },
+  { id: 'lat_machine', label: 'Lat machine', icon: '🦾', viewHint: 'Inquadratura posteriore o laterale', isDumbbell: false },
+  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🦅', viewHint: 'Inquadratura frontale dal bacino in su', isDumbbell: true },
 ];
 
 const POSE_CONNECTIONS = [
@@ -36,13 +36,15 @@ function areLandmarksVisible(landmarks: any[], indices: number[], minVis = 0.45)
 
 export function App() {
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
-  const [status, setStatus] = useState<string>('Pronto. Seleziona un esercizio e carica il video.');
+  const [weightKg, setWeightKg] = useState<number>(20); // Peso iniziale predefinito
+  const [status, setStatus] = useState<string>('Pronto. Seleziona un esercizio, imposta il peso e carica il video.');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [repCount, setRepCount] = useState<number>(0);
   
-  // ROM in tempo reale
+  // Metriche in tempo reale
   const [romQuality, setRomQuality] = useState<number>(0);
+  const [powerScore, setPowerScore] = useState<number>(0);
 
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [aiFeedback, setAiFeedback] = useState<string>('');
@@ -66,6 +68,10 @@ export function App() {
     });
   };
 
+  const handleWeightChange = (delta: number) => {
+    setWeightKg((prev) => Math.max(0, prev + delta));
+  };
+
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !videoRef.current || !canvasRef.current) return;
@@ -76,6 +82,7 @@ export function App() {
     setAiFeedback('');
     setRepCount(0);
     setRomQuality(0);
+    setPowerScore(0);
     setStatus('Caricamento modello AI locale in corso...');
     landmarksBufferRef.current = [];
 
@@ -110,6 +117,9 @@ export function App() {
         let transitionStreak = 0;
         let hasStarted = false;
 
+        // Calcolo effettivo della massa totale in base all'attrezzo
+        const effectiveMass = selectedExerciseObj.isDumbbell ? weightKg * 2 : weightKg;
+
         const startProcessingWhenReady = () => {
           if (hasStarted) return;
 
@@ -130,10 +140,16 @@ export function App() {
           canvas.width = targetWidth;
           canvas.height = targetHeight;
 
-          setStatus('Analisi biomeccanica e conteggio reps in corso...');
+          setStatus('Analisi biomeccanica, ROM e potenza in corso...');
           
           video.play().then(() => {
+            let lastFrameTime = performance.now();
+
             const processFrame = () => {
+              const now = performance.now();
+              const deltaTime = (now - lastFrameTime) / 1000; // in secondi
+              lastFrameTime = now;
+
               if (video.duration && !isNaN(video.duration)) {
                 const currentProgress = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
                 setProgressPercent(currentProgress);
@@ -144,6 +160,7 @@ export function App() {
                   setIsProcessing(false);
                   setProgressPercent(100);
                   setRomQuality(0);
+                  setPowerScore(0);
                   setStatus('Analisi geometrica completata!');
                   
                   const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
@@ -174,7 +191,7 @@ export function App() {
 
               if (frameCounter % FRAME_SKIP === 0) {
                 try {
-                  const result = landmarker.detectForVideo(video, performance.now());
+                  const result = landmarker.detectForVideo(video, now);
                   if (result.landmarks && result.landmarks.length > 0) {
                     currentLandmarks = result.landmarks[0];
                     landmarksBufferRef.current.push(currentLandmarks);
@@ -226,18 +243,24 @@ export function App() {
                         angleHistory.reduce((acc, v) => acc + v, 0) / angleHistory.length
                       );
 
-                      // --- CALCOLO ROM IN TEMPO REALE DINAMICO PER ESERCIZIO ---
+                      // --- CALCOLO ROM ---
+                      let rom = 0;
                       if (selectedExercise === 'alzate_laterali') {
-                        // 35° (riposo) -> 100° (apice)
-                        let rom = ((smoothAngle - 35) / (100 - 35)) * 100;
-                        rom = Math.max(0, Math.min(100, Math.round(rom)));
-                        setRomQuality(rom);
+                        rom = ((smoothAngle - 35) / (100 - 35)) * 100;
                       } else {
-                        // 155° (riposo) -> 65° (massima flessione)
-                        let rom = ((155 - smoothAngle) / (155 - 65)) * 100;
-                        rom = Math.max(0, Math.min(100, Math.round(rom)));
-                        setRomQuality(rom);
+                        rom = ((155 - smoothAngle) / (155 - 65)) * 100;
                       }
+                      rom = Math.max(0, Math.min(100, Math.round(rom)));
+                      setRomQuality(rom);
+
+                      // --- CALCOLO POTENZA (Watt stimati) ---
+                      // Stima basata su Massa effettiva * Variazione angolare per unità di tempo (velocità stimata)
+                      const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
+                      const velocityFactor = deltaTime > 0 ? angleDelta / (deltaTime * 10) : 0;
+                      // Formula euristica di potenza meccanica in Watt (Massa * Fattore di velocità * Costante di scala)
+                      let estimatedPower = Math.round(effectiveMass * velocityFactor * 1.8);
+                      estimatedPower = Math.max(0, Math.min(1200, estimatedPower)); // Limite max verosimile per UI
+                      setPowerScore(estimatedPower);
 
                       // Macchina a stati robusta
                       if (selectedExercise === 'alzate_laterali') {
@@ -531,6 +554,37 @@ export function App() {
           <span style={{ fontWeight: 800, fontSize: 15, color: '#38bdf8' }}>{selectedExerciseObj.label}</span>
         </div>
 
+        {/* --- SELETTORE DEL PESO CON TASTI PIÙ E MENO --- */}
+        <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Carico utilizzato</span>
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>
+              {selectedExerciseObj.isDumbbell ? 'Peso del singolo manubrio (kg)' : 'Peso totale (kg)'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => handleWeightChange(-2)}
+              disabled={isProcessing}
+              style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 18, fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              -
+            </button>
+            <span style={{ fontSize: 18, fontWeight: 800, width: 45, textAlign: 'center', color: '#f8fafc' }}>
+              {weightKg}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleWeightChange(2)}
+              disabled={isProcessing}
+              style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 18, fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              +
+            </button>
+          </div>
+        </div>
+
         <div style={{ background: '#1e293b', padding: 12, borderRadius: 10, marginTop: 12, fontSize: 13, border: '1px solid #334155', color: '#94a3b8' }}>
           <strong style={{ color: '#e2e8f0' }}>💡 Inquadratura consigliata:</strong> {currentHint}
         </div>
@@ -556,7 +610,7 @@ export function App() {
           </div>
         )}
 
-        {/* --- INDICATORE ROM IN TEMPO REALE --- */}
+        {/* --- INDICATORI ROM E POTENZA IN TEMPO REALE --- */}
         <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div>
@@ -564,27 +618,48 @@ export function App() {
               <span style={{ fontSize: 34, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>{repCount}</span>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>ROM Corrente</span>
-              <span style={{ fontSize: 24, fontWeight: 900, color: getRomColor(romQuality), lineHeight: 1.1 }}>
-                {romQuality}%
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Potenza (Watt)</span>
+              <span style={{ fontSize: 24, fontWeight: 900, color: '#f43f5e', lineHeight: 1.1 }}>
+                {powerScore} W
               </span>
             </div>
           </div>
 
-          <div style={{ borderTop: '1px solid #334155', paddingTop: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-              <span style={{ color: '#94a3b8' }}>Ampiezza del Movimento (Target ROM)</span>
-              <span style={{ color: getRomColor(romQuality) }}>{romQuality >= 90 ? 'Ottimale' : romQuality >= 70 ? 'Parziale' : 'Incompleto'}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid #334155', paddingTop: 12 }}>
+            {/* Barra ROM */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                <span style={{ color: '#94a3b8' }}>ROM (Ampiezza Movimento)</span>
+                <span style={{ color: getRomColor(romQuality) }}>{romQuality}%</span>
+              </div>
+              <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                <div 
+                  style={{ 
+                    width: `${romQuality}%`, 
+                    height: '100%', 
+                    background: getRomColor(romQuality),
+                    transition: 'width 0.1s ease, background 0.2s ease' 
+                  }} 
+                />
+              </div>
             </div>
-            <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
-              <div 
-                style={{ 
-                  width: `${romQuality}%`, 
-                  height: '100%', 
-                  background: getRomColor(romQuality),
-                  transition: 'width 0.1s ease, background 0.2s ease' 
-                }} 
-              />
+
+            {/* Barra Potenza Esplosiva */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                <span style={{ color: '#94a3b8' }}>Potenza Meccanica Stima</span>
+                <span style={{ color: '#f43f5e' }}>{Math.min(100, Math.round((powerScore / 800) * 100))}%</span>
+              </div>
+              <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                <div 
+                  style={{ 
+                    width: `${Math.min(100, Math.round((powerScore / 800) * 100))}%`, 
+                    height: '100%', 
+                    background: '#f43f5e',
+                    transition: 'width 0.1s ease' 
+                  }} 
+                />
+              </div>
             </div>
           </div>
         </div>
