@@ -41,8 +41,8 @@ export function App() {
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [repCount, setRepCount] = useState<number>(0);
   
-  const [eccentricEffort, setEccentricEffort] = useState<number>(0);
-  const [concentricEffort, setConcentricEffort] = useState<number>(0);
+  // ROM in tempo reale
+  const [romQuality, setRomQuality] = useState<number>(0);
 
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [aiFeedback, setAiFeedback] = useState<string>('');
@@ -75,8 +75,7 @@ export function App() {
     setAnalysisResult(null);
     setAiFeedback('');
     setRepCount(0);
-    setEccentricEffort(0);
-    setConcentricEffort(0);
+    setRomQuality(0);
     setStatus('Caricamento modello AI locale in corso...');
     landmarksBufferRef.current = [];
 
@@ -107,7 +106,6 @@ export function App() {
         let repPhase: 'START' | 'ACTIVE' = 'START';
         let hasReachedInitialPosition = false;
         let localReps = 0;
-        let prevAngle = selectedExercise === 'alzate_laterali' ? 35 : 175;
         let angleHistory: number[] = [];
         let transitionStreak = 0;
         let hasStarted = false;
@@ -145,8 +143,7 @@ export function App() {
                 if (video.ended) {
                   setIsProcessing(false);
                   setProgressPercent(100);
-                  setEccentricEffort(0);
-                  setConcentricEffort(0);
+                  setRomQuality(0);
                   setStatus('Analisi geometrica completata!');
                   
                   const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
@@ -229,58 +226,17 @@ export function App() {
                         angleHistory.reduce((acc, v) => acc + v, 0) / angleHistory.length
                       );
 
-                      // --- LOGICA EFFORT MIGLIORATA E STABILE A RIPOSO ---
-                      const isDescending = smoothAngle < prevAngle;
-
+                      // --- CALCOLO ROM IN TEMPO REALE DINAMICO PER ESERCIZIO ---
                       if (selectedExercise === 'alzate_laterali') {
-                        // Sotto i 45° a riposo l'effort è 0
-                        if (smoothAngle <= 45) {
-                          setEccentricEffort(0);
-                          setConcentricEffort(0);
-                        } else {
-                          let rawEff = (smoothAngle - 45) / (100 - 45);
-                          rawEff = Math.max(0, Math.min(1, rawEff));
-                          // Esponenziale per dare molta più evidenza al picco
-                          let effort = Math.round(Math.pow(rawEff, 1.5) * 100);
-
-                          if (isDescending) {
-                            setEccentricEffort(effort);
-                            setConcentricEffort(0);
-                          } else {
-                            setConcentricEffort(effort);
-                            setEccentricEffort(0);
-                          }
-                        }
+                        // 35° (riposo) -> 100° (apice)
+                        let rom = ((smoothAngle - 35) / (100 - 35)) * 100;
+                        rom = Math.max(0, Math.min(100, Math.round(rom)));
+                        setRomQuality(rom);
                       } else {
-                        // Per squat / stacco / panca / lat: sopra i 155° a riposo l'effort è 0
-                        if (smoothAngle >= 155) {
-                          setEccentricEffort(0);
-                          setConcentricEffort(0);
-                        } else {
-                          let rawEff = (155 - smoothAngle) / (155 - 65);
-                          rawEff = Math.max(0, Math.min(1, rawEff));
-                          // Esponenziale per marcare la differenza di sforzo verso il basso
-                          let effort = Math.round(Math.pow(rawEff, 1.5) * 100);
-
-                          const isClosing = isDescending;
-                          if (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
-                            if (isClosing) {
-                              setConcentricEffort(effort);
-                              setEccentricEffort(0);
-                            } else {
-                              setEccentricEffort(effort);
-                              setConcentricEffort(0);
-                            }
-                          } else {
-                            if (isClosing) {
-                              setEccentricEffort(effort);
-                              setConcentricEffort(0);
-                            } else {
-                              setConcentricEffort(effort);
-                              setEccentricEffort(0);
-                            }
-                          }
-                        }
+                        // 155° (riposo) -> 65° (massima flessione)
+                        let rom = ((155 - smoothAngle) / (155 - 65)) * 100;
+                        rom = Math.max(0, Math.min(100, Math.round(rom)));
+                        setRomQuality(rom);
                       }
 
                       // Macchina a stati robusta
@@ -360,8 +316,6 @@ export function App() {
                           }
                         }
                       }
-
-                      prevAngle = smoothAngle;
                     }
                   }
                 } catch (err) {}
@@ -416,9 +370,9 @@ export function App() {
     });
   };
 
-  const getEffortColor = (effort: number) => {
-    if (effort < 50) return '#22c55e';
-    if (effort < 80) return '#eab308';
+  const getRomColor = (val: number) => {
+    if (val >= 90) return '#22c55e';
+    if (val >= 70) return '#eab308';
     return '#ef4444';
   };
 
@@ -602,50 +556,35 @@ export function App() {
           </div>
         )}
 
-        {/* --- INDICATORI RIPETIZIONI ED EFFORT ORIZZONTALI --- */}
+        {/* --- INDICATORE ROM IN TEMPO REALE --- */}
         <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div>
               <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Ripetizioni</span>
               <span style={{ fontSize: 34, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>{repCount}</span>
             </div>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>ROM Corrente</span>
+              <span style={{ fontSize: 24, fontWeight: 900, color: getRomColor(romQuality), lineHeight: 1.1 }}>
+                {romQuality}%
+              </span>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid #334155', paddingTop: 12 }}>
-            {/* Barra ECC Orizzontale */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                <span style={{ color: '#94a3b8' }}>ECC (Eccentrica)</span>
-                <span style={{ color: getEffortColor(eccentricEffort) }}>{eccentricEffort}%</span>
-              </div>
-              <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
-                <div 
-                  style={{ 
-                    width: `${eccentricEffort}%`, 
-                    height: '100%', 
-                    background: getEffortColor(eccentricEffort),
-                    transition: 'width 0.1s ease, background 0.2s ease' 
-                  }} 
-                />
-              </div>
+          <div style={{ borderTop: '1px solid #334155', paddingTop: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+              <span style={{ color: '#94a3b8' }}>Ampiezza del Movimento (Target ROM)</span>
+              <span style={{ color: getRomColor(romQuality) }}>{romQuality >= 90 ? 'Ottimale' : romQuality >= 70 ? 'Parziale' : 'Incompleto'}</span>
             </div>
-
-            {/* Barra CON Orizzontale */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                <span style={{ color: '#94a3b8' }}>CON (Concentrica)</span>
-                <span style={{ color: getEffortColor(concentricEffort) }}>{concentricEffort}%</span>
-              </div>
-              <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
-                <div 
-                  style={{ 
-                    width: `${concentricEffort}%`, 
-                    height: '100%', 
-                    background: getEffortColor(concentricEffort),
-                    transition: 'width 0.1s ease, background 0.2s ease' 
-                  }} 
-                />
-              </div>
+            <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+              <div 
+                style={{ 
+                  width: `${romQuality}%`, 
+                  height: '100%', 
+                  background: getRomColor(romQuality),
+                  transition: 'width 0.1s ease, background 0.2s ease' 
+                }} 
+              />
             </div>
           </div>
         </div>
