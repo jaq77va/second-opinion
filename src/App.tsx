@@ -88,7 +88,7 @@ export function App() {
         const video = videoRef.current!;
         const canvas = canvasRef.current!;
         const ctx = canvas.getContext('2d');
-
+        /*
         video.src = URL.createObjectURL(file);
 
         // RIPRISTINATE LE OTTIMIZZAZIONI MOBILE
@@ -101,7 +101,182 @@ export function App() {
         let repState = 'UP';
         let localReps = 0;
         let prevAngle = 180;
+        */
+       video.src = URL.createObjectURL(file);
+        video.load(); // Forza il reset e la lettura del file video sul mobile
 
+        const MAX_WIDTH = 480;
+        const FRAME_SKIP = 3;
+        let frameCounter = 0;
+        let targetWidth = 640;
+        let targetHeight = 480;
+
+        let repState = 'UP';
+        let localReps = 0;
+        let prevAngle = 180;
+
+        // Funzione di avvio sicura slegata dai capricci dei singoli eventi mobile
+        const startProcessingWhenReady = () => {
+          const originalWidth = video.videoWidth || 640;
+          const originalHeight = video.videoHeight || 480;
+          
+          if (originalWidth === 0 || originalHeight === 0) {
+            // Se i metadata non sono ancora pronti, riprova un attimo dopo
+            setTimeout(startProcessingWhenReady, 100);
+            return;
+          }
+
+          const scale = MAX_WIDTH / originalWidth;
+          targetWidth = MAX_WIDTH;
+          targetHeight = Math.round(originalHeight * scale);
+
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+
+          setStatus('Analisi biomeccanica e conteggio reps in corso...');
+          
+          // Forza la riproduzione con gestione della promessa (evita blocchi su policy autoplay mobile)
+          video.play().then(() => {
+            const processFrame = () => {
+              if (video.duration && !isNaN(video.duration)) {
+                const currentProgress = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
+                setProgressPercent(currentProgress);
+              }
+
+              if (video.ended || video.paused) {
+                if (video.ended) {
+                  setIsProcessing(false);
+                  setProgressPercent(100);
+                  setEccentricEffort(0);
+                  setConcentricEffort(0);
+                  setStatus('Analisi geometrica completata!');
+                  
+                  const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
+                  setAnalysisResult(geomResult);
+
+                  setIsAiLoading(true);
+                  setStatus('Generazione del feedback intelligente con Gemini (Server)...');
+                  
+                  getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
+                    .then((feedback) => {
+                      setAiFeedback(feedback);
+                      setIsAiLoading(false);
+                      setStatus('Analisi e Coaching completati con successo!');
+                    })
+                    .catch((err) => {
+                      setAiFeedback(`Errore AI: ${err.message}`);
+                      setIsAiLoading(false);
+                      setStatus('Completato con errore IA.');
+                    });
+
+                  landmarker.close();
+                }
+                return;
+              }
+
+              frameCounter++;
+              let currentLandmarks: any = null;
+
+              if (frameCounter % FRAME_SKIP === 0) {
+                try {
+                  const result = landmarker.detectForVideo(video, performance.now());
+                  if (result.landmarks && result.landmarks.length > 0) {
+                    currentLandmarks = result.landmarks[0];
+                    landmarksBufferRef.current.push(currentLandmarks);
+
+                    let primaryAngle = 180;
+                    if (selectedExercise === 'squat') {
+                      primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
+                    } else if (selectedExercise === 'stacco') {
+                      primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[23], currentLandmarks[25]);
+                    } else if (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
+                      primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
+                    } else if (selectedExercise === 'alzate_laterali') {
+                      primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
+                    }
+
+                    const isDescending = primaryAngle < prevAngle;
+                    const minAngleBound = selectedExercise === 'alzate_laterali' ? 60 : 70;
+                    const maxAngleBound = selectedExercise === 'alzate_laterali' ? 160 : 180;
+                    let currentEffort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
+                    currentEffort = Math.max(0, Math.min(100, Math.round(currentEffort)));
+
+                    if (selectedExercise === 'alzate_laterali' || selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
+                      if (isDescending) {
+                        setConcentricEffort(currentEffort);
+                      } else {
+                        setEccentricEffort(currentEffort);
+                      }
+                    } else {
+                      if (isDescending) {
+                        setEccentricEffort(currentEffort);
+                      } else {
+                        setConcentricEffort(currentEffort);
+                      }
+                    }
+
+                    prevAngle = primaryAngle;
+
+                    let minThresh = selectedExercise === 'alzate_laterali' ? 85 : (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine' ? 80 : 110);
+                    let maxThresh = selectedExercise === 'alzate_laterali' ? 140 : (selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine' ? 140 : 150);
+
+                    if (repState === 'UP' && primaryAngle < minThresh) {
+                      repState = 'DOWN';
+                    } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
+                      repState = 'UP';
+                      localReps++;
+                      setRepCount(localReps);
+                    }
+                  }
+                } catch (err) {}
+              }
+
+              if (ctx) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+
+                if (currentLandmarks) {
+                  ctx.strokeStyle = '#00ffcc';
+                  ctx.lineWidth = 3;
+                  POSE_CONNECTIONS.forEach(([i, j]) => {
+                    const p1 = currentLandmarks[i];
+                    const p2 = currentLandmarks[j];
+                    if (p1 && p2 && p1.visibility && p1.visibility > 0.5 && p2.visibility && p2.visibility > 0.5) {
+                      ctx.beginPath();
+                      ctx.moveTo(p1.x * targetWidth, p1.y * targetHeight);
+                      ctx.lineTo(p2.x * targetWidth, p2.y * targetHeight);
+                      ctx.stroke();
+                    }
+                  });
+
+                  ctx.fillStyle = '#ff0055';
+                  currentLandmarks.forEach((lm: any) => {
+                    if (lm.visibility && lm.visibility > 0.5) {
+                      ctx.beginPath();
+                      ctx.arc(lm.x * targetWidth, lm.y * targetHeight, 4, 0, 2 * Math.PI);
+                      ctx.fill();
+                    }
+                  });
+                }
+              }
+
+              requestAnimationFrame(processFrame);
+            };
+
+            requestAnimationFrame(processFrame);
+          }).catch((playErr) => {
+            setIsProcessing(false);
+            setStatus(`Errore riproduzione video: ${playErr.message}`);
+          });
+        };
+
+        // Aggancio multiplo degli eventi per coprire tutti i comportamenti dei browser mobile
+        video.onloadedmetadata = startProcessingWhenReady;
+        video.oncanplay = startProcessingWhenReady;
+        
+        // Fallback di sicurezza nel caso in cui gli eventi sopra falliscano a intermittenza
+        setTimeout(startProcessingWhenReady, 500);
+        
         video.onloadedmetadata = () => {
           const originalWidth = video.videoWidth || 640;
           const originalHeight = video.videoHeight || 480;
