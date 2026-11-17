@@ -180,7 +180,7 @@ export function App() {
                     if (selectedExercise === 'squat') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
                       minThresh = 105;
-                      maxThresh = 155;
+                      maxThresh = 142; // Abbassato a 142 per chiudere correttamente la rep visto che nei log arrivi intorno a 141-142°
                     } else if (selectedExercise === 'stacco') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[23], currentLandmarks[25]);
                       minThresh = 100;
@@ -227,7 +227,7 @@ export function App() {
                       }
                     }
 
-                    // Macchina a stati differenziata con blocco sicurezza iniziale per lo Squat
+                    // Macchina a stati con blocco iniziale di sicurezza per lo Squat
                     if (selectedExercise === 'squat') {
                       if (repState === 'UP' && primaryAngle < minThresh && prevAngle > 130) {
                         repState = 'DOWN';
