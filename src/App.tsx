@@ -92,7 +92,6 @@ export function App() {
         video.src = URL.createObjectURL(file);
         video.load();
 
-        // Ottimizzazioni Mobile: Downscaling 480px e Frame Skipping 1:3
         const MAX_WIDTH = 480;
         const FRAME_SKIP = 3;
         let frameCounter = 0;
@@ -102,7 +101,7 @@ export function App() {
         let repState = 'UP';
         let localReps = 0;
         let prevAngle = 180;
-        let hasStarted = false; // Evita avvii doppi su mobile
+        let hasStarted = false;
 
         const startProcessingWhenReady = () => {
           if (hasStarted) return;
@@ -180,8 +179,8 @@ export function App() {
 
                     if (selectedExercise === 'squat') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
-                      minThresh = 110; // Sotto questo angolo sei in basso (bottom dello squat)
-                      maxThresh = 150; // Sopra questo angolo la rep è completata in piedi
+                      minThresh = 110;
+                      maxThresh = 150;
                     } else if (selectedExercise === 'stacco') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[23], currentLandmarks[25]);
                       minThresh = 100;
@@ -196,14 +195,13 @@ export function App() {
                       maxThresh = 140;
                     } else if (selectedExercise === 'alzate_laterali') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
-                      minThresh = 45;  // Apice dell'alzata
-                      maxThresh = 98;  // Ritorno alla base
+                      minThresh = 45;
+                      maxThresh = 98;
                     }
-                    // --- LOG DI DEBUG PER LE ALZATE LATERALI ---
-                    if (selectedExercise === 'alzate_laterali') {
-                      console.log(`[ALZATE] Angolo: ${primaryAngle}° | Stato: ${repState} | MinThresh: ${minThresh} | MaxThresh: ${maxThresh}`);
-                    }
-                    // Calcolo dello sforzo percentuale
+
+                    // LOG UNIVERSALE DI DEBUG (SQUAT, ALZATE E ALTRI)
+                    console.log(`[${selectedExercise.toUpperCase()}] Angolo: ${primaryAngle}° | Stato: ${repState} | MinThresh: ${minThresh} | MaxThresh: ${maxThresh}`);
+
                     const minAngleBound = selectedExercise === 'alzate_laterali' ? 40 : 70;
                     const maxAngleBound = selectedExercise === 'alzate_laterali' ? 120 : 180;
                     let currentEffort = ((maxAngleBound - primaryAngle) / (maxAngleBound - minAngleBound)) * 100;
@@ -211,7 +209,6 @@ export function App() {
 
                     const isDescending = primaryAngle < prevAngle;
 
-                    // Gestione sforzo ECC / CON
                     if (selectedExercise === 'alzate_laterali' || selectedExercise === 'panca_piana' || selectedExercise === 'lat_machine') {
                       if (isDescending) {
                         setConcentricEffort(currentEffort);
@@ -228,25 +225,14 @@ export function App() {
 
                     prevAngle = primaryAngle;
 
-                    // Macchina a stati distinta per esercizi a chiusura inversa (alzate laterali) vs standard (squat, panca, ecc.)
-                    if (selectedExercise === 'alzate_laterali') {
-                      // Nelle alzate l'angolo diminuisce salendo
-                      if (repState === 'UP' && primaryAngle < minThresh) {
-                        repState = 'DOWN';
-                      } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
-                        repState = 'UP';
-                        localReps++;
-                        setRepCount(localReps);
-                      }
-                    } else {
-                      // Per Squat, Stacco, Panca, Lat Machine (l'angolo diminuisce scendendo e sale chiudendo la rep)
-                      if (repState === 'UP' && primaryAngle < minThresh) {
-                        repState = 'DOWN';
-                      } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
-                        repState = 'UP';
-                        localReps++;
-                        setRepCount(localReps);
-                      }
+                    if (repState === 'UP' && primaryAngle < minThresh) {
+                      repState = 'DOWN';
+                      console.log(`[${selectedExercise.toUpperCase()}] >>> Stato passato a DOWN`);
+                    } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
+                      repState = 'UP';
+                      localReps++;
+                      setRepCount(localReps);
+                      console.log(`[${selectedExercise.toUpperCase()}] >>> REP CONTATA! Totale: ${localReps}`);
                     }
                   }
                 } catch (err) {}
