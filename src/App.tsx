@@ -172,15 +172,15 @@ export function App() {
                   if (result.landmarks && result.landmarks.length > 0) {
                     currentLandmarks = result.landmarks[0];
                     landmarksBufferRef.current.push(currentLandmarks);
-                    // --- INIZIO CODICE DA SOSTITUIRE ---
+
                     let primaryAngle = 180;
                     let minThresh = 90;
                     let maxThresh = 150;
 
                     if (selectedExercise === 'squat') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
-                      minThresh = 105; // Abbassato leggermente per beccare bene il fondo dello squat
-                      maxThresh = 155; // Alzato a 155 per chiudere con certezza la rep in piedi
+                      minThresh = 105;
+                      maxThresh = 155;
                     } else if (selectedExercise === 'stacco') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[23], currentLandmarks[25]);
                       minThresh = 100;
@@ -196,10 +196,9 @@ export function App() {
                     } else if (selectedExercise === 'alzate_laterali') {
                       primaryAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
                       minThresh = 45;  
-                      maxThresh = 102; // Portato a 102 per intercettare perfettamente il ritorno ai fianchi visto nei log (104°-105°)
+                      maxThresh = 102;
                     }
 
-                    // --- LOG DETTAGLIATO DI DEBUG ---
                     console.log(
                       `[DEBUG] Esercizio: ${selectedExercise} | ` +
                       `Angolo: ${primaryAngle}° | ` +
@@ -228,19 +227,40 @@ export function App() {
                       }
                     }
 
-                    prevAngle = primaryAngle;
-
-                    // Macchina a stati con log aggiuntivo
-                    if (repState === 'UP' && primaryAngle < minThresh) {
-                      repState = 'DOWN';
-                      console.log(`[STATO] -> DOWN (Inversione movimento rilevata)`);
-                    } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
-                      repState = 'UP';
-                      localReps++;
-                      setRepCount(localReps);
-                      console.log(`[REP COMPLETA] 🎉 Totale ripetizioni: ${localReps}`);
+                    // Macchina a stati differenziata con blocco sicurezza iniziale per lo Squat
+                    if (selectedExercise === 'squat') {
+                      if (repState === 'UP' && primaryAngle < minThresh && prevAngle > 130) {
+                        repState = 'DOWN';
+                        console.log(`[STATO SQUAT] -> DOWN (Inversione corretta)`);
+                      } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
+                        repState = 'UP';
+                        localReps++;
+                        setRepCount(localReps);
+                        console.log(`[REP COMPLETA SQUAT] 🎉 Totale: ${localReps}`);
+                      }
+                    } else if (selectedExercise === 'alzate_laterali') {
+                      if (repState === 'UP' && primaryAngle < minThresh) {
+                        repState = 'DOWN';
+                        console.log(`[STATO ALZATE] -> DOWN (Apice raggiunto)`);
+                      } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
+                        repState = 'UP';
+                        localReps++;
+                        setRepCount(localReps);
+                        console.log(`[REP COMPLETA ALZATE] 🎉 Totale: ${localReps}`);
+                      }
+                    } else {
+                      if (repState === 'UP' && primaryAngle < minThresh) {
+                        repState = 'DOWN';
+                        console.log(`[STATO] -> DOWN (Inversione movimento rilevata)`);
+                      } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
+                        repState = 'UP';
+                        localReps++;
+                        setRepCount(localReps);
+                        console.log(`[REP COMPLETA] 🎉 Totale ripetizioni: ${localReps}`);
+                      }
                     }
-                    // --- FINE CODICE DA SOSTITUIRE ---
+
+                    prevAngle = primaryAngle;
                   }
                 } catch (err) {}
               }
