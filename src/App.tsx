@@ -172,7 +172,7 @@ export function App() {
                   if (result.landmarks && result.landmarks.length > 0) {
                     currentLandmarks = result.landmarks[0];
                     landmarksBufferRef.current.push(currentLandmarks);
-
+                    // --- INIZIO CODICE DA SOSTITUIRE ---
                     let primaryAngle = 180;
                     let minThresh = 90;
                     let maxThresh = 150;
@@ -199,8 +199,13 @@ export function App() {
                       maxThresh = 102; // Portato a 102 per intercettare perfettamente il ritorno ai fianchi visto nei log (104°-105°)
                     }
 
-                    // LOG UNIVERSALE DI DEBUG (SQUAT, ALZATE E ALTRI)
-                    console.log(`[${selectedExercise.toUpperCase()}] Angolo: ${primaryAngle}° | Stato: ${repState} | MinThresh: ${minThresh} | MaxThresh: ${maxThresh}`);
+                    // --- LOG DETTAGLIATO DI DEBUG ---
+                    console.log(
+                      `[DEBUG] Esercizio: ${selectedExercise} | ` +
+                      `Angolo: ${primaryAngle}° | ` +
+                      `Stato: ${repState} | ` +
+                      `Soglie (Min: ${minThresh}, Max: ${maxThresh})`
+                    );
 
                     const minAngleBound = selectedExercise === 'alzate_laterali' ? 40 : 70;
                     const maxAngleBound = selectedExercise === 'alzate_laterali' ? 120 : 180;
@@ -225,15 +230,17 @@ export function App() {
 
                     prevAngle = primaryAngle;
 
+                    // Macchina a stati con log aggiuntivo
                     if (repState === 'UP' && primaryAngle < minThresh) {
                       repState = 'DOWN';
-                      console.log(`[${selectedExercise.toUpperCase()}] >>> Stato passato a DOWN`);
+                      console.log(`[STATO] -> DOWN (Inversione movimento rilevata)`);
                     } else if (repState === 'DOWN' && primaryAngle > maxThresh) {
                       repState = 'UP';
                       localReps++;
                       setRepCount(localReps);
-                      console.log(`[${selectedExercise.toUpperCase()}] >>> REP CONTATA! Totale: ${localReps}`);
+                      console.log(`[REP COMPLETA] 🎉 Totale ripetizioni: ${localReps}`);
                     }
+                    // --- FINE CODICE DA SOSTITUIRE ---
                   }
                 } catch (err) {}
               }
