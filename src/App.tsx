@@ -587,7 +587,7 @@ export function App() {
                 <img 
                   src={ex.imagePath} 
                   alt={ex.label} 
-                  style={{ width: 60, height: 60, objectFit: 'contain' }} 
+                  style={{ width: 110, height: 110, objectFit: 'contain', borderRadius: 8 }}
                 />
 
                 <span style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#38bdf8' : '#cbd5e1' }}>
