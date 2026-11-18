@@ -278,7 +278,7 @@ export function App() {
                         } else if (repPhase === 'START') {
                           if (smoothAngle >= APEX_MIN) {
                             transitionStreak++;
-                            if (transitionStreak >= 2) {
+                            if (transitionStreak >= 1) { // Tolleranza mobile ottimizzata
                               repPhase = 'ACTIVE';
                               transitionStreak = 0;
                               currentRepMaxPower = 0;
@@ -302,9 +302,10 @@ export function App() {
                         }
                       } else {
                         const TOP_MIN = selectedExercise === 'lat_machine' ? 140 : 150;
+                        // Soglia squat leggermente alzata a 100° per catturare meglio l'affondo su mobile
                         const BOTTOM_MAX =
                           selectedExercise === 'squat'
-                            ? 95
+                            ? 100
                             : selectedExercise === 'stacco'
                             ? 105
                             : selectedExercise === 'lat_machine'
@@ -314,7 +315,7 @@ export function App() {
                         if (!hasReachedInitialPosition) {
                           if (smoothAngle >= TOP_MIN) {
                             transitionStreak++;
-                            if (transitionStreak >= 2) {
+                            if (transitionStreak >= 1) { // Tolleranza mobile ottimizzata
                               hasReachedInitialPosition = true;
                               transitionStreak = 0;
                             }
@@ -324,7 +325,7 @@ export function App() {
                         } else if (repPhase === 'START') {
                           if (smoothAngle <= BOTTOM_MAX) {
                             transitionStreak++;
-                            if (transitionStreak >= 2) {
+                            if (transitionStreak >= 1) { // Tolleranza mobile ottimizzata
                               repPhase = 'ACTIVE';
                               transitionStreak = 0;
                               currentRepMaxPower = 0;
@@ -335,7 +336,7 @@ export function App() {
                         } else if (repPhase === 'ACTIVE') {
                           if (smoothAngle >= TOP_MIN) {
                             transitionStreak++;
-                            if (transitionStreak >= 2) {
+                            if (transitionStreak >= 1) { // Tolleranza mobile ottimizzata
                               repPhase = 'START';
                               transitionStreak = 0;
                               localReps++;
@@ -651,7 +652,7 @@ export function App() {
 
         <label style={{ display: 'block', marginTop: 22, marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>2. Carica video</label>
         
-        {/* --- UPLOAD FILE CORRETTO CON BOX-SIZING BORDER-BOX --- */}
+        {/* --- UPLOAD FILE --- */}
         <input
           type="file"
           accept="video/*"
@@ -663,7 +664,7 @@ export function App() {
           onClick={() => !isProcessing && fileInputRef.current?.click()}
           style={{
             width: '100%',
-            boxSizing: 'border-box', // <-- RISOLVE IL PROBLEMA DELLO SBORDAMENTO A DESTRA
+            boxSizing: 'border-box',
             padding: '22px 16px',
             borderRadius: 12,
             border: '2px dashed #38bdf8',
