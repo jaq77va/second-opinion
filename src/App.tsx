@@ -187,28 +187,23 @@ export function App() {
                   setRomQuality(0);
                   setPowerScore(0);
                   setStatus('Analisi completata con successo');
-                  setStatusCode('success');
+                  setStatusCode('success'); // SEMAFORO VERDE SUBITO A FINE VIDEO!
                   
                   const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
                   setAnalysisResult(geomResult);
                   setRepPeakPowers(collectedRepPowers);
 
+                  // Interrogazione IA in background (senza alterare lo stato verde del semaforo video)
                   setIsAiLoading(true);
-                  setStatus('Generazione del feedback intelligente con Gemini...');
-                  setStatusCode('processing');
                   
                   getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
                     .then((feedback) => {
                       setAiFeedback(feedback);
                       setIsAiLoading(false);
-                      setStatus('Analisi e Coaching completati con successo');
-                      setStatusCode('success');
                     })
                     .catch((err) => {
                       setAiFeedback(`Errore AI: ${err.message}`);
                       setIsAiLoading(false);
-                      setStatus(`Errore IA: ${err.message}`);
-                      setStatusCode('error');
                     });
 
                   landmarker.close();
@@ -452,13 +447,12 @@ export function App() {
     return '#ef4444';
   };
 
-  // Funzione per determinare il colore del semaforo di stato
   const getTrafficLightColor = () => {
     switch (statusCode) {
       case 'processing': return '#eab308'; // Giallo
       case 'success': return '#22c55e';    // Verde
       case 'error': return '#ef4444';      // Rosso
-      default: return '#94a3b8';           // Grigio (idle)
+      default: return '#94a3b8';           // Grigio
     }
   };
 
@@ -597,7 +591,7 @@ export function App() {
           </button>
         </div>
 
-        {/* --- INQUADRATURA CONSIGLIATA AL POSTO DI 'ESERCIZIO SELEZIONATO' --- */}
+        {/* --- INQUADRATURA CONSIGLIATA --- */}
         <div style={{ background: '#1e293b', padding: 14, borderRadius: 10, marginTop: 14, fontSize: 13, border: '1px solid #334155', color: '#94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <strong style={{ color: '#e2e8f0', display: 'block', marginBottom: 2 }}>💡 Inquadratura consigliata:</strong>
@@ -608,7 +602,7 @@ export function App() {
           </span>
         </div>
 
-        {/* --- SELETTORE DEL PESO EDITABILE CON TASTI + / - --- */}
+        {/* --- SELETTORE DEL PESO --- */}
         <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Carico utilizzato</span>
@@ -656,7 +650,7 @@ export function App() {
 
         <label style={{ display: 'block', marginTop: 22, marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>2. Carica video</label>
         
-        {/* --- UPLOAD FILE PULITO --- */}
+        {/* --- UPLOAD FILE --- */}
         <input
           type="file"
           accept="video/*"
@@ -719,7 +713,6 @@ export function App() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid #334155', paddingTop: 12 }}>
-            {/* Barra ROM (senza dicitura 'Ampiezza Movimento') */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
                 <span style={{ color: '#94a3b8' }}>ROM</span>
@@ -739,9 +732,19 @@ export function App() {
           </div>
         </div>
 
+        {/* --- PLAYER VIDEO (CON CONTROLLI ABILITATI A FINE ANALISI) / CANVAS DI ELABORAZIONE --- */}
         <div style={{ position: 'relative', marginTop: 16, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-          <video ref={videoRef} style={{ display: 'none' }} muted playsInline />
-          <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
+          <video 
+            ref={videoRef} 
+            controls={statusCode === 'success'}
+            style={{ display: statusCode === 'success' ? 'block' : 'none', width: '100%', height: 'auto' }} 
+            muted={statusCode !== 'success'}
+            playsInline 
+          />
+          <canvas 
+            ref={canvasRef} 
+            style={{ display: statusCode === 'success' ? 'none' : 'block', width: '100%', height: 'auto' }} 
+          />
         </div>
 
         {/* --- STATO CON SEMAFORO DINAMICO --- */}
