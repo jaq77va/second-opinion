@@ -538,7 +538,7 @@ export function App() {
                     flex: '0 0 100%',
                     scrollSnapAlign: 'center',
                     boxSizing: 'border-box',
-                    padding: '12px 16px', // Cornice più piccola e compatta attorno all'immagine
+                    padding: '8px 10px', // Cornice più piccola e compatta attorno all'immagine
                     borderRadius: 14,
                     border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
                     background: isSelected ? '#1e293b' : '#0f172a',
