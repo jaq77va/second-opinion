@@ -52,13 +52,17 @@ export function App() {
   const [isAnalysisOpen, setIsAnalysisOpen] = useState<boolean>(false);
 
   const [aiFeedback, setAiFeedback] = useState<string>('');
-  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+  const [aiStatusCode, setAiStatusCode] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
+  const [aiStatusMessage, setAiStatusMessage] = useState<string>('In attesa di dati geometrici...');
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const landmarksBufferRef = useRef<any[][]>([]);
   const carouselRef = useRef<HTMLDivElement | null>(null);
+
+  // Manteniamo in memoria l'ultimo risultato geometrico per poter rieseguire la chiamata IA in caso di "Riprova"
+  const lastGeomResultRef = useRef<AnalysisResult | null>(null);
 
   const selectedExerciseObj = EXERCISES.find((ex) => ex.id === selectedExercise) || EXERCISES[0];
   const currentHint = selectedExerciseObj.viewHint;
@@ -90,6 +94,25 @@ export function App() {
     setWeightKg(isNaN(val) ? 0 : Math.max(0, val));
   };
 
+  // Funzione dedicata per interrogare Gemini (usata anche dal tasto Riprova)
+  const triggerAiCoach = (geomResult: AnalysisResult) => {
+    setAiStatusCode('processing');
+    setAiStatusMessage('Il server sta interrogando Gemini con i dati geometrici...');
+    setAiFeedback('');
+
+    getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
+      .then((feedback) => {
+        setAiFeedback(feedback);
+        setAiStatusCode('success');
+        setAiStatusMessage('Risposta generata con successo');
+      })
+      .catch((err) => {
+        setAiFeedback(`Errore AI: ${err.message}`);
+        setAiStatusCode('error');
+        setAiStatusMessage(`Errore IA: ${err.message}`);
+      });
+  };
+
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !videoRef.current || !canvasRef.current) return;
@@ -100,6 +123,8 @@ export function App() {
     setRepPeakPowers([]);
     setIsAnalysisOpen(false);
     setAiFeedback('');
+    setAiStatusCode('idle');
+    setAiStatusMessage('In attesa di completamento analisi video...');
     setRepCount(0);
     setRomQuality(0);
     setPowerScore(0);
@@ -192,18 +217,10 @@ export function App() {
                   const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
                   setAnalysisResult(geomResult);
                   setRepPeakPowers(collectedRepPowers);
+                  lastGeomResultRef.current = geomResult;
 
-                  setIsAiLoading(true);
-                  
-                  getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
-                    .then((feedback) => {
-                      setAiFeedback(feedback);
-                      setIsAiLoading(false);
-                    })
-                    .catch((err) => {
-                      setAiFeedback(`Errore AI: ${err.message}`);
-                      setIsAiLoading(false);
-                    });
+                  // Avvia chiamata IA con il proprio semaforo dedicato
+                  triggerAiCoach(geomResult);
 
                   landmarker.close();
                 }
@@ -278,7 +295,7 @@ export function App() {
                         } else if (repPhase === 'START') {
                           if (smoothAngle >= APEX_MIN) {
                             transitionStreak++;
-                            if (transitionStreak >= 1) { // Tolleranza mobile ottimizzata
+                            if (transitionStreak >= 1) {
                               repPhase = 'ACTIVE';
                               transitionStreak = 0;
                               currentRepMaxPower = 0;
@@ -302,7 +319,6 @@ export function App() {
                         }
                       } else {
                         const TOP_MIN = selectedExercise === 'lat_machine' ? 140 : 150;
-                        // Soglia squat leggermente alzata a 100° per catturare meglio l'affondo su mobile
                         const BOTTOM_MAX =
                           selectedExercise === 'squat'
                             ? 100
@@ -315,7 +331,7 @@ export function App() {
                         if (!hasReachedInitialPosition) {
                           if (smoothAngle >= TOP_MIN) {
                             transitionStreak++;
-                            if (transitionStreak >= 1) { // Tolleranza mobile ottimizzata
+                            if (transitionStreak >= 1) {
                               hasReachedInitialPosition = true;
                               transitionStreak = 0;
                             }
@@ -325,7 +341,7 @@ export function App() {
                         } else if (repPhase === 'START') {
                           if (smoothAngle <= BOTTOM_MAX) {
                             transitionStreak++;
-                            if (transitionStreak >= 1) { // Tolleranza mobile ottimizzata
+                            if (transitionStreak >= 1) {
                               repPhase = 'ACTIVE';
                               transitionStreak = 0;
                               currentRepMaxPower = 0;
@@ -336,7 +352,7 @@ export function App() {
                         } else if (repPhase === 'ACTIVE') {
                           if (smoothAngle >= TOP_MIN) {
                             transitionStreak++;
-                            if (transitionStreak >= 1) { // Tolleranza mobile ottimizzata
+                            if (transitionStreak >= 1) {
                               repPhase = 'START';
                               transitionStreak = 0;
                               localReps++;
@@ -447,8 +463,8 @@ export function App() {
     return '#ef4444';
   };
 
-  const getTrafficLightColor = () => {
-    switch (statusCode) {
+  const getTrafficLightColor = (code: 'idle' | 'processing' | 'success' | 'error') => {
+    switch (code) {
       case 'processing': return '#eab308'; // Giallo
       case 'success': return '#22c55e';    // Verde
       case 'error': return '#ef4444';      // Rosso
@@ -750,21 +766,21 @@ export function App() {
           />
         </div>
 
-        {/* --- STATO CON SEMAFORO DINAMICO --- */}
+        {/* --- STATO VIDEO CON SEMAFORO DINAMICO --- */}
         <div style={{ marginTop: 16, padding: 14, border: '1px solid #334155', borderRadius: 10, background: '#1e293b', fontSize: 14, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span 
             style={{ 
               width: 14, 
               height: 14, 
               borderRadius: '50%', 
-              backgroundColor: getTrafficLightColor(),
-              boxShadow: `0 0 8px ${getTrafficLightColor()}`,
+              backgroundColor: getTrafficLightColor(statusCode),
+              boxShadow: `0 0 8px ${getTrafficLightColor(statusCode)}`,
               flexShrink: 0,
               display: 'inline-block'
             }} 
           />
           <div>
-            <strong style={{ color: '#38bdf8' }}>Stato:</strong> <span style={{ color: statusCode === 'error' ? '#f43f5e' : '#f8fafc' }}>{status}</span>
+            <strong style={{ color: '#38bdf8' }}>Stato Video:</strong> <span style={{ color: statusCode === 'error' ? '#f43f5e' : '#f8fafc' }}>{status}</span>
           </div>
         </div>
 
@@ -817,14 +833,59 @@ export function App() {
               )}
             </div>
 
-            {/* SEZIONE GEMINI AI COACH (SEMPRE VISIBILE) */}
+            {/* SEZIONE GEMINI AI COACH CON SEMAFORO E TASTO RIPROVA DEDICATO */}
             <div style={{ marginTop: 16, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>🤖 Gemini AI Coach (Singolo Cue)</h4>
-              {isAiLoading ? (
-                <p style={{ fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Il server sta interrogando Gemini con i dati geometrici...</p>
-              ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h4 style={{ margin: 0, color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>🤖 Gemini AI Coach (Singolo Cue)</h4>
+                
+                {/* Semaforo IA */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
+                  <span 
+                    style={{ 
+                      width: 12, 
+                      height: 12, 
+                      borderRadius: '50%', 
+                      backgroundColor: getTrafficLightColor(aiStatusCode),
+                      boxShadow: `0 0 8px ${getTrafficLightColor(aiStatusCode)}`,
+                      display: 'inline-block'
+                    }} 
+                  />
+                  <span>{aiStatusMessage}</span>
+                </div>
+              </div>
+
+              {aiStatusCode === 'processing' && (
+                <p style={{ fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Elaborazione feedback IA in corso...</p>
+              )}
+
+              {aiStatusCode === 'success' && (
                 <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #f43f5e', border: '1px solid #334155' }}>
                   <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: '#f8fafc' }}>{aiFeedback}</p>
+                </div>
+              )}
+
+              {aiStatusCode === 'error' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #ef4444', border: '1px solid #334155' }}>
+                    <p style={{ margin: 0, fontSize: 14, color: '#f43f5e' }}>{aiFeedback}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => lastGeomResultRef.current && triggerAiCoach(lastGeomResultRef.current)}
+                    style={{
+                      padding: '10px 16px',
+                      background: '#ef4444',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 8,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      alignSelf: 'flex-start',
+                      boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.3)',
+                    }}
+                  >
+                    🔄 Riprova IA
+                  </button>
                 </div>
               )}
             </div>
