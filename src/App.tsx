@@ -34,6 +34,30 @@ function areLandmarksVisible(landmarks: any[], indices: number[], minVis = 0.45)
   );
 }
 
+// Helper con fallback automatico GPU -> CPU per evitare blocchi WebGL su mobile
+async function createLandmarkerWithFallback(vision: any): Promise<PoseLandmarker> {
+  try {
+    return await PoseLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: './models/pose_landmarker_lite.task',
+        delegate: 'GPU',
+      },
+      runningMode: 'VIDEO',
+      numPoses: 1,
+    });
+  } catch (gpuErr) {
+    console.warn('GPU delegate non disponibile su questo dispositivo, passo a CPU:', gpuErr);
+    return await PoseLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: './models/pose_landmarker_lite.task',
+        delegate: 'CPU',
+      },
+      runningMode: 'VIDEO',
+      numPoses: 1,
+    });
+  }
+}
+
 export function App() {
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
   const [weightKg, setWeightKg] = useState<number>(20);
@@ -132,19 +156,16 @@ export function App() {
 
     FilesetResolver.forVisionTasks(
       'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
-    ).then((vision) => {
-      PoseLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: './models/pose_landmarker_lite.task',
-          delegate: 'GPU',
-        },
-        runningMode: 'VIDEO',
-        numPoses: 1,
-      }).then((landmarker) => {
+    )
+      .then((vision) => createLandmarkerWithFallback(vision))
+      .then((landmarker) => {
         const video = videoRef.current!;
         const canvas = canvasRef.current!;
         const ctx = canvas.getContext('2d');
 
+        // Garantiamo muting esplicito prima del caricamento per soddisfare le policy autoplay mobile
+        video.muted = true;
+        video.playsInline = true;
         video.src = URL.createObjectURL(file);
         video.load();
 
@@ -446,12 +467,12 @@ export function App() {
         video.onloadedmetadata = startProcessingWhenReady;
         video.oncanplay = startProcessingWhenReady;
         setTimeout(startProcessingWhenReady, 500);
+      })
+      .catch((err) => {
+        setIsProcessing(false);
+        setStatus(`Errore caricamento modello: ${(err as Error).message}`);
+        setStatusCode('error');
       });
-    }).catch((err) => {
-      setIsProcessing(false);
-      setStatus(`Errore caricamento modello: ${(err as Error).message}`);
-      setStatusCode('error');
-    });
   };
 
   const getRomColor = (val: number) => {
@@ -538,7 +559,7 @@ export function App() {
                     flex: '0 0 100%',
                     scrollSnapAlign: 'center',
                     boxSizing: 'border-box',
-                    padding: '8px 10px', // Cornice più piccola e compatta attorno all'immagine
+                    padding: '8px 10px',
                     borderRadius: 14,
                     border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
                     background: isSelected ? '#1e293b' : '#0f172a',
@@ -552,7 +573,6 @@ export function App() {
                     boxShadow: isSelected ? '0 10px 15px -3px rgba(56, 189, 248, 0.15)' : 'none',
                   }}
                 >
-                  {/* Badge 'Attivo' rimosso completamente */}
                   <img 
                     src={ex.imagePath} 
                     alt={ex.label} 
@@ -761,7 +781,8 @@ export function App() {
             controls={statusCode === 'success'}
             style={{ display: statusCode === 'success' ? 'block' : 'none', width: '100%', height: 'auto' }} 
             muted={statusCode !== 'success'}
-            playsInline 
+            playsInline
+            preload="auto"
           />
           <canvas 
             ref={canvasRef} 
