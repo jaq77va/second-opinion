@@ -251,42 +251,7 @@ export function App() {
                         angleHistory.reduce((acc, v) => acc + v, 0) / angleHistory.length
                       );
 
-                      // --- CALCOLO ROM ---
-                      let rom = 0;
-                      if (selectedExercise === 'alzate_laterali') {
-                        rom = ((smoothAngle - 35) / (100 - 35)) * 100;
-                      } else {
-                        rom = ((155 - smoothAngle) / (155 - 65)) * 100;
-                      }
-                      rom = Math.max(0, Math.min(100, Math.round(rom)));
-                      setRomQuality(rom);
-
-                      // --- CALCOLO POTENZA STABILIZZATA (WATT) CON DEADZONE ---
-                      const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
-                      
-                      let instantPower = 0;
-                      const MOVEMENT_DEADZONE = 2.0;
-
-                      if (angleDelta >= MOVEMENT_DEADZONE && deltaTime > 0) {
-                        const velocityFactor = angleDelta / (deltaTime * 10);
-                        instantPower = effectiveMass * velocityFactor * 1.2;
-                      }
-
-                      powerHistory.push(instantPower);
-                      if (powerHistory.length > 8) powerHistory.shift();
-
-                      const smoothedPower = Math.round(
-                        powerHistory.reduce((acc, v) => acc + v, 0) / powerHistory.length
-                      );
-                      
-                      setPowerScore(smoothedPower);
-
-                      // --- LOG DI DEBUG POTENZA ---
-                      console.log(
-                        `[T:${video.currentTime.toFixed(2)}s] Fase:${repPhase}(Init:${hasReachedInitialPosition}) | Ang:${rawAngle}°->${smoothAngle}° | ΔAng:${angleDelta}° | dt:${deltaTime.toFixed(4)}s | InstW:${Math.round(instantPower)}W | SmoothW:${smoothedPower}W`
-                      );
-
-                      // --- MACCHINA A STATI ROBUSTA (TUTTI GLI ESERCIZI) ---
+                      // --- MACCHINA A STATI ROBUSTA (PRIMA DEL CALCOLO POTENZA) ---
                       if (selectedExercise === 'alzate_laterali') {
                         const REST_MAX = 55;
                         const APEX_MIN = 88;
@@ -363,6 +328,53 @@ export function App() {
                           }
                         }
                       }
+
+                      // --- CALCOLO ROM ---
+                      let rom = 0;
+                      if (selectedExercise === 'alzate_laterali') {
+                        rom = ((smoothAngle - 35) / (100 - 35)) * 100;
+                      } else {
+                        rom = ((155 - smoothAngle) / (155 - 65)) * 100;
+                      }
+                      rom = Math.max(0, Math.min(100, Math.round(rom)));
+                      setRomQuality(rom);
+
+                      // --- CALCOLO POTENZA STABILIZZATA (WATT) CON FILTRI ANTI-SPIKE ---
+                      let instantPower = 0;
+                      
+                      // 1. Azzera la potenza se non siamo in fase attiva (evita falsi picchi in piedi/setup)
+                      if (repPhase === 'ACTIVE') {
+                        const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
+                        const MOVEMENT_DEADZONE = 2.0;
+
+                        if (angleDelta >= MOVEMENT_DEADZONE) {
+                          // 2. Clamp sul dt minimo (evita divisioni per zeri o delta temporali infinitesimali)
+                          const safeDt = Math.max(deltaTime, 0.012);
+                          
+                          // 3. Limita il jitter del delta angolare (es. max 4° per frame a ~60fps)
+                          const safeDeltaAngle = Math.min(angleDelta, 4.0);
+
+                          const velocityFactor = safeDeltaAngle / (safeDt * 10);
+                          instantPower = effectiveMass * velocityFactor * 1.2;
+                          
+                          // 4. Cap fisico massimo di sicurezza (es. 850W per carichi moderati)
+                          instantPower = Math.min(instantPower, 850);
+                        }
+                      }
+
+                      powerHistory.push(instantPower);
+                      if (powerHistory.length > 8) powerHistory.shift();
+
+                      const smoothedPower = Math.round(
+                        powerHistory.reduce((acc, v) => acc + v, 0) / powerHistory.length
+                      );
+                      
+                      setPowerScore(smoothedPower);
+
+                      // --- LOG DI DEBUG POTENZA ---
+                      console.log(
+                        `[T:${video.currentTime.toFixed(2)}s] Fase:${repPhase}(Init:${hasReachedInitialPosition}) | Ang:${rawAngle}°->${smoothAngle}° | dt:${deltaTime.toFixed(4)}s | InstW:${Math.round(instantPower)}W | SmoothW:${smoothedPower}W`
+                      );
                     }
                   }
                 } catch (err) {}
@@ -715,12 +727,12 @@ export function App() {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
                 <span style={{ color: '#94a3b8' }}>Potenza Meccanica Stima</span>
-                <span style={{ color: '#f43f5e' }}>{Math.min(100, Math.round((powerScore / 800) * 100))}%</span>
+                <span style={{ color: '#f43f5e' }}>{Math.min(100, Math.round((powerScore / 850) * 100))}%</span>
               </div>
               <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
                 <div 
                   style={{ 
-                    width: `${Math.min(100, Math.round((powerScore / 800) * 100))}%`, 
+                    width: `${Math.min(100, Math.round((powerScore / 850) * 100))}%`, 
                     height: '100%', 
                     background: '#f43f5e',
                     transition: 'width 0.1s ease' 
