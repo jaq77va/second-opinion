@@ -9,7 +9,7 @@ const EXERCISES: { id: Exercise; label: string; icon: string; viewHint: string; 
   { id: 'squat', label: 'Squat', icon: '🏋️‍♂️', viewHint: 'Inquadratura laterale o frontale a figura intera', isDumbbell: false },
   { id: 'stacco', label: 'Stacco da terra', icon: '🏋️', viewHint: 'Inquadratura laterale a altezza bacino', isDumbbell: false },
   { id: 'panca_piana', label: 'Panca piana', icon: '🤸‍♂️', viewHint: 'Inquadratura laterale o obliqua a 45°', isDumbbell: false },
-  { id: 'lat_machine', label: 'Lat machine', icon: '🤾‍♂️', viewHint: 'Inquadratura posteriore o laterale', isDumbbell: false },
+  { id: 'lat_machine', label: 'Lat machine', icon: '🧗‍♂️', viewHint: 'Inquadratura posteriore o laterale', isDumbbell: false },
   { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🤾‍♂️', viewHint: 'Inquadratura frontale dal bacino in su', isDumbbell: true },
 ];
 
@@ -147,6 +147,7 @@ export function App() {
           canvas.height = targetHeight;
 
           setStatus('Analisi biomeccanica, ROM e potenza in corso...');
+          console.log(`=== INIZIO ANALISI: ${selectedExerciseObj.label} | Peso: ${weightKg}kg (Massa eff: ${effectiveMass}kg) ===`);
           
           video.play().then(() => {
             let lastFrameTime = performance.now();
@@ -163,6 +164,7 @@ export function App() {
 
               if (video.ended || video.paused) {
                 if (video.ended) {
+                  console.log(`=== FINE ANALISI | Reps totali: ${localReps} ===`);
                   setIsProcessing(false);
                   setProgressPercent(100);
                   setRomQuality(0);
@@ -271,13 +273,18 @@ export function App() {
                       }
 
                       powerHistory.push(instantPower);
-                      if (powerHistory.length > 8) powerHistory.shift(); // Media mobile su 8 campioni
+                      if (powerHistory.length > 8) powerHistory.shift();
 
                       const smoothedPower = Math.round(
                         powerHistory.reduce((acc, v) => acc + v, 0) / powerHistory.length
                       );
                       
                       setPowerScore(smoothedPower);
+
+                      // --- LOG DI DEBUG POTENZA ---
+                      console.log(
+                        `[T:${video.currentTime.toFixed(2)}s] Fase:${repPhase}(Init:${hasReachedInitialPosition}) | Ang:${rawAngle}°->${smoothAngle}° | ΔAng:${angleDelta}° | dt:${deltaTime.toFixed(4)}s | InstW:${Math.round(instantPower)}W | SmoothW:${smoothedPower}W`
+                      );
 
                       // --- MACCHINA A STATI ROBUSTA (TUTTI GLI ESERCIZI) ---
                       if (selectedExercise === 'alzate_laterali') {
