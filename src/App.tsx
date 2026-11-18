@@ -590,7 +590,7 @@ export function App() {
           </button>
         </div>
 
-        {/* --- INQUADRATURA CONSIGLIATA ALLINEATA NELLO STILE DEL CARICO --- */}
+        {/* --- INQUADRATURA CONSIGLIATA --- */}
         <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Inquadratura consigliata</span>
@@ -651,7 +651,7 @@ export function App() {
 
         <label style={{ display: 'block', marginTop: 22, marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>2. Carica video</label>
         
-        {/* --- UPLOAD FILE --- */}
+        {/* --- UPLOAD FILE CORRETTO CON BOX-SIZING BORDER-BOX --- */}
         <input
           type="file"
           accept="video/*"
@@ -663,6 +663,7 @@ export function App() {
           onClick={() => !isProcessing && fileInputRef.current?.click()}
           style={{
             width: '100%',
+            boxSizing: 'border-box', // <-- RISOLVE IL PROBLEMA DELLO SBORDAMENTO A DESTRA
             padding: '22px 16px',
             borderRadius: 12,
             border: '2px dashed #38bdf8',
