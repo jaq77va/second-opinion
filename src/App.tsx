@@ -187,13 +187,12 @@ export function App() {
                   setRomQuality(0);
                   setPowerScore(0);
                   setStatus('Analisi completata con successo');
-                  setStatusCode('success'); // SEMAFORO VERDE SUBITO A FINE VIDEO!
+                  setStatusCode('success');
                   
                   const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
                   setAnalysisResult(geomResult);
                   setRepPeakPowers(collectedRepPowers);
 
-                  // Interrogazione IA in background (senza alterare lo stato verde del semaforo video)
                   setIsAiLoading(true);
                   
                   getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
@@ -475,7 +474,7 @@ export function App() {
         </div>
 
         <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
-          selezionare l'esercizio
+          1. Seleziona l'esercizio
         </label>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -591,13 +590,15 @@ export function App() {
           </button>
         </div>
 
-        {/* --- INQUADRATURA CONSIGLIATA --- */}
-        <div style={{ background: '#1e293b', padding: 14, borderRadius: 10, marginTop: 14, fontSize: 13, border: '1px solid #334155', color: '#94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* --- INQUADRATURA CONSIGLIATA ALLINEATA NELLO STILE DEL CARICO --- */}
+        <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <strong style={{ color: '#e2e8f0', display: 'block', marginBottom: 2 }}>💡 Inquadratura consigliata:</strong>
-            <span style={{ color: '#38bdf8', fontWeight: 600 }}>{currentHint}</span>
+            <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Inquadratura consigliata</span>
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>
+              {currentHint}
+            </span>
           </div>
-          <span style={{ fontSize: 14, fontWeight: 800, color: '#38bdf8', background: 'rgba(56,189,248,0.1)', padding: '4px 10px', borderRadius: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: '#38bdf8', background: 'rgba(56,189,248,0.1)', padding: '4px 10px', borderRadius: 8, flexShrink: 0 }}>
             {selectedExerciseObj.label}
           </span>
         </div>
@@ -732,7 +733,7 @@ export function App() {
           </div>
         </div>
 
-        {/* --- PLAYER VIDEO (CON CONTROLLI ABILITATI A FINE ANALISI) / CANVAS DI ELABORAZIONE --- */}
+        {/* --- PLAYER VIDEO / CANVAS --- */}
         <div style={{ position: 'relative', marginTop: 16, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
           <video 
             ref={videoRef} 
