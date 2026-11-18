@@ -7,10 +7,10 @@ type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_lat
 
 const EXERCISES: { id: Exercise; label: string; icon: string; viewHint: string; isDumbbell: boolean }[] = [
   { id: 'squat', label: 'Squat', icon: '🏋️‍♂️', viewHint: 'Inquadratura laterale o frontale a figura intera', isDumbbell: false },
-  { id: 'stacco', label: 'Stacco da terra', icon: '⚡', viewHint: 'Inquadratura laterale a altezza bacino', isDumbbell: false },
-  { id: 'panca_piana', label: 'Panca piana', icon: '🏛️', viewHint: 'Inquadratura laterale o obliqua a 45°', isDumbbell: false },
-  { id: 'lat_machine', label: 'Lat machine', icon: '🦾', viewHint: 'Inquadratura posteriore o laterale', isDumbbell: false },
-  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🦅', viewHint: 'Inquadratura frontale dal bacino in su', isDumbbell: true },
+  { id: 'stacco', label: 'Stacco da terra', icon: '🏋️', viewHint: 'Inquadratura laterale a altezza bacino', isDumbbell: false },
+  { id: 'panca_piana', label: 'Panca piana', icon: '🤸‍♂️', viewHint: 'Inquadratura laterale o obliqua a 45°', isDumbbell: false },
+  { id: 'lat_machine', label: 'Lat machine', icon: '🧗‍♂️', viewHint: 'Inquadratura posteriore o laterale', isDumbbell: false },
+  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🤾‍♂️', viewHint: 'Inquadratura frontale dal bacino in su', isDumbbell: true },
 ];
 
 const POSE_CONNECTIONS = [
@@ -277,7 +277,7 @@ export function App() {
                       
                       setPowerScore(smoothedPower);
 
-                      // Macchina a stati robusta
+                      // --- MACCHINA A STATI RIPRISTINATA E ROBUSTA ---
                       if (selectedExercise === 'alzate_laterali') {
                         const REST_MAX = 55;
                         const APEX_MIN = 88;
@@ -649,7 +649,7 @@ export function App() {
         >
           <span style={{ fontSize: 32, lineHeight: 1 }}>📤</span>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#38bdf8' }}>
-            {isProcessing ? 'Elaborazione in corso...' : 'Tocca qui per caricare il video dell\'esercizio'}
+            {isProcessing ? 'Elaborazione in corso...' : "Tocca qui per caricare il video dell'esercizio"}
           </span>
           <span style={{ fontSize: 12, color: '#94a3b8' }}>
             Formati supportati: MP4, MOV, WebM (Consigliato file inquadratura stabile)
