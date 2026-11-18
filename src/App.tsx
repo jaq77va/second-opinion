@@ -259,17 +259,19 @@ export function App() {
                       rom = Math.max(0, Math.min(100, Math.round(rom)));
                       setRomQuality(rom);
 
-                      // --- CALCOLO POTENZA STABILIZZATA (WATT) ---
+                      // --- CALCOLO POTENZA STABILIZZATA (WATT) CON DEADZONE ---
                       const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
                       
                       let instantPower = 0;
-                      if (angleDelta >= 1.5 && deltaTime > 0) {
+                      const MOVEMENT_DEADZONE = 2.0;
+
+                      if (angleDelta >= MOVEMENT_DEADZONE && deltaTime > 0) {
                         const velocityFactor = angleDelta / (deltaTime * 10);
-                        instantPower = effectiveMass * velocityFactor * 1.5;
+                        instantPower = effectiveMass * velocityFactor * 1.2;
                       }
 
                       powerHistory.push(instantPower);
-                      if (powerHistory.length > 5) powerHistory.shift();
+                      if (powerHistory.length > 8) powerHistory.shift(); // Media mobile su 8 campioni
 
                       const smoothedPower = Math.round(
                         powerHistory.reduce((acc, v) => acc + v, 0) / powerHistory.length
@@ -277,7 +279,7 @@ export function App() {
                       
                       setPowerScore(smoothedPower);
 
-                      // --- MACCHINA A STATI RIPRISTINATA E ROBUSTA ---
+                      // --- MACCHINA A STATI ROBUSTA (TUTTI GLI ESERCIZI) ---
                       if (selectedExercise === 'alzate_laterali') {
                         const REST_MAX = 55;
                         const APEX_MIN = 88;
