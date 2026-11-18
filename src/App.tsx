@@ -37,7 +37,8 @@ function areLandmarksVisible(landmarks: any[], indices: number[], minVis = 0.45)
 export function App() {
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
   const [weightKg, setWeightKg] = useState<number>(20);
-  const [status, setStatus] = useState<string>('Pronto. Seleziona un esercizio, imposta il peso e carica il video.');
+  const [status, setStatus] = useState<string>('Pronto per iniziare');
+  const [statusCode, setStatusCode] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [repCount, setRepCount] = useState<number>(0);
@@ -71,7 +72,6 @@ export function App() {
       behavior: 'smooth',
     });
 
-    // Aggiorna l'esercizio selezionato in base alla posizione dello scroll nel carosello
     const newScrollLeft = container.scrollLeft + (direction === 'left' ? -scrollAmount : scrollAmount);
     const itemWidth = container.clientWidth;
     const index = Math.round(newScrollLeft / itemWidth);
@@ -104,6 +104,7 @@ export function App() {
     setRomQuality(0);
     setPowerScore(0);
     setStatus('Caricamento modello AI locale in corso...');
+    setStatusCode('processing');
     landmarksBufferRef.current = [];
 
     FilesetResolver.forVisionTasks(
@@ -164,7 +165,7 @@ export function App() {
           canvas.height = targetHeight;
 
           setStatus('Analisi biomeccanica, ROM e potenza in corso...');
-          console.log(`=== INIZIO ANALISI: ${selectedExerciseObj.label} | Peso: ${weightKg}kg (Massa eff: ${effectiveMass}kg) ===`);
+          setStatusCode('processing');
           
           video.play().then(() => {
             let lastFrameTime = performance.now();
@@ -181,30 +182,33 @@ export function App() {
 
               if (video.ended || video.paused) {
                 if (video.ended) {
-                  console.log(`=== FINE ANALISI | Reps totali: ${localReps} ===`);
                   setIsProcessing(false);
                   setProgressPercent(100);
                   setRomQuality(0);
                   setPowerScore(0);
-                  setStatus('Analisi geometrica completata!');
+                  setStatus('Analisi completata con successo');
+                  setStatusCode('success');
                   
                   const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
                   setAnalysisResult(geomResult);
                   setRepPeakPowers(collectedRepPowers);
 
                   setIsAiLoading(true);
-                  setStatus('Generazione del feedback intelligente con Gemini (Server)...');
+                  setStatus('Generazione del feedback intelligente con Gemini...');
+                  setStatusCode('processing');
                   
                   getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
                     .then((feedback) => {
                       setAiFeedback(feedback);
                       setIsAiLoading(false);
-                      setStatus('Analisi e Coaching completati con successo!');
+                      setStatus('Analisi e Coaching completati con successo');
+                      setStatusCode('success');
                     })
                     .catch((err) => {
                       setAiFeedback(`Errore AI: ${err.message}`);
                       setIsAiLoading(false);
-                      setStatus('Completato con errore IA.');
+                      setStatus(`Errore IA: ${err.message}`);
+                      setStatusCode('error');
                     });
 
                   landmarker.close();
@@ -269,7 +273,6 @@ export function App() {
                         angleHistory.reduce((acc, v) => acc + v, 0) / angleHistory.length
                       );
 
-                      // --- MACCHINA A STATI ROBUSTA ---
                       if (selectedExercise === 'alzate_laterali') {
                         const REST_MAX = 55;
                         const APEX_MIN = 88;
@@ -351,7 +354,6 @@ export function App() {
                         }
                       }
 
-                      // --- CALCOLO ROM ---
                       let rom = 0;
                       if (selectedExercise === 'alzate_laterali') {
                         rom = ((smoothAngle - 35) / (100 - 35)) * 100;
@@ -361,9 +363,7 @@ export function App() {
                       rom = Math.max(0, Math.min(100, Math.round(rom)));
                       setRomQuality(rom);
 
-                      // --- CALCOLO POTENZA STABILIZZATA (WATT) ---
                       let instantPower = 0;
-                      
                       if (repPhase === 'ACTIVE') {
                         const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
                         const MOVEMENT_DEADZONE = 2.0;
@@ -431,6 +431,7 @@ export function App() {
           }).catch((playErr) => {
             setIsProcessing(false);
             setStatus(`Errore riproduzione video: ${playErr.message}`);
+            setStatusCode('error');
           });
         };
 
@@ -441,6 +442,7 @@ export function App() {
     }).catch((err) => {
       setIsProcessing(false);
       setStatus(`Errore caricamento modello: ${(err as Error).message}`);
+      setStatusCode('error');
     });
   };
 
@@ -448,6 +450,16 @@ export function App() {
     if (val >= 90) return '#22c55e';
     if (val >= 70) return '#eab308';
     return '#ef4444';
+  };
+
+  // Funzione per determinare il colore del semaforo di stato
+  const getTrafficLightColor = () => {
+    switch (statusCode) {
+      case 'processing': return '#eab308'; // Giallo
+      case 'success': return '#22c55e';    // Verde
+      case 'error': return '#ef4444';      // Rosso
+      default: return '#94a3b8';           // Grigio (idle)
+    }
   };
 
   return (
@@ -469,7 +481,7 @@ export function App() {
         </div>
 
         <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
-          1. Scorri con le frecce per selezionare l'esercizio
+          selezionare l'esercizio
         </label>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -523,7 +535,7 @@ export function App() {
                     borderRadius: 14,
                     border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
                     background: isSelected ? '#1e293b' : '#0f172a',
-                    cursor: 'default', // Rimosso il puntatore cliccabile sulle schede
+                    cursor: 'default',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -585,23 +597,15 @@ export function App() {
           </button>
         </div>
 
-        <div
-          style={{
-            marginTop: 14,
-            padding: '12px 16px',
-            borderRadius: 10,
-            background: '#1e293b',
-            border: '1px solid #334155',
-            color: '#f8fafc',
-            fontSize: 14,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.2)',
-          }}
-        >
-          <span style={{ color: '#94a3b8' }}>Esercizio selezionato:</span>
-          <span style={{ fontWeight: 800, fontSize: 15, color: '#38bdf8' }}>{selectedExerciseObj.label}</span>
+        {/* --- INQUADRATURA CONSIGLIATA AL POSTO DI 'ESERCIZIO SELEZIONATO' --- */}
+        <div style={{ background: '#1e293b', padding: 14, borderRadius: 10, marginTop: 14, fontSize: 13, border: '1px solid #334155', color: '#94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <strong style={{ color: '#e2e8f0', display: 'block', marginBottom: 2 }}>💡 Inquadratura consigliata:</strong>
+            <span style={{ color: '#38bdf8', fontWeight: 600 }}>{currentHint}</span>
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 800, color: '#38bdf8', background: 'rgba(56,189,248,0.1)', padding: '4px 10px', borderRadius: 8 }}>
+            {selectedExerciseObj.label}
+          </span>
         </div>
 
         {/* --- SELETTORE DEL PESO EDITABILE CON TASTI + / - --- */}
@@ -650,13 +654,9 @@ export function App() {
           </div>
         </div>
 
-        <div style={{ background: '#1e293b', padding: 12, borderRadius: 10, marginTop: 12, fontSize: 13, border: '1px solid #334155', color: '#94a3b8' }}>
-          <strong style={{ color: '#e2e8f0' }}>💡 Inquadratura consigliata:</strong> {currentHint}
-        </div>
-
         <label style={{ display: 'block', marginTop: 22, marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>2. Carica video</label>
         
-        {/* --- UPLOAD FILE CON ICONA ACCATTIVANTE --- */}
+        {/* --- UPLOAD FILE PULITO --- */}
         <input
           type="file"
           accept="video/*"
@@ -684,10 +684,10 @@ export function App() {
         >
           <span style={{ fontSize: 32, lineHeight: 1 }}>📤</span>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#38bdf8' }}>
-            {isProcessing ? 'Elaborazione in corso...' : "Tocca qui per caricare il video dell'esercizio"}
+            {isProcessing ? 'Elaborazione in corso...' : "Seleziona file video"}
           </span>
           <span style={{ fontSize: 12, color: '#94a3b8' }}>
-            Formati supportati: MP4, MOV, WebM (Consigliato file inquadratura stabile)
+            Formati supportati: MP4, MOV, WebM
           </span>
         </div>
 
@@ -703,7 +703,7 @@ export function App() {
           </div>
         )}
 
-        {/* --- INDICATORI ROM E POTENZA STABILIZZATA --- */}
+        {/* --- INDICATORI ROM E POTENZA --- */}
         <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div>
@@ -719,10 +719,10 @@ export function App() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid #334155', paddingTop: 12 }}>
-            {/* Barra ROM */}
+            {/* Barra ROM (senza dicitura 'Ampiezza Movimento') */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                <span style={{ color: '#94a3b8' }}>ROM (Ampiezza Movimento)</span>
+                <span style={{ color: '#94a3b8' }}>ROM</span>
                 <span style={{ color: getRomColor(romQuality) }}>{romQuality}%</span>
               </div>
               <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
@@ -736,26 +736,6 @@ export function App() {
                 />
               </div>
             </div>
-
-            {/* --- BARRA POTENZA MECCANICA STIMA (NASCOSTA MA MANTENUTA NEL CODICE) --- */}
-            {/* 
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                <span style={{ color: '#94a3b8' }}>Potenza Meccanica Stima</span>
-                <span style={{ color: '#f43f5e' }}>{Math.min(100, Math.round((powerScore / 850) * 100))}%</span>
-              </div>
-              <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
-                <div 
-                  style={{ 
-                    width: `${Math.min(100, Math.round((powerScore / 850) * 100))}%`, 
-                    height: '100%', 
-                    background: '#f43f5e',
-                    transition: 'width 0.1s ease' 
-                  }} 
-                />
-              </div>
-            </div>
-            */}
           </div>
         </div>
 
@@ -764,8 +744,22 @@ export function App() {
           <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
         </div>
 
-        <div style={{ marginTop: 16, padding: 14, border: '1px solid #334155', borderRadius: 10, background: '#1e293b', fontSize: 14, color: '#cbd5e1' }}>
-          <strong style={{ color: '#38bdf8' }}>Stato:</strong> {status}
+        {/* --- STATO CON SEMAFORO DINAMICO --- */}
+        <div style={{ marginTop: 16, padding: 14, border: '1px solid #334155', borderRadius: 10, background: '#1e293b', fontSize: 14, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span 
+            style={{ 
+              width: 14, 
+              height: 14, 
+              borderRadius: '50%', 
+              backgroundColor: getTrafficLightColor(),
+              boxShadow: `0 0 8px ${getTrafficLightColor()}`,
+              flexShrink: 0,
+              display: 'inline-block'
+            }} 
+          />
+          <div>
+            <strong style={{ color: '#38bdf8' }}>Stato:</strong> <span style={{ color: statusCode === 'error' ? '#f43f5e' : '#f8fafc' }}>{status}</span>
+          </div>
         </div>
 
         {analysisResult && (
