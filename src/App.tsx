@@ -70,6 +70,15 @@ export function App() {
       left: direction === 'left' ? -scrollAmount : scrollAmount,
       behavior: 'smooth',
     });
+
+    // Aggiorna l'esercizio selezionato in base alla posizione dello scroll nel carosello
+    const newScrollLeft = container.scrollLeft + (direction === 'left' ? -scrollAmount : scrollAmount);
+    const itemWidth = container.clientWidth;
+    const index = Math.round(newScrollLeft / itemWidth);
+    const targetIndex = Math.max(0, Math.min(EXERCISES.length - 1, index));
+    if (!isProcessing) {
+      setSelectedExercise(EXERCISES[targetIndex].id);
+    }
   };
 
   const handleWeightChange = (delta: number) => {
@@ -460,7 +469,7 @@ export function App() {
         </div>
 
         <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
-          1. Scorri e clicca per selezionare l'esercizio
+          1. Scorri con le frecce per selezionare l'esercizio
         </label>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -506,7 +515,6 @@ export function App() {
               return (
                 <div
                   key={ex.id}
-                  onClick={() => !isProcessing && setSelectedExercise(ex.id)}
                   style={{
                     flex: '0 0 100%',
                     scrollSnapAlign: 'center',
@@ -515,7 +523,7 @@ export function App() {
                     borderRadius: 14,
                     border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
                     background: isSelected ? '#1e293b' : '#0f172a',
-                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                    cursor: 'default', // Rimosso il puntatore cliccabile sulle schede
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -729,7 +737,8 @@ export function App() {
               </div>
             </div>
 
-            {/* Barra Potenza Esplosiva */}
+            {/* --- BARRA POTENZA MECCANICA STIMA (NASCOSTA MA MANTENUTA NEL CODICE) --- */}
+            {/* 
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
                 <span style={{ color: '#94a3b8' }}>Potenza Meccanica Stima</span>
@@ -746,6 +755,7 @@ export function App() {
                 />
               </div>
             </div>
+            */}
           </div>
         </div>
 
@@ -759,62 +769,66 @@ export function App() {
         </div>
 
         {analysisResult && (
-          <div style={{ marginTop: 20, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-            <div 
-              onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
-              style={{
-                padding: '16px 18px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                cursor: 'pointer',
-                background: '#1e293b',
-                userSelect: 'none'
-              }}
-            >
-              <h3 style={{ margin: 0, color: '#38bdf8', fontSize: 16, fontWeight: 800 }}>
-                📊 Analisi Geometrica Locale {repCount > 0 ? `(${repCount} Reps)` : ''}
-              </h3>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
-                {isAnalysisOpen ? '▲ Chiudi' : '▼ Espandi'}
-              </span>
-            </div>
+          <>
+            {/* SEZIONE ANALISI GEOMETRICA LOCALE (COLLASSABILE) */}
+            <div style={{ marginTop: 20, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+              <div 
+                onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
+                style={{
+                  padding: '16px 18px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  background: '#1e293b',
+                  userSelect: 'none'
+                }}
+              >
+                <h3 style={{ margin: 0, color: '#38bdf8', fontSize: 16, fontWeight: 800 }}>
+                  📊 Analisi Geometrica Locale {repCount > 0 ? `(${repCount} Reps)` : ''}
+                </h3>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
+                  {isAnalysisOpen ? '▲ Chiudi' : '▼ Espandi'}
+                </span>
+              </div>
 
-            {isAnalysisOpen && (
-              <div style={{ padding: '0 18px 18px 18px', borderTop: '1px solid #334155' }}>
-                <p style={{ margin: '12px 0 6px 0', fontSize: 14 }}><strong>Ripetizioni valide:</strong> {repCount}</p>
-                <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
-                <p style={{ margin: '6px 0 12px 0', fontSize: 13, color: '#94a3b8' }}>{analysisResult.trendSummary}</p>
+              {isAnalysisOpen && (
+                <div style={{ padding: '0 18px 18px 18px', borderTop: '1px solid #334155' }}>
+                  <p style={{ margin: '12px 0 6px 0', fontSize: 14 }}><strong>Ripetizioni valide:</strong> {repCount}</p>
+                  <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
+                  <p style={{ margin: '6px 0 12px 0', fontSize: 13, color: '#94a3b8' }}>{analysisResult.trendSummary}</p>
 
-                {repPeakPowers.length > 0 && (
-                  <div style={{ marginTop: 12, padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
-                      Potenza Massima per Ripetizione
-                    </span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {repPeakPowers.map((pwr, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                          <span style={{ color: '#cbd5e1' }}>Ripetizione #{idx + 1}</span>
-                          <span style={{ fontWeight: 800, color: '#f43f5e' }}>{pwr} W</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div style={{ marginTop: 18, borderTop: '1px solid #334155', paddingTop: 14 }}>
-                  <h4 style={{ margin: '0 0 10px 0', color: '#f43f5e', fontSize: 15, fontWeight: 800 }}>🤖 Gemini AI Coach (Singolo Cue)</h4>
-                  {isAiLoading ? (
-                    <p style={{ fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Il server sta interrogando Gemini con i dati geometrici...</p>
-                  ) : (
-                    <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #f43f5e', border: '1px solid #334155' }}>
-                      <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: '#f8fafc' }}>{aiFeedback}</p>
+                  {repPeakPowers.length > 0 && (
+                    <div style={{ marginTop: 12, padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
+                        Potenza Massima per Ripetizione
+                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {repPeakPowers.map((pwr, idx) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+                            <span style={{ color: '#cbd5e1' }}>Ripetizione #{idx + 1}</span>
+                            <span style={{ fontWeight: 800, color: '#f43f5e' }}>{pwr} W</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+
+            {/* SEZIONE GEMINI AI COACH (SEMPRE VISIBILE) */}
+            <div style={{ marginTop: 16, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>🤖 Gemini AI Coach (Singolo Cue)</h4>
+              {isAiLoading ? (
+                <p style={{ fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Il server sta interrogando Gemini con i dati geometrici...</p>
+              ) : (
+                <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #f43f5e', border: '1px solid #334155' }}>
+                  <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: '#f8fafc' }}>{aiFeedback}</p>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>
