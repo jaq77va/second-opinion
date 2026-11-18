@@ -47,6 +47,9 @@ export function App() {
   const [powerScore, setPowerScore] = useState<number>(0);
 
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [repPeakPowers, setRepPeakPowers] = useState<number[]>([]);
+  const [isAnalysisOpen, setIsAnalysisOpen] = useState<boolean>(false); // Stato collasso sezione geometrica
+
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
   
@@ -85,6 +88,8 @@ export function App() {
     setIsProcessing(true);
     setProgressPercent(0);
     setAnalysisResult(null);
+    setRepPeakPowers([]);
+    setIsAnalysisOpen(false);
     setAiFeedback('');
     setRepCount(0);
     setRomQuality(0);
@@ -123,6 +128,10 @@ export function App() {
         let powerHistory: number[] = [];
         let transitionStreak = 0;
         let hasStarted = false;
+
+        // Tracciamento potenza di picco per la ripetizione in corso
+        let currentRepMaxPower = 0;
+        let collectedRepPowers: number[] = [];
 
         const effectiveMass = selectedExerciseObj.isDumbbell ? weightKg * 2 : weightKg;
 
@@ -173,6 +182,7 @@ export function App() {
                   
                   const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
                   setAnalysisResult(geomResult);
+                  setRepPeakPowers(collectedRepPowers);
 
                   setIsAiLoading(true);
                   setStatus('Generazione del feedback intelligente con Gemini (Server)...');
@@ -252,6 +262,8 @@ export function App() {
                       );
 
                       // --- MACCHINA A STATI ROBUSTA (PRIMA DEL CALCOLO POTENZA) ---
+                      const previousPhase = repPhase;
+
                       if (selectedExercise === 'alzate_laterali') {
                         const REST_MAX = 55;
                         const APEX_MIN = 88;
@@ -266,6 +278,7 @@ export function App() {
                             if (transitionStreak >= 2) {
                               repPhase = 'ACTIVE';
                               transitionStreak = 0;
+                              currentRepMaxPower = 0; // Inizia nuova rep attiva
                             }
                           } else {
                             transitionStreak = 0;
@@ -278,6 +291,7 @@ export function App() {
                               transitionStreak = 0;
                               localReps++;
                               setRepCount(localReps);
+                              collectedRepPowers.push(Math.round(currentRepMaxPower));
                             }
                           } else {
                             transitionStreak = 0;
@@ -310,6 +324,7 @@ export function App() {
                             if (transitionStreak >= 2) {
                               repPhase = 'ACTIVE';
                               transitionStreak = 0;
+                              currentRepMaxPower = 0; // Inizia nuova rep attiva
                             }
                           } else {
                             transitionStreak = 0;
@@ -322,6 +337,7 @@ export function App() {
                               transitionStreak = 0;
                               localReps++;
                               setRepCount(localReps);
+                              collectedRepPowers.push(Math.round(currentRepMaxPower));
                             }
                           } else {
                             transitionStreak = 0;
@@ -342,22 +358,16 @@ export function App() {
                       // --- CALCOLO POTENZA STABILIZZATA (WATT) CON FILTRI ANTI-SPIKE ---
                       let instantPower = 0;
                       
-                      // 1. Azzera la potenza se non siamo in fase attiva (evita falsi picchi in piedi/setup)
                       if (repPhase === 'ACTIVE') {
                         const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
                         const MOVEMENT_DEADZONE = 2.0;
 
                         if (angleDelta >= MOVEMENT_DEADZONE) {
-                          // 2. Clamp sul dt minimo (evita divisioni per zeri o delta temporali infinitesimali)
                           const safeDt = Math.max(deltaTime, 0.012);
-                          
-                          // 3. Limita il jitter del delta angolare (es. max 4° per frame a ~60fps)
                           const safeDeltaAngle = Math.min(angleDelta, 4.0);
 
                           const velocityFactor = safeDeltaAngle / (safeDt * 10);
                           instantPower = effectiveMass * velocityFactor * 1.2;
-                          
-                          // 4. Cap fisico massimo di sicurezza (es. 850W per carichi moderati)
                           instantPower = Math.min(instantPower, 850);
                         }
                       }
@@ -371,10 +381,10 @@ export function App() {
                       
                       setPowerScore(smoothedPower);
 
-                      // --- LOG DI DEBUG POTENZA ---
-                      console.log(
-                        `[T:${video.currentTime.toFixed(2)}s] Fase:${repPhase}(Init:${hasReachedInitialPosition}) | Ang:${rawAngle}°->${smoothAngle}° | dt:${deltaTime.toFixed(4)}s | InstW:${Math.round(instantPower)}W | SmoothW:${smoothedPower}W`
-                      );
+                      // Aggiorna il picco di potenza della ripetizione corrente se siamo in ACTIVE
+                      if (repPhase === 'ACTIVE' && smoothedPower > currentRepMaxPower) {
+                        currentRepMaxPower = smoothedPower;
+                      }
                     }
                   }
                 } catch (err) {}
@@ -753,22 +763,64 @@ export function App() {
         </div>
 
         {analysisResult && (
-          <div style={{ marginTop: 20, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-            <h3 style={{ margin: '0 0 12px 0', color: '#38bdf8', fontSize: 18, fontWeight: 800 }}>Analisi Geometrica Locale</h3>
-            <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Ripetizioni valide:</strong> {repCount}</p>
-            <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
-            <p style={{ margin: '6px 0', fontSize: 13, color: '#94a3b8' }}>{analysisResult.trendSummary}</p>
-
-            <div style={{ marginTop: 18, borderTop: '1px solid #334155', paddingTop: 14 }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>🤖 Gemini AI Coach (Singolo Cue)</h4>
-              {isAiLoading ? (
-                <p style={{ fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Il server sta interrogando Gemini con i dati geometrici...</p>
-              ) : (
-                <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #f43f5e', border: '1px solid #334155' }}>
-                  <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: '#f8fafc' }}>{aiFeedback}</p>
-                </div>
-              )}
+          <div style={{ marginTop: 20, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+            {/* Pulsante di Espansione / Colloasso */}
+            <div 
+              onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
+              style={{
+                padding: '16px 18px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+                background: '#1e293b',
+                userSelect: 'none'
+              }}
+            >
+              <h3 style={{ margin: 0, color: '#38bdf8', fontSize: 16, fontWeight: 800 }}>
+                📊 Analisi Geometrica Locale {repCount > 0 ? `(${repCount} Reps)` : ''}
+              </h3>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
+                {isAnalysisOpen ? '▲ Chiudi' : '▼ Espandi'}
+              </span>
             </div>
+
+            {/* Contenuto collassabile */}
+            {isAnalysisOpen && (
+              <div style={{ padding: '0 18px 18px 18px', borderTop: '1px solid #334155' }}>
+                <p style={{ margin: '12px 0 6px 0', fontSize: 14 }}><strong>Ripetizioni valide:</strong> {repCount}</p>
+                <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
+                <p style={{ margin: '6px 0 12px 0', fontSize: 13, color: '#94a3b8' }}>{analysisResult.trendSummary}</p>
+
+                {/* Elenco potenza per singola ripetizione */}
+                {repPeakPowers.length > 0 && (
+                  <div style={{ marginTop: 12, padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
+                      Potenza Massima per Ripetizione
+                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {repPeakPowers.map((pwr, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+                          <span style={{ color: '#cbd5e1' }}>Ripetizione #{idx + 1}</span>
+                          <span style={{ fontWeight: 800, color: '#f43f5e' }}>{pwr} W</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ marginTop: 18, borderTop: '1px solid #334155', paddingTop: 14 }}>
+                  <h4 style={{ margin: '0 0 10px 0', color: '#f43f5e', fontSize: 15, fontWeight: 800 }}>🤖 Gemini AI Coach (Singolo Cue)</h4>
+                  {isAiLoading ? (
+                    <p style={{ fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Il server sta interrogando Gemini con i dati geometrici...</p>
+                  ) : (
+                    <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #f43f5e', border: '1px solid #334155' }}>
+                      <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: '#f8fafc' }}>{aiFeedback}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
