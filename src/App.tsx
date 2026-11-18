@@ -5,19 +5,6 @@ import { getGeminiFeedback } from './geminiCoach';
 
 type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_laterali';
 
-/*
-
-const EXERCISES: { id: Exercise; label: string; icon: string; viewHint: string; isDumbbell: boolean }[] = [
-  { id: 'squat', label: 'Squat', icon: '🏋️‍♂️', viewHint: 'Inquadratura laterale o frontale a figura intera', isDumbbell: false },
-  { id: 'stacco', label: 'Stacco da terra', icon: '🏋️', viewHint: 'Inquadratura laterale a altezza bacino', isDumbbell: false },
-  { id: 'panca_piana', label: 'Panca piana', icon: '🤸‍♂️', viewHint: 'Inquadratura laterale o obliqua a 45°', isDumbbell: false },
-  { id: 'lat_machine', label: 'Lat machine', icon: '🧗‍♂️', viewHint: 'Inquadratura posteriore o laterale', isDumbbell: false },
-  { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🤾‍♂️', viewHint: 'Inquadratura frontale dal bacino in su', isDumbbell: true },
-];
-
-
-*/
-
 const EXERCISES: { id: Exercise; label: string; imagePath: string; viewHint: string; isDumbbell: boolean }[] = [
   { id: 'squat', label: 'Squat', imagePath: '/images/squat.png', viewHint: 'Inquadratura laterale o frontale a figura intera', isDumbbell: false },
   { id: 'stacco', label: 'Stacco da terra', imagePath: '/images/stacco.png', viewHint: 'Inquadratura laterale a altezza bacino', isDumbbell: false },
@@ -542,60 +529,41 @@ export function App() {
               borderRadius: 14,
             }}
           >
-          {EXERCISES.map((ex) => {
-            const isSelected = selectedExercise === ex.id;
-            return (
-              <div
-                key={ex.id}
-                style={{
-                  flex: '0 0 100%',
-                  scrollSnapAlign: 'center',
-                  boxSizing: 'border-box',
-                  padding: 18,
-                  borderRadius: 14,
-                  border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
-                  background: isSelected ? '#1e293b' : '#0f172a',
-                  cursor: 'default',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 10,
-                  transition: 'all 0.2s ease',
-                  position: 'relative',
-                  boxShadow: isSelected ? '0 10px 15px -3px rgba(56, 189, 248, 0.15)' : 'none',
-                }}
-              >
-                {isSelected && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: 10,
-                      right: 10,
-                      background: '#38bdf8',
-                      color: '#0f172a',
-                      fontSize: 11,
-                      fontWeight: 800,
-                      padding: '3px 9px',
-                      borderRadius: 20,
-                    }}
-                  >
-                    ✓ Attivo
+            {EXERCISES.map((ex) => {
+              const isSelected = selectedExercise === ex.id;
+              return (
+                <div
+                  key={ex.id}
+                  style={{
+                    flex: '0 0 100%',
+                    scrollSnapAlign: 'center',
+                    boxSizing: 'border-box',
+                    padding: '12px 16px', // Cornice più piccola e compatta attorno all'immagine
+                    borderRadius: 14,
+                    border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
+                    background: isSelected ? '#1e293b' : '#0f172a',
+                    cursor: 'default',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'all 0.2s ease',
+                    position: 'relative',
+                    boxShadow: isSelected ? '0 10px 15px -3px rgba(56, 189, 248, 0.15)' : 'none',
+                  }}
+                >
+                  {/* Badge 'Attivo' rimosso completamente */}
+                  <img 
+                    src={ex.imagePath} 
+                    alt={ex.label} 
+                    style={{ width: 110, height: 110, objectFit: 'contain', borderRadius: 8 }} 
+                  />
+                  <span style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#38bdf8' : '#cbd5e1' }}>
+                    {ex.label}
                   </span>
-                )}
-                
-                {/* Sostituito l'emoji con il tag img per il PNG */}
-                <img 
-                  src={ex.imagePath} 
-                  alt={ex.label} 
-                  style={{ width: 110, height: 110, objectFit: 'contain', borderRadius: 8 }}
-                />
-
-                <span style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#38bdf8' : '#cbd5e1' }}>
-                  {ex.label}
-                </span>
-              </div>
-            );
-          })}
+                </div>
+              );
+            })}
           </div>
 
           <button
@@ -768,7 +736,7 @@ export function App() {
           </div>
         </div>
 
-        {/* --- STATO VIDEO CON SEMAFORO DINAMICO (SPOSTATO PRIMA DEL VIDEO) --- */}
+        {/* --- STATO VIDEO CON SEMAFORO DINAMICO --- */}
         <div style={{ marginTop: 16, padding: 14, border: '1px solid #334155', borderRadius: 10, background: '#1e293b', fontSize: 14, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span 
             style={{ 
@@ -850,11 +818,10 @@ export function App() {
               )}
             </div>
 
-            {/* SEZIONE AI COACH CON SEMAFORO A SINISTRA E SENZA ICONA ROBOT */}
+            {/* SEZIONE AI COACH */}
             <div style={{ marginTop: 16, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 
-                {/* Titolo con semaforo a sinistra */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span 
                     style={{ 
@@ -870,7 +837,6 @@ export function App() {
                   <h4 style={{ margin: 0, color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>AI Coach</h4>
                 </div>
 
-                {/* Messaggio di stato descrittivo a destra */}
                 <span style={{ fontSize: 13, color: '#94a3b8' }}>{aiStatusMessage}</span>
               </div>
 
