@@ -61,7 +61,6 @@ export function App() {
   const landmarksBufferRef = useRef<any[][]>([]);
   const carouselRef = useRef<HTMLDivElement | null>(null);
 
-  // Manteniamo in memoria l'ultimo risultato geometrico per poter rieseguire la chiamata IA in caso di "Riprova"
   const lastGeomResultRef = useRef<AnalysisResult | null>(null);
 
   const selectedExerciseObj = EXERCISES.find((ex) => ex.id === selectedExercise) || EXERCISES[0];
@@ -94,7 +93,6 @@ export function App() {
     setWeightKg(isNaN(val) ? 0 : Math.max(0, val));
   };
 
-  // Funzione dedicata per interrogare Gemini (usata anche dal tasto Riprova)
   const triggerAiCoach = (geomResult: AnalysisResult) => {
     setAiStatusCode('processing');
     setAiStatusMessage('Il server sta interrogando Gemini con i dati geometrici...');
@@ -219,7 +217,6 @@ export function App() {
                   setRepPeakPowers(collectedRepPowers);
                   lastGeomResultRef.current = geomResult;
 
-                  // Avvia chiamata IA con il proprio semaforo dedicato
                   triggerAiCoach(geomResult);
 
                   landmarker.close();
@@ -751,22 +748,7 @@ export function App() {
           </div>
         </div>
 
-        {/* --- PLAYER VIDEO / CANVAS --- */}
-        <div style={{ position: 'relative', marginTop: 16, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-          <video 
-            ref={videoRef} 
-            controls={statusCode === 'success'}
-            style={{ display: statusCode === 'success' ? 'block' : 'none', width: '100%', height: 'auto' }} 
-            muted={statusCode !== 'success'}
-            playsInline 
-          />
-          <canvas 
-            ref={canvasRef} 
-            style={{ display: statusCode === 'success' ? 'none' : 'block', width: '100%', height: 'auto' }} 
-          />
-        </div>
-
-        {/* --- STATO VIDEO CON SEMAFORO DINAMICO --- */}
+        {/* --- STATO VIDEO CON SEMAFORO DINAMICO (SPOSTATO PRIMA DEL VIDEO) --- */}
         <div style={{ marginTop: 16, padding: 14, border: '1px solid #334155', borderRadius: 10, background: '#1e293b', fontSize: 14, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span 
             style={{ 
@@ -782,6 +764,21 @@ export function App() {
           <div>
             <strong style={{ color: '#38bdf8' }}>Stato Video:</strong> <span style={{ color: statusCode === 'error' ? '#f43f5e' : '#f8fafc' }}>{status}</span>
           </div>
+        </div>
+
+        {/* --- PLAYER VIDEO / CANVAS --- */}
+        <div style={{ position: 'relative', marginTop: 16, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+          <video 
+            ref={videoRef} 
+            controls={statusCode === 'success'}
+            style={{ display: statusCode === 'success' ? 'block' : 'none', width: '100%', height: 'auto' }} 
+            muted={statusCode !== 'success'}
+            playsInline 
+          />
+          <canvas 
+            ref={canvasRef} 
+            style={{ display: statusCode === 'success' ? 'none' : 'block', width: '100%', height: 'auto' }} 
+          />
         </div>
 
         {analysisResult && (
@@ -833,13 +830,12 @@ export function App() {
               )}
             </div>
 
-            {/* SEZIONE GEMINI AI COACH CON SEMAFORO E TASTO RIPROVA DEDICATO */}
+            {/* SEZIONE AI COACH CON SEMAFORO A SINISTRA E SENZA ICONA ROBOT */}
             <div style={{ marginTop: 16, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <h4 style={{ margin: 0, color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>🤖 Gemini AI Coach (Singolo Cue)</h4>
                 
-                {/* Semaforo IA */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
+                {/* Titolo con semaforo a sinistra */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span 
                     style={{ 
                       width: 12, 
@@ -847,11 +843,15 @@ export function App() {
                       borderRadius: '50%', 
                       backgroundColor: getTrafficLightColor(aiStatusCode),
                       boxShadow: `0 0 8px ${getTrafficLightColor(aiStatusCode)}`,
-                      display: 'inline-block'
+                      display: 'inline-block',
+                      flexShrink: 0
                     }} 
                   />
-                  <span>{aiStatusMessage}</span>
+                  <h4 style={{ margin: 0, color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>AI Coach</h4>
                 </div>
+
+                {/* Messaggio di stato descrittivo a destra */}
+                <span style={{ fontSize: 13, color: '#94a3b8' }}>{aiStatusMessage}</span>
               </div>
 
               {aiStatusCode === 'processing' && (
