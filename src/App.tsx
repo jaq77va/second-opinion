@@ -5,12 +5,25 @@ import { getGeminiFeedback } from './geminiCoach';
 
 type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_laterali';
 
+/*
+
 const EXERCISES: { id: Exercise; label: string; icon: string; viewHint: string; isDumbbell: boolean }[] = [
   { id: 'squat', label: 'Squat', icon: '🏋️‍♂️', viewHint: 'Inquadratura laterale o frontale a figura intera', isDumbbell: false },
   { id: 'stacco', label: 'Stacco da terra', icon: '🏋️', viewHint: 'Inquadratura laterale a altezza bacino', isDumbbell: false },
   { id: 'panca_piana', label: 'Panca piana', icon: '🤸‍♂️', viewHint: 'Inquadratura laterale o obliqua a 45°', isDumbbell: false },
   { id: 'lat_machine', label: 'Lat machine', icon: '🧗‍♂️', viewHint: 'Inquadratura posteriore o laterale', isDumbbell: false },
   { id: 'alzate_laterali', label: 'Alzate laterali', icon: '🤾‍♂️', viewHint: 'Inquadratura frontale dal bacino in su', isDumbbell: true },
+];
+
+
+*/
+
+const EXERCISES: { id: Exercise; label: string; imagePath: string; viewHint: string; isDumbbell: boolean }[] = [
+  { id: 'squat', label: 'Squat', imagePath: '/images/squat.png', viewHint: 'Inquadratura laterale o frontale a figura intera', isDumbbell: false },
+  { id: 'stacco', label: 'Stacco da terra', imagePath: '/images/stacco.png', viewHint: 'Inquadratura laterale a altezza bacino', isDumbbell: false },
+  { id: 'panca_piana', label: 'Panca piana', imagePath: '/images/panca.png', viewHint: 'Inquadratura laterale o obliqua a 45°', isDumbbell: false },
+  { id: 'lat_machine', label: 'Lat machine', imagePath: '/images/lat.png', viewHint: 'Inquadratura posteriore o laterale', isDumbbell: false },
+  { id: 'alzate_laterali', label: 'Alzate laterali', imagePath: '/images/alzate.png', viewHint: 'Inquadratura frontale dal bacino in su', isDumbbell: true },
 ];
 
 const POSE_CONNECTIONS = [
@@ -529,53 +542,60 @@ export function App() {
               borderRadius: 14,
             }}
           >
-            {EXERCISES.map((ex) => {
-              const isSelected = selectedExercise === ex.id;
-              return (
-                <div
-                  key={ex.id}
-                  style={{
-                    flex: '0 0 100%',
-                    scrollSnapAlign: 'center',
-                    boxSizing: 'border-box',
-                    padding: 18,
-                    borderRadius: 14,
-                    border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
-                    background: isSelected ? '#1e293b' : '#0f172a',
-                    cursor: 'default',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 10,
-                    transition: 'all 0.2s ease',
-                    position: 'relative',
-                    boxShadow: isSelected ? '0 10px 15px -3px rgba(56, 189, 248, 0.15)' : 'none',
-                  }}
-                >
-                  {isSelected && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        top: 10,
-                        right: 10,
-                        background: '#38bdf8',
-                        color: '#0f172a',
-                        fontSize: 11,
-                        fontWeight: 800,
-                        padding: '3px 9px',
-                        borderRadius: 20,
-                      }}
-                    >
-                      ✓ Attivo
-                    </span>
-                  )}
-                  <span style={{ fontSize: 42, lineHeight: 1 }}>{ex.icon}</span>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#38bdf8' : '#cbd5e1' }}>
-                    {ex.label}
+          {EXERCISES.map((ex) => {
+            const isSelected = selectedExercise === ex.id;
+            return (
+              <div
+                key={ex.id}
+                style={{
+                  flex: '0 0 100%',
+                  scrollSnapAlign: 'center',
+                  boxSizing: 'border-box',
+                  padding: 18,
+                  borderRadius: 14,
+                  border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
+                  background: isSelected ? '#1e293b' : '#0f172a',
+                  cursor: 'default',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 10,
+                  transition: 'all 0.2s ease',
+                  position: 'relative',
+                  boxShadow: isSelected ? '0 10px 15px -3px rgba(56, 189, 248, 0.15)' : 'none',
+                }}
+              >
+                {isSelected && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 10,
+                      right: 10,
+                      background: '#38bdf8',
+                      color: '#0f172a',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: '3px 9px',
+                      borderRadius: 20,
+                    }}
+                  >
+                    ✓ Attivo
                   </span>
-                </div>
-              );
-            })}
+                )}
+                
+                {/* Sostituito l'emoji con il tag img per il PNG */}
+                <img 
+                  src={ex.imagePath} 
+                  alt={ex.label} 
+                  style={{ width: 60, height: 60, objectFit: 'contain' }} 
+                />
+
+                <span style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#38bdf8' : '#cbd5e1' }}>
+                  {ex.label}
+                </span>
+              </div>
+            );
+          })}
           </div>
 
           <button
