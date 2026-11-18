@@ -48,7 +48,7 @@ export function App() {
 
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [repPeakPowers, setRepPeakPowers] = useState<number[]>([]);
-  const [isAnalysisOpen, setIsAnalysisOpen] = useState<boolean>(false); // Stato collasso sezione geometrica
+  const [isAnalysisOpen, setIsAnalysisOpen] = useState<boolean>(false);
 
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
@@ -129,7 +129,6 @@ export function App() {
         let transitionStreak = 0;
         let hasStarted = false;
 
-        // Tracciamento potenza di picco per la ripetizione in corso
         let currentRepMaxPower = 0;
         let collectedRepPowers: number[] = [];
 
@@ -261,9 +260,7 @@ export function App() {
                         angleHistory.reduce((acc, v) => acc + v, 0) / angleHistory.length
                       );
 
-                      // --- MACCHINA A STATI ROBUSTA (PRIMA DEL CALCOLO POTENZA) ---
-                      const previousPhase = repPhase;
-
+                      // --- MACCHINA A STATI ROBUSTA ---
                       if (selectedExercise === 'alzate_laterali') {
                         const REST_MAX = 55;
                         const APEX_MIN = 88;
@@ -278,7 +275,7 @@ export function App() {
                             if (transitionStreak >= 2) {
                               repPhase = 'ACTIVE';
                               transitionStreak = 0;
-                              currentRepMaxPower = 0; // Inizia nuova rep attiva
+                              currentRepMaxPower = 0;
                             }
                           } else {
                             transitionStreak = 0;
@@ -324,7 +321,7 @@ export function App() {
                             if (transitionStreak >= 2) {
                               repPhase = 'ACTIVE';
                               transitionStreak = 0;
-                              currentRepMaxPower = 0; // Inizia nuova rep attiva
+                              currentRepMaxPower = 0;
                             }
                           } else {
                             transitionStreak = 0;
@@ -355,7 +352,7 @@ export function App() {
                       rom = Math.max(0, Math.min(100, Math.round(rom)));
                       setRomQuality(rom);
 
-                      // --- CALCOLO POTENZA STABILIZZATA (WATT) CON FILTRI ANTI-SPIKE ---
+                      // --- CALCOLO POTENZA STABILIZZATA (WATT) ---
                       let instantPower = 0;
                       
                       if (repPhase === 'ACTIVE') {
@@ -381,7 +378,6 @@ export function App() {
                       
                       setPowerScore(smoothedPower);
 
-                      // Aggiorna il picco di potenza della ripetizione corrente se siamo in ACTIVE
                       if (repPhase === 'ACTIVE' && smoothedPower > currentRepMaxPower) {
                         currentRepMaxPower = smoothedPower;
                       }
@@ -764,7 +760,6 @@ export function App() {
 
         {analysisResult && (
           <div style={{ marginTop: 20, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-            {/* Pulsante di Espansione / Colloasso */}
             <div 
               onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
               style={{
@@ -785,14 +780,12 @@ export function App() {
               </span>
             </div>
 
-            {/* Contenuto collassabile */}
             {isAnalysisOpen && (
               <div style={{ padding: '0 18px 18px 18px', borderTop: '1px solid #334155' }}>
                 <p style={{ margin: '12px 0 6px 0', fontSize: 14 }}><strong>Ripetizioni valide:</strong> {repCount}</p>
                 <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
                 <p style={{ margin: '6px 0 12px 0', fontSize: 13, color: '#94a3b8' }}>{analysisResult.trendSummary}</p>
 
-                {/* Elenco potenza per singola ripetizione */}
                 {repPeakPowers.length > 0 && (
                   <div style={{ marginTop: 12, padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
