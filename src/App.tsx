@@ -52,6 +52,7 @@ export function App() {
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const landmarksBufferRef = useRef<any[][]>([]);
   const carouselRef = useRef<HTMLDivElement | null>(null);
 
@@ -70,6 +71,11 @@ export function App() {
 
   const handleWeightChange = (delta: number) => {
     setWeightKg((prev) => Math.max(0, prev + delta));
+  };
+
+  const handleWeightInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10);
+    setWeightKg(isNaN(val) ? 0 : Math.max(0, val));
   };
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,7 +120,7 @@ export function App() {
         let hasReachedInitialPosition = false;
         let localReps = 0;
         let angleHistory: number[] = [];
-        let powerHistory: number[] = []; // Buffer per stabilizzare i Watt
+        let powerHistory: number[] = [];
         let transitionStreak = 0;
         let hasStarted = false;
 
@@ -256,7 +262,6 @@ export function App() {
                       // --- CALCOLO POTENZA STABILIZZATA (WATT) ---
                       const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
                       
-                      // Soglia minima di movimento (ignora micro-oscillazioni a riposo)
                       let instantPower = 0;
                       if (angleDelta >= 1.5 && deltaTime > 0) {
                         const velocityFactor = angleDelta / (deltaTime * 10);
@@ -264,9 +269,8 @@ export function App() {
                       }
 
                       powerHistory.push(instantPower);
-                      if (powerHistory.length > 5) powerHistory.shift(); // Media mobile su 5 campioni
+                      if (powerHistory.length > 5) powerHistory.shift();
 
-                      // Media dei Watt per azzerare le fluttuazioni
                       const smoothedPower = Math.round(
                         powerHistory.reduce((acc, v) => acc + v, 0) / powerHistory.length
                       );
@@ -565,7 +569,7 @@ export function App() {
           <span style={{ fontWeight: 800, fontSize: 15, color: '#38bdf8' }}>{selectedExerciseObj.label}</span>
         </div>
 
-        {/* --- SELETTORE DEL PESO CON TASTI PIÙ E MENO --- */}
+        {/* --- SELETTORE DEL PESO EDITABILE CON TASTI + / - --- */}
         <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Carico utilizzato</span>
@@ -573,23 +577,38 @@ export function App() {
               {selectedExerciseObj.isDumbbell ? 'Peso del singolo manubrio (kg)' : 'Peso totale (kg)'}
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
               type="button"
-              onClick={() => handleWeightChange(-2)}
+              onClick={() => handleWeightChange(-5)}
               disabled={isProcessing}
-              style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 18, fontWeight: 'bold', cursor: 'pointer' }}
+              style={{ width: 32, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 16, fontWeight: 'bold', cursor: 'pointer' }}
             >
               -
             </button>
-            <span style={{ fontSize: 18, fontWeight: 800, width: 45, textAlign: 'center', color: '#f8fafc' }}>
-              {weightKg}
-            </span>
+            <input
+              type="number"
+              value={weightKg}
+              onChange={handleWeightInputChange}
+              disabled={isProcessing}
+              style={{
+                width: 55,
+                height: 36,
+                textAlign: 'center',
+                background: '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                color: '#f8fafc',
+                fontSize: 16,
+                fontWeight: 800,
+                outline: 'none',
+              }}
+            />
             <button
               type="button"
-              onClick={() => handleWeightChange(2)}
+              onClick={() => handleWeightChange(5)}
               disabled={isProcessing}
-              style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 18, fontWeight: 'bold', cursor: 'pointer' }}
+              style={{ width: 32, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 16, fontWeight: 'bold', cursor: 'pointer' }}
             >
               +
             </button>
@@ -601,13 +620,41 @@ export function App() {
         </div>
 
         <label style={{ display: 'block', marginTop: 22, marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>2. Carica video</label>
+        
+        {/* --- UPLOAD FILE CON ICONA ACCATTIVANTE --- */}
         <input
           type="file"
           accept="video/*"
+          ref={fileInputRef}
           onChange={handleVideoUpload}
-          style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid #334155', background: '#1e293b', color: '#f8fafc', fontSize: 14, cursor: 'pointer' }}
-          disabled={isProcessing}
+          style={{ display: 'none' }}
         />
+        <div
+          onClick={() => !isProcessing && fileInputRef.current?.click()}
+          style={{
+            width: '100%',
+            padding: '22px 16px',
+            borderRadius: 12,
+            border: '2px dashed #38bdf8',
+            background: isProcessing ? '#1e293b' : 'rgba(56, 189, 248, 0.05)',
+            color: '#f8fafc',
+            textAlign: 'center',
+            cursor: isProcessing ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span style={{ fontSize: 32, lineHeight: 1 }}>📤</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#38bdf8' }}>
+            {isProcessing ? 'Elaborazione in corso...' : 'Tocca qui per caricare il video dell\'esercizio'}
+          </span>
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>
+            Formati supportati: MP4, MOV, WebM (Consigliato file inquadratura stabile)
+          </span>
+        </div>
 
         {isProcessing && (
           <div style={{ marginTop: 16, padding: 14, background: '#1e293b', borderRadius: 10, border: '1px solid #334155', color: '#fff' }}>
