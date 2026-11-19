@@ -61,8 +61,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: true,
     mode: 'extension_flexion',
-    topMin: 150,
-    bottomMax: 100,
+    topMin: 148,
+    bottomMax: 102,
     romMinAngle: 65,
     romMaxAngle: 155,
   },
@@ -74,8 +74,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 150,
-    bottomMax: 105,
+    topMin: 148,
+    bottomMax: 108,
     romMinAngle: 65,
     romMaxAngle: 155,
   },
@@ -87,8 +87,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: true,
     mode: 'extension_flexion',
-    topMin: 150,
-    bottomMax: 95,
+    topMin: 148,
+    bottomMax: 98,
     romMinAngle: 65,
     romMaxAngle: 155,
   },
@@ -100,8 +100,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: true,
     isTrialAllowed: false,
     mode: 'abduction_up',
-    restMax: 55,
-    apexMin: 88,
+    restMax: 58,
+    apexMin: 85,
     romMinAngle: 35,
     romMaxAngle: 100,
   },
@@ -113,8 +113,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 150,
-    bottomMax: 100,
+    topMin: 148,
+    bottomMax: 102,
     romMinAngle: 70,
     romMaxAngle: 155,
   },
@@ -126,8 +126,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 142,
-    bottomMax: 105,
+    topMin: 140,
+    bottomMax: 108,
     romMinAngle: 70,
     romMaxAngle: 155,
   },
@@ -139,8 +139,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 150,
-    bottomMax: 95,
+    topMin: 148,
+    bottomMax: 98,
     romMinAngle: 70,
     romMaxAngle: 155,
   },
@@ -152,8 +152,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 150,
-    bottomMax: 95,
+    topMin: 148,
+    bottomMax: 98,
     romMinAngle: 70,
     romMaxAngle: 160,
   },
@@ -165,8 +165,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: true,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 145,
-    bottomMax: 65,
+    topMin: 142,
+    bottomMax: 70,
     romMinAngle: 45,
     romMaxAngle: 150,
   },
@@ -178,8 +178,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 148,
-    bottomMax: 85,
+    topMin: 145,
+    bottomMax: 90,
     romMinAngle: 60,
     romMaxAngle: 155,
   },
@@ -191,8 +191,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 145,
-    bottomMax: 85,
+    topMin: 142,
+    bottomMax: 90,
     romMinAngle: 65,
     romMaxAngle: 150,
   },
@@ -204,8 +204,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 150,
-    bottomMax: 105,
+    topMin: 148,
+    bottomMax: 108,
     romMinAngle: 75,
     romMaxAngle: 160,
   },
@@ -217,8 +217,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 140,
-    bottomMax: 85,
+    topMin: 138,
+    bottomMax: 90,
     romMinAngle: 65,
     romMaxAngle: 155,
   },
@@ -230,8 +230,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 145,
-    bottomMax: 85,
+    topMin: 142,
+    bottomMax: 90,
     romMinAngle: 65,
     romMaxAngle: 150,
   },
@@ -243,8 +243,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 150,
-    bottomMax: 95,
+    topMin: 148,
+    bottomMax: 98,
     romMinAngle: 80,
     romMaxAngle: 160,
   },
@@ -256,8 +256,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 145,
-    bottomMax: 80,
+    topMin: 142,
+    bottomMax: 85,
     romMinAngle: 65,
     romMaxAngle: 150,
   },
@@ -269,8 +269,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 145,
-    bottomMax: 90,
+    topMin: 142,
+    bottomMax: 95,
     romMinAngle: 70,
     romMaxAngle: 150,
   },
@@ -282,8 +282,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 148,
-    bottomMax: 95,
+    topMin: 145,
+    bottomMax: 98,
     romMinAngle: 70,
     romMaxAngle: 155,
   },
@@ -295,8 +295,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 148,
-    bottomMax: 85,
+    topMin: 145,
+    bottomMax: 90,
     romMinAngle: 65,
     romMaxAngle: 155,
   },
@@ -308,8 +308,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 145,
-    bottomMax: 85,
+    topMin: 142,
+    bottomMax: 90,
     romMinAngle: 65,
     romMaxAngle: 155,
   },
@@ -330,7 +330,7 @@ function calculateLiveAngle(a: any, b: any, c: any): number {
   return Math.round(angle);
 }
 
-function areLandmarksVisible(landmarks: any[], indices: number[], minVis = 0.45): boolean {
+function areLandmarksVisible(landmarks: any[], indices: number[], minVis = 0.35): boolean {
   return indices.every(
     (idx) => landmarks[idx] && (landmarks[idx].visibility ?? 1) >= minVis
   );
@@ -340,7 +340,7 @@ function getBilateralOrSingleAngle(
   landmarks: any[],
   leftTriplet: [number, number, number],
   rightTriplet: [number, number, number],
-  minVis = 0.45
+  minVis = 0.35
 ): number | null {
   const leftOk = areLandmarksVisible(landmarks, leftTriplet, minVis);
   const rightOk = areLandmarksVisible(landmarks, rightTriplet, minVis);
@@ -361,8 +361,8 @@ function getBilateralOrSingleAngle(
 function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | null {
   switch (exercise) {
     case 'squat': {
-      const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.45);
-      const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.45);
+      const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.35);
+      const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.35);
       if (leftOk && rightOk) {
         const lAng = calculateLiveAngle(landmarks[23], landmarks[25], landmarks[27]);
         const rAng = calculateLiveAngle(landmarks[24], landmarks[26], landmarks[28]);
@@ -373,8 +373,8 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
       return null;
     }
     case 'alzate_laterali': {
-      const leftOk = areLandmarksVisible(landmarks, [23, 11, 13], 0.45);
-      const rightOk = areLandmarksVisible(landmarks, [24, 12, 14], 0.45);
+      const leftOk = areLandmarksVisible(landmarks, [23, 11, 13], 0.35);
+      const rightOk = areLandmarksVisible(landmarks, [24, 12, 14], 0.35);
       if (leftOk && rightOk) {
         const lAng = calculateLiveAngle(landmarks[23], landmarks[11], landmarks[13]);
         const rAng = calculateLiveAngle(landmarks[24], landmarks[12], landmarks[14]);
@@ -387,12 +387,12 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
 
     case 'stacco':
     case 'stacco_rumeno':
-      return getBilateralOrSingleAngle(landmarks, [11, 23, 25], [12, 24, 26], 0.45);
+      return getBilateralOrSingleAngle(landmarks, [11, 23, 25], [12, 24, 26], 0.35);
 
     case 'affondi':
     case 'bulgarian_squat': {
-      const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.4);
-      const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.4);
+      const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.35);
+      const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.35);
       if (leftOk && rightOk) {
         const lAng = calculateLiveAngle(landmarks[23], landmarks[25], landmarks[27]);
         const rAng = calculateLiveAngle(landmarks[24], landmarks[26], landmarks[28]);
@@ -404,7 +404,7 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
     }
     case 'leg_extension':
     case 'leg_curl':
-      return getBilateralOrSingleAngle(landmarks, [23, 25, 27], [24, 26, 28], 0.45);
+      return getBilateralOrSingleAngle(landmarks, [23, 25, 27], [24, 26, 28], 0.35);
 
     case 'panca_piana':
     case 'push_up':
@@ -418,7 +418,7 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
     case 'shoulder_press':
     case 'pushdown_cavi':
     case 'trazioni_sbarra':
-      return getBilateralOrSingleAngle(landmarks, [11, 13, 15], [12, 14, 16], 0.45);
+      return getBilateralOrSingleAngle(landmarks, [11, 13, 15], [12, 14, 16], 0.35);
 
     default:
       return null;
@@ -783,11 +783,14 @@ export function App() {
         video.src = URL.createObjectURL(file);
         video.load();
 
-        const MAX_WIDTH = 480;
-        const FRAME_SKIP = 3;
+        const isMobileViewport = typeof window !== 'undefined' && window.innerWidth <= 768;
+        const MAX_WIDTH = isMobileViewport ? 420 : 480;
+        const effectiveFrameSkip = isMobileViewport ? 2 : 3;
+
         let frameCounter = 0;
         let targetWidth = 640;
         let targetHeight = 480;
+        let lastVideoTimestampMs = 0;
 
         let repPhase: 'START' | 'ACTIVE' = 'START';
         let hasReachedInitialPosition = false;
@@ -830,7 +833,7 @@ export function App() {
 
             const processFrame = () => {
               const now = performance.now();
-              const deltaTime = (now - lastFrameTime) / 1000;
+              const deltaTime = Math.max(0.008, (now - lastFrameTime) / 1000);
               lastFrameTime = now;
 
               if (video.duration && !isNaN(video.duration)) {
@@ -862,9 +865,14 @@ export function App() {
               frameCounter++;
               let currentLandmarks: any = null;
 
-              if (frameCounter % FRAME_SKIP === 0) {
+              const rawVideoMs = Math.round(video.currentTime * 1000);
+              const videoTimestampMs =
+                rawVideoMs > lastVideoTimestampMs ? rawVideoMs : lastVideoTimestampMs + 1;
+
+              if (frameCounter % effectiveFrameSkip === 0 && videoTimestampMs > lastVideoTimestampMs) {
                 try {
-                  const result = landmarker.detectForVideo(video, now);
+                  lastVideoTimestampMs = videoTimestampMs;
+                  const result = landmarker.detectForVideo(video, videoTimestampMs);
                   if (result.landmarks && result.landmarks.length > 0) {
                     currentLandmarks = result.landmarks[0];
                     landmarksBufferRef.current.push(currentLandmarks);
@@ -879,73 +887,67 @@ export function App() {
                       );
 
                       if (selectedExerciseObj.mode === 'abduction_up') {
-                        const REST_MAX = selectedExerciseObj.restMax ?? 55;
-                        const APEX_MIN = selectedExerciseObj.apexMin ?? 88;
+                        const REST_MAX = selectedExerciseObj.restMax ?? 58;
+                        const APEX_MIN = selectedExerciseObj.apexMin ?? 85;
 
                         if (!hasReachedInitialPosition) {
                           if (smoothAngle <= REST_MAX) {
                             hasReachedInitialPosition = true;
+                            transitionStreak = 0;
                           }
                         } else if (repPhase === 'START') {
                           if (smoothAngle >= APEX_MIN) {
+                            repPhase = 'ACTIVE';
+                            transitionStreak = 0;
+                            currentRepMaxPower = 0;
+                          } else if (smoothAngle <= REST_MAX) {
                             transitionStreak++;
-                            if (transitionStreak >= 1) {
-                              repPhase = 'ACTIVE';
+                            if (transitionStreak >= 3) {
                               transitionStreak = 0;
-                              currentRepMaxPower = 0;
                             }
                           } else {
                             transitionStreak = 0;
                           }
                         } else if (repPhase === 'ACTIVE') {
                           if (smoothAngle <= REST_MAX) {
-                            transitionStreak++;
-                            if (transitionStreak >= 1) {
-                              repPhase = 'START';
-                              transitionStreak = 0;
-                              localReps++;
-                              setRepCount(localReps);
-                              collectedRepPowers.push(Math.round(currentRepMaxPower));
-                            }
+                            repPhase = 'START';
+                            transitionStreak = 0;
+                            localReps++;
+                            setRepCount(localReps);
+                            collectedRepPowers.push(Math.round(currentRepMaxPower));
                           } else {
                             transitionStreak = 0;
                           }
                         }
                       } else {
-                        const TOP_MIN = selectedExerciseObj.topMin ?? 150;
-                        const BOTTOM_MAX = selectedExerciseObj.bottomMax ?? 100;
+                        const TOP_MIN = selectedExerciseObj.topMin ?? 148;
+                        const BOTTOM_MAX = selectedExerciseObj.bottomMax ?? 102;
 
                         if (!hasReachedInitialPosition) {
                           if (smoothAngle >= TOP_MIN) {
-                            transitionStreak++;
-                            if (transitionStreak >= 1) {
-                              hasReachedInitialPosition = true;
-                              transitionStreak = 0;
-                            }
-                          } else {
+                            hasReachedInitialPosition = true;
                             transitionStreak = 0;
                           }
                         } else if (repPhase === 'START') {
                           if (smoothAngle <= BOTTOM_MAX) {
+                            repPhase = 'ACTIVE';
+                            transitionStreak = 0;
+                            currentRepMaxPower = 0;
+                          } else if (smoothAngle >= TOP_MIN) {
                             transitionStreak++;
-                            if (transitionStreak >= 1) {
-                              repPhase = 'ACTIVE';
+                            if (transitionStreak >= 3) {
                               transitionStreak = 0;
-                              currentRepMaxPower = 0;
                             }
                           } else {
                             transitionStreak = 0;
                           }
                         } else if (repPhase === 'ACTIVE') {
                           if (smoothAngle >= TOP_MIN) {
-                            transitionStreak++;
-                            if (transitionStreak >= 1) {
-                              repPhase = 'START';
-                              transitionStreak = 0;
-                              localReps++;
-                              setRepCount(localReps);
-                              collectedRepPowers.push(Math.round(currentRepMaxPower));
-                            }
+                            repPhase = 'START';
+                            transitionStreak = 0;
+                            localReps++;
+                            setRepCount(localReps);
+                            collectedRepPowers.push(Math.round(currentRepMaxPower));
                           } else {
                             transitionStreak = 0;
                           }
@@ -1193,13 +1195,6 @@ export function App() {
 
   return (
     <>
-      <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)',
-        color: '#f8fafc',
-        paddingBottom: 40,
-        display: 'none',
-      }} />
       <div style={{
         minHeight: '100vh',
         background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)',
