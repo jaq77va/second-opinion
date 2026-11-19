@@ -118,6 +118,48 @@ export function App() {
 
   const lastGeomResultRef = useRef<AnalysisResult | null>(null);
 
+  // Azzera completamente stato, metriche, IA e player video/canvas
+  const resetAnalysisSession = (options?: { preserveExerciseAndWeight?: boolean }) => {
+    if (!options?.preserveExerciseAndWeight) {
+      setSelectedExercise('squat');
+      setWeightKg(20);
+    }
+    setStatus('Pronto per iniziare');
+    setStatusCode('idle');
+    setIsProcessing(false);
+    setProgressPercent(0);
+    setRepCount(0);
+    setRomQuality(0);
+    setPowerScore(0);
+    setAnalysisResult(null);
+    setRepPeakPowers([]);
+    setIsAnalysisOpen(false);
+    setAiFeedback('');
+    setAiStatusCode('idle');
+    setAiStatusMessage('In attesa di dati geometrici...');
+
+    landmarksBufferRef.current = [];
+    lastGeomResultRef.current = null;
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    if (videoRef.current) {
+      if (videoRef.current.src && videoRef.current.src.startsWith('blob:')) {
+        URL.revokeObjectURL(videoRef.current.src);
+      }
+      videoRef.current.pause();
+      videoRef.current.removeAttribute('src');
+      videoRef.current.load();
+    }
+
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
+  };
+
   // Carica stato sessione Supabase
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -134,6 +176,11 @@ export function App() {
       listener.subscription.unsubscribe();
     };
   }, []);
+
+  // Reset automatico dell'analisi quando cambia l'utente o si effettua il logout
+  useEffect(() => {
+    resetAnalysisSession();
+  }, [user?.id]);
 
   // Carica abbonamento dell'utente da public.subscriptions
   const fetchUserSubscription = async (userId: string) => {
@@ -214,6 +261,7 @@ export function App() {
   };
 
   const handleLogout = async () => {
+    resetAnalysisSession();
     await supabase.auth.signOut();
   };
 
@@ -275,20 +323,11 @@ export function App() {
     const file = e.target.files?.[0];
     if (!file || !videoRef.current || !canvasRef.current) return;
 
+    resetAnalysisSession({ preserveExerciseAndWeight: true });
+
     setIsProcessing(true);
-    setProgressPercent(0);
-    setAnalysisResult(null);
-    setRepPeakPowers([]);
-    setIsAnalysisOpen(false);
-    setAiFeedback('');
-    setAiStatusCode('idle');
-    setAiStatusMessage('In attesa di completamento analisi video...');
-    setRepCount(0);
-    setRomQuality(0);
-    setPowerScore(0);
     setStatus('Caricamento modello AI locale in corso...');
     setStatusCode('processing');
-    landmarksBufferRef.current = [];
 
     FilesetResolver.forVisionTasks(
       'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
