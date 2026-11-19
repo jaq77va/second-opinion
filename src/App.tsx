@@ -3,6 +3,7 @@ import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import { AuthScreen } from './components/AuthScreen';
+import { CameraGuidesView } from './components/CameraGuidesView';
 import { analyzeExerciseGeometry, type AnalysisResult } from './biomechanicsEngine';
 import { getGeminiFeedback } from './geminiCoach';
 
@@ -470,6 +471,10 @@ export function App() {
   const [isSubscriptionExpired, setIsSubscriptionExpired] = useState<boolean>(false);
   const [planError, setPlanError] = useState<string | null>(null);
 
+  // --- STATI LINEE GUIDA RIPRESE ---
+  const [isGuidesOpen, setIsGuidesOpen] = useState<boolean>(false);
+  const [guideInitialExercise, setGuideInitialExercise] = useState<string | undefined>(undefined);
+
   // --- STATI APPLICAZIONE ANALISI BIOMECCANICA ---
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
   const [weightKg, setWeightKg] = useState<number>(20);
@@ -639,6 +644,8 @@ export function App() {
   };
 
   const handleLogout = async () => {
+    setIsGuidesOpen(false);
+    setGuideInitialExercise(undefined);
     resetAnalysisSession();
     await supabase.auth.signOut();
   };
@@ -1117,6 +1124,18 @@ export function App() {
   }
 
   // ==========================================
+  // VISTA LINEE GUIDA RIPRESE
+  // ==========================================
+  if (isGuidesOpen) {
+    return (
+      <CameraGuidesView
+        initialExerciseId={guideInitialExercise}
+        onClose={() => setIsGuidesOpen(false)}
+      />
+    );
+  }
+
+  // ==========================================
   // 4. AREA PERSONALE + APPLICAZIONE ANALISI
   // ==========================================
   return (
@@ -1129,18 +1148,29 @@ export function App() {
       <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
         
         {/* BARRA AREA PERSONALE / CONTEGGIO GIORNI RIMASTI */}
-        <div style={{ background: '#1e293b', padding: '10px 14px', borderRadius: 10, border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ background: '#1e293b', padding: '10px 14px', borderRadius: 10, border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8 }}>
           <div>
             <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>Piano attivo</span>
             <strong style={{ fontSize: 13, color: '#38bdf8' }}>{getPlanLabel(currentPlan)}</strong>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ textAlign: 'right' }}>
               <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>Scadenza</span>
               <span style={{ fontSize: 13, fontWeight: 800, color: daysRemaining <= 2 ? '#ef4444' : '#22c55e' }}>
                 ⏱ {daysRemaining} {daysRemaining === 1 ? 'giorno' : 'giorni'}
               </span>
             </div>
+            <button
+              type="button"
+              disabled={isProcessing}
+              onClick={() => {
+                setGuideInitialExercise(undefined);
+                setIsGuidesOpen(true);
+              }}
+              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #38bdf8', background: 'rgba(56,189,248,0.1)', color: '#38bdf8', fontSize: 12, fontWeight: 700, cursor: isProcessing ? 'not-allowed' : 'pointer' }}
+            >
+              📷 Guide
+            </button>
             <button
               type="button"
               onClick={handleLogout}
@@ -1272,16 +1302,38 @@ export function App() {
         </div>
 
         {/* --- INQUADRATURA CONSIGLIATA --- */}
-        <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
           <div>
             <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Inquadratura consigliata</span>
             <span style={{ fontSize: 11, color: '#94a3b8' }}>
               {currentHint}
             </span>
           </div>
-          <span style={{ fontSize: 14, fontWeight: 800, color: '#38bdf8', background: 'rgba(56,189,248,0.1)', padding: '4px 10px', borderRadius: 8, flexShrink: 0 }}>
-            {selectedExerciseObj.label}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <button
+              type="button"
+              disabled={isProcessing}
+              onClick={() => {
+                setGuideInitialExercise(selectedExercise);
+                setIsGuidesOpen(true);
+              }}
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#38bdf8',
+                background: 'rgba(56,189,248,0.1)',
+                border: '1px solid rgba(56,189,248,0.35)',
+                padding: '5px 9px',
+                borderRadius: 8,
+                cursor: isProcessing ? 'not-allowed' : 'pointer',
+              }}
+            >
+              📷 Guida
+            </button>
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#38bdf8', background: 'rgba(56,189,248,0.1)', padding: '4px 10px', borderRadius: 8 }}>
+              {selectedExerciseObj.label}
+            </span>
+          </div>
         </div>
 
         {/* --- SELETTORE DEL PESO --- */}
