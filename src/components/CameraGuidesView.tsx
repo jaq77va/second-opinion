@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export interface ExerciseGuideItem {
   id: string;
@@ -316,10 +316,8 @@ function StickmanAngleIllustration({ guide }: { guide: ExerciseGuideItem }) {
       }}
       aria-label={`Schema omino e angolo ${guide.cameraAngleBadge}`}
     >
-      {/* Pavimento */}
       <line x1="10" y1="102" x2="110" y2="102" stroke="#475569" strokeWidth="1.5" strokeDasharray="3 3" />
 
-      {/* Cono ottico fotocamera */}
       <polygon
         points={`${camPos.x},${camPos.y} 44,42 76,42`}
         fill="rgba(56, 189, 248, 0.14)"
@@ -327,7 +325,6 @@ function StickmanAngleIllustration({ guide }: { guide: ExerciseGuideItem }) {
         strokeWidth="1"
       />
 
-      {/* Omino stilizzato */}
       {isHorizontal ? (
         <g stroke="#f8fafc" strokeWidth="2.6" strokeLinecap="round" fill="none">
           <circle cx="34" cy="78" r="5" />
@@ -370,7 +367,6 @@ function StickmanAngleIllustration({ guide }: { guide: ExerciseGuideItem }) {
         </g>
       )}
 
-      {/* Icona camera + angolo */}
       <g transform={`translate(${camPos.x - 7}, ${camPos.y - 6})`}>
         <rect x="0" y="2" width="14" height="9" rx="2" fill="#38bdf8" />
         <circle cx="7" cy="6.5" r="2.2" fill="#020617" />
@@ -391,14 +387,25 @@ function StickmanAngleIllustration({ guide }: { guide: ExerciseGuideItem }) {
 
 interface CameraGuidesViewProps {
   initialExerciseId?: string;
-  onClose: () => void;
+  onSelectExercise?: (exerciseId: string) => void;
+  onClose: (selectedExerciseId?: string) => void;
 }
 
-export function CameraGuidesView({ initialExerciseId, onClose }: CameraGuidesViewProps) {
+export function CameraGuidesView({
+  initialExerciseId,
+  onSelectExercise,
+  onClose,
+}: CameraGuidesViewProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedFilterId, setSelectedFilterId] = useState<string>(initialExerciseId || 'all');
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string | undefined>(initialExerciseId);
   const [showGeneralRules, setShowGeneralRules] = useState<boolean>(true);
   const [fallbackIds, setFallbackIds] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setSelectedExerciseId(initialExerciseId);
+    setSelectedFilterId(initialExerciseId || 'all');
+  }, [initialExerciseId]);
 
   const filteredGuides = EXERCISE_GUIDES.filter((item) => {
     const matchesSelected = selectedFilterId === 'all' || item.id === selectedFilterId;
@@ -407,6 +414,11 @@ export function CameraGuidesView({ initialExerciseId, onClose }: CameraGuidesVie
       item.cameraAngleBadge.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSelected && matchesSearch;
   });
+
+  const handleChooseGuide = (exerciseId: string) => {
+    setSelectedExerciseId(exerciseId);
+    onSelectExercise?.(exerciseId);
+  };
 
   return (
     <div
@@ -423,7 +435,7 @@ export function CameraGuidesView({ initialExerciseId, onClose }: CameraGuidesVie
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => onClose(selectedExerciseId)}
             style={{
               padding: '8px 12px',
               borderRadius: 8,
@@ -521,15 +533,18 @@ export function CameraGuidesView({ initialExerciseId, onClose }: CameraGuidesVie
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {filteredGuides.map((guide) => {
             const hasImageError = Boolean(fallbackIds[guide.id]);
+            const isChosen = selectedExerciseId === guide.id;
             return (
               <div
                 key={guide.id}
+                onClick={() => handleChooseGuide(guide.id)}
                 style={{
                   background: '#1e293b',
-                  border: '1px solid #334155',
+                  border: isChosen ? '2px solid #38bdf8' : '1px solid #334155',
                   borderRadius: 14,
                   overflow: 'hidden',
                   boxShadow: '0 8px 16px -4px rgba(0,0,0,0.3)',
+                  cursor: 'pointer',
                 }}
               >
                 {/* TOP CARD HEADER */}
@@ -645,6 +660,29 @@ export function CameraGuidesView({ initialExerciseId, onClose }: CameraGuidesVie
                       </span>
                       <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: '#cbd5e1' }}>{guide.avoidTips}</p>
                     </div>
+                  </div>
+
+                  <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleChooseGuide(guide.id);
+                        onClose(guide.id);
+                      }}
+                      style={{
+                        padding: '7px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #38bdf8',
+                        background: isChosen ? '#38bdf8' : 'rgba(56,189,248,0.12)',
+                        color: isChosen ? '#0f172a' : '#38bdf8',
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {isChosen ? '✓ Selezionato per l’analisi' : 'Usa questo esercizio'}
+                    </button>
                   </div>
                 </div>
               </div>

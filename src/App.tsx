@@ -61,8 +61,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: true,
     mode: 'extension_flexion',
-    topMin: 148,
-    bottomMax: 102,
+    topMin: 150,
+    bottomMax: 100,
     romMinAngle: 65,
     romMaxAngle: 155,
   },
@@ -74,8 +74,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 148,
-    bottomMax: 108,
+    topMin: 150,
+    bottomMax: 105,
     romMinAngle: 65,
     romMaxAngle: 155,
   },
@@ -87,8 +87,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: true,
     mode: 'extension_flexion',
-    topMin: 148,
-    bottomMax: 98,
+    topMin: 150,
+    bottomMax: 95,
     romMinAngle: 65,
     romMaxAngle: 155,
   },
@@ -100,8 +100,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: true,
     isTrialAllowed: false,
     mode: 'abduction_up',
-    restMax: 58,
-    apexMin: 85,
+    restMax: 55,
+    apexMin: 88,
     romMinAngle: 35,
     romMaxAngle: 100,
   },
@@ -113,8 +113,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 148,
-    bottomMax: 102,
+    topMin: 150,
+    bottomMax: 100,
     romMinAngle: 70,
     romMaxAngle: 155,
   },
@@ -126,8 +126,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 140,
-    bottomMax: 108,
+    topMin: 142,
+    bottomMax: 105,
     romMinAngle: 70,
     romMaxAngle: 155,
   },
@@ -139,8 +139,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 148,
-    bottomMax: 98,
+    topMin: 150,
+    bottomMax: 95,
     romMinAngle: 70,
     romMaxAngle: 155,
   },
@@ -152,8 +152,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 148,
-    bottomMax: 98,
+    topMin: 150,
+    bottomMax: 95,
     romMinAngle: 70,
     romMaxAngle: 160,
   },
@@ -165,8 +165,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: true,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 142,
-    bottomMax: 70,
+    topMin: 145,
+    bottomMax: 65,
     romMinAngle: 45,
     romMaxAngle: 150,
   },
@@ -178,8 +178,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 145,
-    bottomMax: 90,
+    topMin: 148,
+    bottomMax: 85,
     romMinAngle: 60,
     romMaxAngle: 155,
   },
@@ -191,8 +191,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 142,
-    bottomMax: 90,
+    topMin: 145,
+    bottomMax: 85,
     romMinAngle: 65,
     romMaxAngle: 150,
   },
@@ -204,8 +204,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 148,
-    bottomMax: 108,
+    topMin: 150,
+    bottomMax: 105,
     romMinAngle: 75,
     romMaxAngle: 160,
   },
@@ -217,8 +217,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 138,
-    bottomMax: 90,
+    topMin: 140,
+    bottomMax: 85,
     romMinAngle: 65,
     romMaxAngle: 155,
   },
@@ -230,8 +230,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 142,
-    bottomMax: 90,
+    topMin: 145,
+    bottomMax: 85,
     romMinAngle: 65,
     romMaxAngle: 150,
   },
@@ -243,8 +243,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 148,
-    bottomMax: 98,
+    topMin: 150,
+    bottomMax: 95,
     romMinAngle: 80,
     romMaxAngle: 160,
   },
@@ -256,8 +256,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 142,
-    bottomMax: 85,
+    topMin: 145,
+    bottomMax: 80,
     romMinAngle: 65,
     romMaxAngle: 150,
   },
@@ -269,8 +269,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 142,
-    bottomMax: 95,
+    topMin: 145,
+    bottomMax: 90,
     romMinAngle: 70,
     romMaxAngle: 150,
   },
@@ -282,8 +282,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 145,
-    bottomMax: 98,
+    topMin: 148,
+    bottomMax: 95,
     romMinAngle: 70,
     romMaxAngle: 155,
   },
@@ -295,8 +295,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 145,
-    bottomMax: 90,
+    topMin: 148,
+    bottomMax: 85,
     romMinAngle: 65,
     romMaxAngle: 155,
   },
@@ -308,8 +308,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 142,
-    bottomMax: 90,
+    topMin: 145,
+    bottomMax: 85,
     romMinAngle: 65,
     romMaxAngle: 155,
   },
@@ -330,7 +330,7 @@ function calculateLiveAngle(a: any, b: any, c: any): number {
   return Math.round(angle);
 }
 
-function areLandmarksVisible(landmarks: any[], indices: number[], minVis = 0.35): boolean {
+function areLandmarksVisible(landmarks: any[], indices: number[], minVis = 0.45): boolean {
   return indices.every(
     (idx) => landmarks[idx] && (landmarks[idx].visibility ?? 1) >= minVis
   );
@@ -340,7 +340,7 @@ function getBilateralOrSingleAngle(
   landmarks: any[],
   leftTriplet: [number, number, number],
   rightTriplet: [number, number, number],
-  minVis = 0.35
+  minVis = 0.45
 ): number | null {
   const leftOk = areLandmarksVisible(landmarks, leftTriplet, minVis);
   const rightOk = areLandmarksVisible(landmarks, rightTriplet, minVis);
@@ -361,8 +361,8 @@ function getBilateralOrSingleAngle(
 function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | null {
   switch (exercise) {
     case 'squat': {
-      const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.35);
-      const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.35);
+      const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.45);
+      const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.45);
       if (leftOk && rightOk) {
         const lAng = calculateLiveAngle(landmarks[23], landmarks[25], landmarks[27]);
         const rAng = calculateLiveAngle(landmarks[24], landmarks[26], landmarks[28]);
@@ -373,8 +373,8 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
       return null;
     }
     case 'alzate_laterali': {
-      const leftOk = areLandmarksVisible(landmarks, [23, 11, 13], 0.35);
-      const rightOk = areLandmarksVisible(landmarks, [24, 12, 14], 0.35);
+      const leftOk = areLandmarksVisible(landmarks, [23, 11, 13], 0.45);
+      const rightOk = areLandmarksVisible(landmarks, [24, 12, 14], 0.45);
       if (leftOk && rightOk) {
         const lAng = calculateLiveAngle(landmarks[23], landmarks[11], landmarks[13]);
         const rAng = calculateLiveAngle(landmarks[24], landmarks[12], landmarks[14]);
@@ -387,12 +387,12 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
 
     case 'stacco':
     case 'stacco_rumeno':
-      return getBilateralOrSingleAngle(landmarks, [11, 23, 25], [12, 24, 26], 0.35);
+      return getBilateralOrSingleAngle(landmarks, [11, 23, 25], [12, 24, 26], 0.45);
 
     case 'affondi':
     case 'bulgarian_squat': {
-      const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.35);
-      const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.35);
+      const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.4);
+      const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.4);
       if (leftOk && rightOk) {
         const lAng = calculateLiveAngle(landmarks[23], landmarks[25], landmarks[27]);
         const rAng = calculateLiveAngle(landmarks[24], landmarks[26], landmarks[28]);
@@ -404,7 +404,7 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
     }
     case 'leg_extension':
     case 'leg_curl':
-      return getBilateralOrSingleAngle(landmarks, [23, 25, 27], [24, 26, 28], 0.35);
+      return getBilateralOrSingleAngle(landmarks, [23, 25, 27], [24, 26, 28], 0.45);
 
     case 'panca_piana':
     case 'push_up':
@@ -418,7 +418,7 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
     case 'shoulder_press':
     case 'pushdown_cavi':
     case 'trazioni_sbarra':
-      return getBilateralOrSingleAngle(landmarks, [11, 13, 15], [12, 14, 16], 0.35);
+      return getBilateralOrSingleAngle(landmarks, [11, 13, 15], [12, 14, 16], 0.45);
 
     default:
       return null;
@@ -504,6 +504,8 @@ export function App() {
   const carouselRef = useRef<HTMLDivElement | null>(null);
   const lastGeomResultRef = useRef<AnalysisResult | null>(null);
   const loggedSessionKeyRef = useRef<string | null>(null);
+  const analysisSessionIdRef = useRef<number>(0);
+  const isProgrammaticScrollRef = useRef<boolean>(false);
 
   const resetAnalysisSession = (options?: { preserveExerciseAndWeight?: boolean }) => {
     if (!options?.preserveExerciseAndWeight) {
@@ -587,6 +589,26 @@ export function App() {
     resetAnalysisSession();
   }, [user?.id]);
 
+  // Allinea il carosello quando l'esercizio cambia (es. rientro dalla Guida)
+  useEffect(() => {
+    if (isGuidesOpen || !carouselRef.current) return;
+    const idx = EXERCISES.findIndex((ex) => ex.id === selectedExercise);
+    if (idx < 0) return;
+
+    const container = carouselRef.current;
+    const targetLeft = idx * container.clientWidth;
+    if (Math.abs(container.scrollLeft - targetLeft) > 4) {
+      isProgrammaticScrollRef.current = true;
+      container.scrollTo({
+        left: targetLeft,
+        behavior: 'smooth',
+      });
+      window.setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 350);
+    }
+  }, [selectedExercise, isGuidesOpen]);
+
   // Carica abbonamento dell'utente da public.subscriptions
   const fetchUserSubscription = async (userId: string) => {
     setSubLoading(true);
@@ -663,12 +685,18 @@ export function App() {
   };
 
   const handleLogout = async () => {
+    analysisSessionIdRef.current += 1;
     setIsGuidesOpen(false);
     setGuideInitialExercise(undefined);
     setLegalTab(null);
     loggedSessionKeyRef.current = null;
     resetAnalysisSession();
     await supabase.auth.signOut();
+  };
+
+  const handleStopAndResetVideo = () => {
+    analysisSessionIdRef.current += 1;
+    resetAnalysisSession({ preserveExerciseAndWeight: true });
   };
 
   const handleOpenCookiePreferences = () => {
@@ -707,10 +735,14 @@ export function App() {
     if (!carouselRef.current) return;
     const container = carouselRef.current;
     const scrollAmount = container.clientWidth;
+    isProgrammaticScrollRef.current = true;
     container.scrollBy({
       left: direction === 'left' ? -scrollAmount : scrollAmount,
       behavior: 'smooth',
     });
+    window.setTimeout(() => {
+      isProgrammaticScrollRef.current = false;
+    }, 350);
 
     const newScrollLeft = container.scrollLeft + (direction === 'left' ? -scrollAmount : scrollAmount);
     const itemWidth = container.clientWidth;
@@ -730,13 +762,19 @@ export function App() {
     setWeightKg(isNaN(val) ? 0 : Math.max(0, val));
   };
 
-  const triggerAiCoach = (geomResult: AnalysisResult) => {
+  const triggerAiCoach = (geomResult: AnalysisResult, sessionIdAtStart?: number) => {
+    if (sessionIdAtStart !== undefined && analysisSessionIdRef.current !== sessionIdAtStart) {
+      return;
+    }
     setAiStatusCode('processing');
     setAiStatusMessage('Il server sta interrogando Gemini con i dati geometrici...');
     setAiFeedback('');
 
     getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
       .then(async (feedback) => {
+        if (sessionIdAtStart !== undefined && analysisSessionIdRef.current !== sessionIdAtStart) {
+          return;
+        }
         setAiFeedback(feedback);
         setAiStatusCode('success');
         setAiStatusMessage('Risposta generata con successo');
@@ -748,6 +786,9 @@ export function App() {
         });
       })
       .catch((err) => {
+        if (sessionIdAtStart !== undefined && analysisSessionIdRef.current !== sessionIdAtStart) {
+          return;
+        }
         setAiFeedback(`Errore AI: ${err.message}`);
         setAiStatusCode('error');
         setAiStatusMessage(`Errore IA: ${err.message}`);
@@ -763,6 +804,9 @@ export function App() {
     const file = e.target.files?.[0];
     if (!file || !videoRef.current || !canvasRef.current) return;
 
+    analysisSessionIdRef.current += 1;
+    const currentSessionId = analysisSessionIdRef.current;
+
     resetAnalysisSession({ preserveExerciseAndWeight: true });
 
     setIsProcessing(true);
@@ -774,6 +818,11 @@ export function App() {
     )
       .then((vision) => createLandmarkerWithFallback(vision))
       .then((landmarker) => {
+        if (analysisSessionIdRef.current !== currentSessionId) {
+          try { landmarker.close(); } catch {}
+          return;
+        }
+
         const video = videoRef.current!;
         const canvas = canvasRef.current!;
         const ctx = canvas.getContext('2d');
@@ -783,14 +832,11 @@ export function App() {
         video.src = URL.createObjectURL(file);
         video.load();
 
-        const isMobileViewport = typeof window !== 'undefined' && window.innerWidth <= 768;
-        const MAX_WIDTH = isMobileViewport ? 420 : 480;
-        const effectiveFrameSkip = isMobileViewport ? 2 : 3;
-
+        const MAX_WIDTH = 480;
+        const FRAME_SKIP = 3;
         let frameCounter = 0;
         let targetWidth = 640;
         let targetHeight = 480;
-        let lastVideoTimestampMs = 0;
 
         let repPhase: 'START' | 'ACTIVE' = 'START';
         let hasReachedInitialPosition = false;
@@ -806,6 +852,10 @@ export function App() {
         const effectiveMass = selectedExerciseObj.isDumbbell ? weightKg * 2 : weightKg;
 
         const startProcessingWhenReady = () => {
+          if (analysisSessionIdRef.current !== currentSessionId) {
+            try { landmarker.close(); } catch {}
+            return;
+          }
           if (hasStarted) return;
 
           const originalWidth = video.videoWidth || 0;
@@ -832,8 +882,13 @@ export function App() {
             let lastFrameTime = performance.now();
 
             const processFrame = () => {
+              if (analysisSessionIdRef.current !== currentSessionId) {
+                try { landmarker.close(); } catch {}
+                return;
+              }
+
               const now = performance.now();
-              const deltaTime = Math.max(0.008, (now - lastFrameTime) / 1000);
+              const deltaTime = (now - lastFrameTime) / 1000;
               lastFrameTime = now;
 
               if (video.duration && !isNaN(video.duration)) {
@@ -855,9 +910,9 @@ export function App() {
                   setRepPeakPowers(collectedRepPowers);
                   lastGeomResultRef.current = geomResult;
 
-                  triggerAiCoach(geomResult);
+                  triggerAiCoach(geomResult, currentSessionId);
 
-                  landmarker.close();
+                  try { landmarker.close(); } catch {}
                 }
                 return;
               }
@@ -865,14 +920,9 @@ export function App() {
               frameCounter++;
               let currentLandmarks: any = null;
 
-              const rawVideoMs = Math.round(video.currentTime * 1000);
-              const videoTimestampMs =
-                rawVideoMs > lastVideoTimestampMs ? rawVideoMs : lastVideoTimestampMs + 1;
-
-              if (frameCounter % effectiveFrameSkip === 0 && videoTimestampMs > lastVideoTimestampMs) {
+              if (frameCounter % FRAME_SKIP === 0) {
                 try {
-                  lastVideoTimestampMs = videoTimestampMs;
-                  const result = landmarker.detectForVideo(video, videoTimestampMs);
+                  const result = landmarker.detectForVideo(video, now);
                   if (result.landmarks && result.landmarks.length > 0) {
                     currentLandmarks = result.landmarks[0];
                     landmarksBufferRef.current.push(currentLandmarks);
@@ -887,67 +937,73 @@ export function App() {
                       );
 
                       if (selectedExerciseObj.mode === 'abduction_up') {
-                        const REST_MAX = selectedExerciseObj.restMax ?? 58;
-                        const APEX_MIN = selectedExerciseObj.apexMin ?? 85;
+                        const REST_MAX = selectedExerciseObj.restMax ?? 55;
+                        const APEX_MIN = selectedExerciseObj.apexMin ?? 88;
 
                         if (!hasReachedInitialPosition) {
                           if (smoothAngle <= REST_MAX) {
                             hasReachedInitialPosition = true;
-                            transitionStreak = 0;
                           }
                         } else if (repPhase === 'START') {
                           if (smoothAngle >= APEX_MIN) {
-                            repPhase = 'ACTIVE';
-                            transitionStreak = 0;
-                            currentRepMaxPower = 0;
-                          } else if (smoothAngle <= REST_MAX) {
                             transitionStreak++;
-                            if (transitionStreak >= 3) {
+                            if (transitionStreak >= 1) {
+                              repPhase = 'ACTIVE';
                               transitionStreak = 0;
+                              currentRepMaxPower = 0;
                             }
                           } else {
                             transitionStreak = 0;
                           }
                         } else if (repPhase === 'ACTIVE') {
                           if (smoothAngle <= REST_MAX) {
-                            repPhase = 'START';
-                            transitionStreak = 0;
-                            localReps++;
-                            setRepCount(localReps);
-                            collectedRepPowers.push(Math.round(currentRepMaxPower));
+                            transitionStreak++;
+                            if (transitionStreak >= 1) {
+                              repPhase = 'START';
+                              transitionStreak = 0;
+                              localReps++;
+                              setRepCount(localReps);
+                              collectedRepPowers.push(Math.round(currentRepMaxPower));
+                            }
                           } else {
                             transitionStreak = 0;
                           }
                         }
                       } else {
-                        const TOP_MIN = selectedExerciseObj.topMin ?? 148;
-                        const BOTTOM_MAX = selectedExerciseObj.bottomMax ?? 102;
+                        const TOP_MIN = selectedExerciseObj.topMin ?? 150;
+                        const BOTTOM_MAX = selectedExerciseObj.bottomMax ?? 100;
 
                         if (!hasReachedInitialPosition) {
                           if (smoothAngle >= TOP_MIN) {
-                            hasReachedInitialPosition = true;
+                            transitionStreak++;
+                            if (transitionStreak >= 1) {
+                              hasReachedInitialPosition = true;
+                              transitionStreak = 0;
+                            }
+                          } else {
                             transitionStreak = 0;
                           }
                         } else if (repPhase === 'START') {
                           if (smoothAngle <= BOTTOM_MAX) {
-                            repPhase = 'ACTIVE';
-                            transitionStreak = 0;
-                            currentRepMaxPower = 0;
-                          } else if (smoothAngle >= TOP_MIN) {
                             transitionStreak++;
-                            if (transitionStreak >= 3) {
+                            if (transitionStreak >= 1) {
+                              repPhase = 'ACTIVE';
                               transitionStreak = 0;
+                              currentRepMaxPower = 0;
                             }
                           } else {
                             transitionStreak = 0;
                           }
                         } else if (repPhase === 'ACTIVE') {
                           if (smoothAngle >= TOP_MIN) {
-                            repPhase = 'START';
-                            transitionStreak = 0;
-                            localReps++;
-                            setRepCount(localReps);
-                            collectedRepPowers.push(Math.round(currentRepMaxPower));
+                            transitionStreak++;
+                            if (transitionStreak >= 1) {
+                              repPhase = 'START';
+                              transitionStreak = 0;
+                              localReps++;
+                              setRepCount(localReps);
+                              collectedRepPowers.push(Math.round(currentRepMaxPower));
+                            }
                           } else {
                             transitionStreak = 0;
                           }
@@ -1033,6 +1089,7 @@ export function App() {
 
             requestAnimationFrame(processFrame);
           }).catch((playErr) => {
+            if (analysisSessionIdRef.current !== currentSessionId) return;
             setIsProcessing(false);
             setStatus(`Errore riproduzione video: ${playErr.message}`);
             setStatusCode('error');
@@ -1044,6 +1101,7 @@ export function App() {
         setTimeout(startProcessingWhenReady, 500);
       })
       .catch((err) => {
+        if (analysisSessionIdRef.current !== currentSessionId) return;
         setIsProcessing(false);
         setStatus(`Errore caricamento modello: ${(err as Error).message}`);
         setStatusCode('error');
@@ -1186,7 +1244,20 @@ export function App() {
       <>
         <CameraGuidesView
           initialExerciseId={guideInitialExercise}
-          onClose={() => setIsGuidesOpen(false)}
+          onSelectExercise={(exId) => {
+            const matched = EXERCISES.find((ex) => ex.id === exId);
+            if (matched && !isProcessing) {
+              setSelectedExercise(matched.id);
+            }
+          }}
+          onClose={(chosenExerciseId) => {
+            setIsGuidesOpen(false);
+            const targetId = chosenExerciseId || guideInitialExercise;
+            const matched = EXERCISES.find((ex) => ex.id === targetId);
+            if (matched && !isProcessing) {
+              setSelectedExercise(matched.id);
+            }
+          }}
         />
         {renderLegalOverlays()}
       </>
@@ -1219,7 +1290,7 @@ export function App() {
                 type="button"
                 disabled={isProcessing}
                 onClick={() => {
-                  setGuideInitialExercise(undefined);
+                  setGuideInitialExercise(selectedExercise);
                   setIsGuidesOpen(true);
                 }}
                 style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #38bdf8', background: 'rgba(56,189,248,0.1)', color: '#38bdf8', fontSize: 12, fontWeight: 700, cursor: isProcessing ? 'not-allowed' : 'pointer' }}
@@ -1539,6 +1610,27 @@ export function App() {
             </div>
           </div>
 
+          {(isProcessing || statusCode === 'success' || statusCode === 'error' || Boolean(analysisResult)) && (
+            <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={handleStopAndResetVideo}
+                style={{
+                  padding: '9px 14px',
+                  borderRadius: 8,
+                  border: '1px solid #f43f5e',
+                  background: 'rgba(244, 63, 94, 0.12)',
+                  color: '#fda4af',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                ⏹ Interrompi e carica altro video
+              </button>
+            </div>
+          )}
+
           <div style={{ position: 'relative', marginTop: 16, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
             <video
               ref={videoRef}
@@ -1639,7 +1731,7 @@ export function App() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => lastGeomResultRef.current && triggerAiCoach(lastGeomResultRef.current)}
+                      onClick={() => lastGeomResultRef.current && triggerAiCoach(lastGeomResultRef.current, analysisSessionIdRef.current)}
                       style={{
                         padding: '10px 16px',
                         background: '#ef4444',
