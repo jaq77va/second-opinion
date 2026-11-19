@@ -122,8 +122,8 @@ const EXERCISES: ExerciseConfig[] = [
     isDumbbell: false,
     isTrialAllowed: false,
     mode: 'extension_flexion',
-    topMin: 150,
-    bottomMax: 100,
+    topMin: 142,
+    bottomMax: 105,
     romMinAngle: 70,
     romMaxAngle: 155,
   },
@@ -389,6 +389,19 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
 
     case 'affondi':
     case 'bulgarian_squat':
+      {
+        const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.4);
+        const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.4);
+        if (leftOk && rightOk) {
+          const lAng = calculateLiveAngle(landmarks[23], landmarks[25], landmarks[27]);
+          const rAng = calculateLiveAngle(landmarks[24], landmarks[26], landmarks[28]);
+          // Prende l'angolo minore (gamba anteriore più flessa)
+          return Math.min(lAng, rAng);
+        }
+        if (leftOk) return calculateLiveAngle(landmarks[23], landmarks[25], landmarks[27]);
+        if (rightOk) return calculateLiveAngle(landmarks[24], landmarks[26], landmarks[28]);
+        return null;
+      }
     case 'leg_extension':
     case 'leg_curl':
       return getBilateralOrSingleAngle(landmarks, [23, 25, 27], [24, 26, 28], 0.45);
