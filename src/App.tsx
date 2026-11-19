@@ -6,22 +6,309 @@ import { AuthScreen } from './components/AuthScreen';
 import { analyzeExerciseGeometry, type AnalysisResult } from './biomechanicsEngine';
 import { getGeminiFeedback } from './geminiCoach';
 
-type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_laterali';
+type Exercise =
+  | 'squat'
+  | 'stacco'
+  | 'panca_piana'
+  | 'alzate_laterali'
+  | 'affondi'
+  | 'bulgarian_squat'
+  | 'push_up'
+  | 'military_press'
+  | 'curl_bicipiti'
+  | 'french_press'
+  | 'rematore_bilanciere'
+  | 'stacco_rumeno'
+  | 'lat_machine'
+  | 'pulley_basso'
+  | 'leg_extension'
+  | 'leg_curl'
+  | 'chest_press'
+  | 'shoulder_press'
+  | 'pushdown_cavi'
+  | 'trazioni_sbarra';
+
 type PlanType = 'none' | 'trial' | 'quarterly' | 'semiannual' | 'annual';
 
-const EXERCISES: {
+type AngleMode = 'extension_flexion' | 'abduction_up';
+
+interface ExerciseConfig {
   id: Exercise;
   label: string;
   imagePath: string;
   viewHint: string;
   isDumbbell: boolean;
   isTrialAllowed: boolean;
-}[] = [
-  { id: 'squat', label: 'Squat', imagePath: '/images/squat.png', viewHint: 'Inquadratura laterale o frontale a figura intera', isDumbbell: false, isTrialAllowed: true },
-  { id: 'panca_piana', label: 'Panca piana', imagePath: '/images/panca.png', viewHint: 'Inquadratura laterale o obliqua a 45°', isDumbbell: false, isTrialAllowed: true },
-  { id: 'stacco', label: 'Stacco da terra', imagePath: '/images/stacco.png', viewHint: 'Inquadratura laterale a altezza bacino', isDumbbell: false, isTrialAllowed: false },
-  { id: 'lat_machine', label: 'Lat machine', imagePath: '/images/lat.png', viewHint: 'Inquadratura posteriore o laterale', isDumbbell: false, isTrialAllowed: false },
-  { id: 'alzate_laterali', label: 'Alzate laterali', imagePath: '/images/alzate.png', viewHint: 'Inquadratura frontale dal bacino in su', isDumbbell: true, isTrialAllowed: false },
+  mode: AngleMode;
+  topMin?: number;
+  bottomMax?: number;
+  restMax?: number;
+  apexMin?: number;
+  romMinAngle?: number;
+  romMaxAngle?: number;
+}
+
+const EXERCISES: ExerciseConfig[] = [
+  {
+    id: 'squat',
+    label: 'Squat',
+    imagePath: '/images/squat.png',
+    viewHint: 'Inquadratura laterale o frontale a figura intera',
+    isDumbbell: false,
+    isTrialAllowed: true,
+    mode: 'extension_flexion',
+    topMin: 150,
+    bottomMax: 100,
+    romMinAngle: 65,
+    romMaxAngle: 155,
+  },
+  {
+    id: 'stacco',
+    label: 'Stacco da terra',
+    imagePath: '/images/stacco.png',
+    viewHint: 'Inquadratura laterale a altezza bacino',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 150,
+    bottomMax: 105,
+    romMinAngle: 65,
+    romMaxAngle: 155,
+  },
+  {
+    id: 'panca_piana',
+    label: 'Panca piana',
+    imagePath: '/images/panca.png',
+    viewHint: 'Inquadratura laterale o obliqua a 45°',
+    isDumbbell: false,
+    isTrialAllowed: true,
+    mode: 'extension_flexion',
+    topMin: 150,
+    bottomMax: 95,
+    romMinAngle: 65,
+    romMaxAngle: 155,
+  },
+  {
+    id: 'alzate_laterali',
+    label: 'Alzate laterali',
+    imagePath: '/images/alzate_laterali.png',
+    viewHint: 'Inquadratura frontale dal bacino in su',
+    isDumbbell: true,
+    isTrialAllowed: false,
+    mode: 'abduction_up',
+    restMax: 55,
+    apexMin: 88,
+    romMinAngle: 35,
+    romMaxAngle: 100,
+  },
+  {
+    id: 'affondi',
+    label: 'Affondi',
+    imagePath: '/images/affondi.png',
+    viewHint: 'Inquadratura laterale a figura intera',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 150,
+    bottomMax: 100,
+    romMinAngle: 70,
+    romMaxAngle: 155,
+  },
+  {
+    id: 'bulgarian_squat',
+    label: 'Bulgarian squat',
+    imagePath: '/images/bulgarian_squat.png',
+    viewHint: 'Inquadratura laterale a figura intera',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 150,
+    bottomMax: 100,
+    romMinAngle: 70,
+    romMaxAngle: 155,
+  },
+  {
+    id: 'push_up',
+    label: 'Push-up',
+    imagePath: '/images/push_up.png',
+    viewHint: 'Inquadratura laterale bassa a figura intera',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 150,
+    bottomMax: 95,
+    romMinAngle: 70,
+    romMaxAngle: 155,
+  },
+  {
+    id: 'military_press',
+    label: 'Military press',
+    imagePath: '/images/military_press.png',
+    viewHint: 'Inquadratura frontale o obliqua a 45°',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 150,
+    bottomMax: 95,
+    romMinAngle: 70,
+    romMaxAngle: 160,
+  },
+  {
+    id: 'curl_bicipiti',
+    label: 'Curl bicipiti',
+    imagePath: '/images/curl_bicipiti.png',
+    viewHint: 'Profilo laterale o 3/4 con gomito visibile',
+    isDumbbell: true,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 145,
+    bottomMax: 65,
+    romMinAngle: 45,
+    romMaxAngle: 150,
+  },
+  {
+    id: 'french_press',
+    label: 'French press',
+    imagePath: '/images/french_press.png',
+    viewHint: 'Inquadratura laterale su panca',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 148,
+    bottomMax: 85,
+    romMinAngle: 60,
+    romMaxAngle: 155,
+  },
+  {
+    id: 'rematore_bilanciere',
+    label: 'Rematore bilanciere',
+    imagePath: '/images/rematore_bilanciere.png',
+    viewHint: 'Inquadratura laterale a figura intera',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 145,
+    bottomMax: 85,
+    romMinAngle: 65,
+    romMaxAngle: 150,
+  },
+  {
+    id: 'stacco_rumeno',
+    label: 'Stacco rumeno',
+    imagePath: '/images/stacco_rumeno.png',
+    viewHint: 'Inquadratura laterale a figura intera',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 150,
+    bottomMax: 105,
+    romMinAngle: 75,
+    romMaxAngle: 160,
+  },
+  {
+    id: 'lat_machine',
+    label: 'Lat machine',
+    imagePath: '/images/lat_machine.png',
+    viewHint: 'Inquadratura posteriore o laterale',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 140,
+    bottomMax: 85,
+    romMinAngle: 65,
+    romMaxAngle: 155,
+  },
+  {
+    id: 'pulley_basso',
+    label: 'Pulley basso',
+    imagePath: '/images/pulley_basso.png',
+    viewHint: 'Inquadratura laterale seduto',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 145,
+    bottomMax: 85,
+    romMinAngle: 65,
+    romMaxAngle: 150,
+  },
+  {
+    id: 'leg_extension',
+    label: 'Leg extension',
+    imagePath: '/images/leg_extension.png',
+    viewHint: 'Inquadratura laterale sulla macchina',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 150,
+    bottomMax: 95,
+    romMinAngle: 80,
+    romMaxAngle: 160,
+  },
+  {
+    id: 'leg_curl',
+    label: 'Leg curl',
+    imagePath: '/images/leg_curl.png',
+    viewHint: 'Inquadratura laterale sulla macchina',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 145,
+    bottomMax: 80,
+    romMinAngle: 65,
+    romMaxAngle: 150,
+  },
+  {
+    id: 'chest_press',
+    label: 'Chest press',
+    imagePath: '/images/chest_press.png',
+    viewHint: 'Inquadratura frontale o obliqua a 45°',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 145,
+    bottomMax: 90,
+    romMinAngle: 70,
+    romMaxAngle: 150,
+  },
+  {
+    id: 'shoulder_press',
+    label: 'Shoulder press',
+    imagePath: '/images/shoulder_press.png',
+    viewHint: 'Inquadratura frontale o obliqua a 45°',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 148,
+    bottomMax: 95,
+    romMinAngle: 70,
+    romMaxAngle: 155,
+  },
+  {
+    id: 'pushdown_cavi',
+    label: 'Pushdown cavi',
+    imagePath: '/images/pushdown_cavi.png',
+    viewHint: 'Inquadratura laterale o 3/4',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 148,
+    bottomMax: 85,
+    romMinAngle: 65,
+    romMaxAngle: 155,
+  },
+  {
+    id: 'trazioni_sbarra',
+    label: 'Trazioni sbarra',
+    imagePath: '/images/trazioni_sbarra.png',
+    viewHint: 'Inquadratura frontale o 3/4 a figura intera',
+    isDumbbell: false,
+    isTrialAllowed: false,
+    mode: 'extension_flexion',
+    topMin: 145,
+    bottomMax: 85,
+    romMinAngle: 65,
+    romMaxAngle: 155,
+  },
 ];
 
 const POSE_CONNECTIONS = [
@@ -43,6 +330,87 @@ function areLandmarksVisible(landmarks: any[], indices: number[], minVis = 0.45)
   return indices.every(
     (idx) => landmarks[idx] && (landmarks[idx].visibility ?? 1) >= minVis
   );
+}
+
+function getBilateralOrSingleAngle(
+  landmarks: any[],
+  leftTriplet: [number, number, number],
+  rightTriplet: [number, number, number],
+  minVis = 0.45
+): number | null {
+  const leftOk = areLandmarksVisible(landmarks, leftTriplet, minVis);
+  const rightOk = areLandmarksVisible(landmarks, rightTriplet, minVis);
+  if (leftOk && rightOk) {
+    const lAng = calculateLiveAngle(landmarks[leftTriplet[0]], landmarks[leftTriplet[1]], landmarks[leftTriplet[2]]);
+    const rAng = calculateLiveAngle(landmarks[rightTriplet[0]], landmarks[rightTriplet[1]], landmarks[rightTriplet[2]]);
+    return Math.round((lAng + rAng) / 2);
+  }
+  if (leftOk) {
+    return calculateLiveAngle(landmarks[leftTriplet[0]], landmarks[leftTriplet[1]], landmarks[leftTriplet[2]]);
+  }
+  if (rightOk) {
+    return calculateLiveAngle(landmarks[rightTriplet[0]], landmarks[rightTriplet[1]], landmarks[rightTriplet[2]]);
+  }
+  return null;
+}
+
+function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | null {
+  switch (exercise) {
+    // Logica originale invariata per Squat e Alzate laterali
+    case 'squat': {
+      const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.45);
+      const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.45);
+      if (leftOk && rightOk) {
+        const lAng = calculateLiveAngle(landmarks[23], landmarks[25], landmarks[27]);
+        const rAng = calculateLiveAngle(landmarks[24], landmarks[26], landmarks[28]);
+        return Math.round((lAng + rAng) / 2);
+      }
+      if (leftOk) return calculateLiveAngle(landmarks[23], landmarks[25], landmarks[27]);
+      if (rightOk) return calculateLiveAngle(landmarks[24], landmarks[26], landmarks[28]);
+      return null;
+    }
+    case 'alzate_laterali': {
+      const leftOk = areLandmarksVisible(landmarks, [23, 11, 13], 0.45);
+      const rightOk = areLandmarksVisible(landmarks, [24, 12, 14], 0.45);
+      if (leftOk && rightOk) {
+        const lAng = calculateLiveAngle(landmarks[23], landmarks[11], landmarks[13]);
+        const rAng = calculateLiveAngle(landmarks[24], landmarks[12], landmarks[14]);
+        return Math.round((lAng + rAng) / 2);
+      }
+      if (leftOk) return calculateLiveAngle(landmarks[23], landmarks[11], landmarks[13]);
+      if (rightOk) return calculateLiveAngle(landmarks[24], landmarks[12], landmarks[14]);
+      return null;
+    }
+
+    // Esercizi su ginocchio / anca
+    case 'stacco':
+    case 'stacco_rumeno':
+      return getBilateralOrSingleAngle(landmarks, [11, 23, 25], [12, 24, 26], 0.45);
+
+    case 'affondi':
+    case 'bulgarian_squat':
+    case 'leg_extension':
+    case 'leg_curl':
+      return getBilateralOrSingleAngle(landmarks, [23, 25, 27], [24, 26, 28], 0.45);
+
+    // Esercizi su gomito / spinta / trazione
+    case 'panca_piana':
+    case 'push_up':
+    case 'military_press':
+    case 'curl_bicipiti':
+    case 'french_press':
+    case 'rematore_bilanciere':
+    case 'lat_machine':
+    case 'pulley_basso':
+    case 'chest_press':
+    case 'shoulder_press':
+    case 'pushdown_cavi':
+    case 'trazioni_sbarra':
+      return getBilateralOrSingleAngle(landmarks, [11, 13, 15], [12, 14, 16], 0.45);
+
+    default:
+      return null;
+  }
 }
 
 // Helper con fallback automatico GPU -> CPU per evitare blocchi WebGL su mobile
@@ -118,7 +486,6 @@ export function App() {
 
   const lastGeomResultRef = useRef<AnalysisResult | null>(null);
 
-  // Azzera completamente stato, metriche, IA e player video/canvas
   const resetAnalysisSession = (options?: { preserveExerciseAndWeight?: boolean }) => {
     if (!options?.preserveExerciseAndWeight) {
       setSelectedExercise('squat');
@@ -177,7 +544,6 @@ export function App() {
     };
   }, []);
 
-  // Reset automatico dell'analisi quando cambia l'utente o si effettua il logout
   useEffect(() => {
     resetAnalysisSession();
   }, [user?.id]);
@@ -256,7 +622,6 @@ export function App() {
 
   // Predisposizione selezione piano a pagamento (da collegare a Stripe Checkout)
   const handleSelectPaidPlan = async (plan: 'quarterly' | 'semiannual' | 'annual') => {
-    // Qui andrà il redirect a Stripe Checkout (es. chiamata a Edge Function / backend)
     alert(`Checkout Stripe per piano "${getPlanLabel(plan)}" in fase di collegamento.`);
   };
 
@@ -338,7 +703,6 @@ export function App() {
         const canvas = canvasRef.current!;
         const ctx = canvas.getContext('2d');
 
-        // Garantiamo muting esplicito prima del caricamento per soddisfare le policy autoplay mobile
         video.muted = true;
         video.playsInline = true;
         video.src = URL.createObjectURL(file);
@@ -430,45 +794,7 @@ export function App() {
                     currentLandmarks = result.landmarks[0];
                     landmarksBufferRef.current.push(currentLandmarks);
 
-                    let rawAngle: number | null = null;
-
-                    if (selectedExercise === 'squat') {
-                      const leftOk = areLandmarksVisible(currentLandmarks, [23, 25, 27], 0.45);
-                      const rightOk = areLandmarksVisible(currentLandmarks, [24, 26, 28], 0.45);
-                      if (leftOk && rightOk) {
-                        const lAng = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
-                        const rAng = calculateLiveAngle(currentLandmarks[24], currentLandmarks[26], currentLandmarks[28]);
-                        rawAngle = Math.round((lAng + rAng) / 2);
-                      } else if (leftOk) {
-                        rawAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[25], currentLandmarks[27]);
-                      } else if (rightOk) {
-                        rawAngle = calculateLiveAngle(currentLandmarks[24], currentLandmarks[26], currentLandmarks[28]);
-                      }
-                    } else if (selectedExercise === 'stacco') {
-                      if (areLandmarksVisible(currentLandmarks, [11, 23, 25], 0.45)) {
-                        rawAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[23], currentLandmarks[25]);
-                      }
-                    } else if (selectedExercise === 'panca_piana') {
-                      if (areLandmarksVisible(currentLandmarks, [11, 13, 15], 0.45)) {
-                        rawAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
-                      }
-                    } else if (selectedExercise === 'lat_machine') {
-                      if (areLandmarksVisible(currentLandmarks, [11, 13, 15], 0.45)) {
-                        rawAngle = calculateLiveAngle(currentLandmarks[11], currentLandmarks[13], currentLandmarks[15]);
-                      }
-                    } else if (selectedExercise === 'alzate_laterali') {
-                      const leftOk = areLandmarksVisible(currentLandmarks, [23, 11, 13], 0.45);
-                      const rightOk = areLandmarksVisible(currentLandmarks, [24, 12, 14], 0.45);
-                      if (leftOk && rightOk) {
-                        const lAng = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
-                        const rAng = calculateLiveAngle(currentLandmarks[24], currentLandmarks[12], currentLandmarks[14]);
-                        rawAngle = Math.round((lAng + rAng) / 2);
-                      } else if (leftOk) {
-                        rawAngle = calculateLiveAngle(currentLandmarks[23], currentLandmarks[11], currentLandmarks[13]);
-                      } else if (rightOk) {
-                        rawAngle = calculateLiveAngle(currentLandmarks[24], currentLandmarks[12], currentLandmarks[14]);
-                      }
-                    }
+                    const rawAngle = extractExerciseAngle(selectedExercise, currentLandmarks);
 
                     if (rawAngle !== null) {
                       angleHistory.push(rawAngle);
@@ -477,9 +803,9 @@ export function App() {
                         angleHistory.reduce((acc, v) => acc + v, 0) / angleHistory.length
                       );
 
-                      if (selectedExercise === 'alzate_laterali') {
-                        const REST_MAX = 55;
-                        const APEX_MIN = 88;
+                      if (selectedExerciseObj.mode === 'abduction_up') {
+                        const REST_MAX = selectedExerciseObj.restMax ?? 55;
+                        const APEX_MIN = selectedExerciseObj.apexMin ?? 88;
 
                         if (!hasReachedInitialPosition) {
                           if (smoothAngle <= REST_MAX) {
@@ -511,15 +837,8 @@ export function App() {
                           }
                         }
                       } else {
-                        const TOP_MIN = selectedExercise === 'lat_machine' ? 140 : 150;
-                        const BOTTOM_MAX =
-                          selectedExercise === 'squat'
-                            ? 100
-                            : selectedExercise === 'stacco'
-                            ? 105
-                            : selectedExercise === 'lat_machine'
-                            ? 85
-                            : 95;
+                        const TOP_MIN = selectedExerciseObj.topMin ?? 150;
+                        const BOTTOM_MAX = selectedExerciseObj.bottomMax ?? 100;
 
                         if (!hasReachedInitialPosition) {
                           if (smoothAngle >= TOP_MIN) {
@@ -561,8 +880,12 @@ export function App() {
                       let rom = 0;
                       if (selectedExercise === 'alzate_laterali') {
                         rom = ((smoothAngle - 35) / (100 - 35)) * 100;
-                      } else {
+                      } else if (selectedExercise === 'squat') {
                         rom = ((155 - smoothAngle) / (155 - 65)) * 100;
+                      } else {
+                        const rMin = selectedExerciseObj.romMinAngle ?? 65;
+                        const rMax = selectedExerciseObj.romMaxAngle ?? 155;
+                        rom = ((rMax - smoothAngle) / (rMax - rMin)) * 100;
                       }
                       rom = Math.max(0, Math.min(100, Math.round(rom)));
                       setRomQuality(rom);
