@@ -1,16 +1,27 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
+import type { User } from '@supabase/supabase-js';
+import { supabase } from './supabaseClient';
+import { AuthScreen } from './components/AuthScreen';
 import { analyzeExerciseGeometry, type AnalysisResult } from './biomechanicsEngine';
 import { getGeminiFeedback } from './geminiCoach';
 
 type Exercise = 'squat' | 'stacco' | 'panca_piana' | 'lat_machine' | 'alzate_laterali';
+type PlanType = 'none' | 'trial' | 'quarterly' | 'semiannual' | 'annual';
 
-const EXERCISES: { id: Exercise; label: string; imagePath: string; viewHint: string; isDumbbell: boolean }[] = [
-  { id: 'squat', label: 'Squat', imagePath: '/images/squat.png', viewHint: 'Inquadratura laterale o frontale a figura intera', isDumbbell: false },
-  { id: 'stacco', label: 'Stacco da terra', imagePath: '/images/stacco.png', viewHint: 'Inquadratura laterale a altezza bacino', isDumbbell: false },
-  { id: 'panca_piana', label: 'Panca piana', imagePath: '/images/panca.png', viewHint: 'Inquadratura laterale o obliqua a 45°', isDumbbell: false },
-  { id: 'lat_machine', label: 'Lat machine', imagePath: '/images/lat.png', viewHint: 'Inquadratura posteriore o laterale', isDumbbell: false },
-  { id: 'alzate_laterali', label: 'Alzate laterali', imagePath: '/images/alzate.png', viewHint: 'Inquadratura frontale dal bacino in su', isDumbbell: true },
+const EXERCISES: {
+  id: Exercise;
+  label: string;
+  imagePath: string;
+  viewHint: string;
+  isDumbbell: boolean;
+  isTrialAllowed: boolean;
+}[] = [
+  { id: 'squat', label: 'Squat', imagePath: '/images/squat.png', viewHint: 'Inquadratura laterale o frontale a figura intera', isDumbbell: false, isTrialAllowed: true },
+  { id: 'panca_piana', label: 'Panca piana', imagePath: '/images/panca.png', viewHint: 'Inquadratura laterale o obliqua a 45°', isDumbbell: false, isTrialAllowed: true },
+  { id: 'stacco', label: 'Stacco da terra', imagePath: '/images/stacco.png', viewHint: 'Inquadratura laterale a altezza bacino', isDumbbell: false, isTrialAllowed: false },
+  { id: 'lat_machine', label: 'Lat machine', imagePath: '/images/lat.png', viewHint: 'Inquadratura posteriore o laterale', isDumbbell: false, isTrialAllowed: false },
+  { id: 'alzate_laterali', label: 'Alzate laterali', imagePath: '/images/alzate.png', viewHint: 'Inquadratura frontale dal bacino in su', isDumbbell: true, isTrialAllowed: false },
 ];
 
 const POSE_CONNECTIONS = [
@@ -58,7 +69,27 @@ async function createLandmarkerWithFallback(vision: any): Promise<PoseLandmarker
   }
 }
 
+function getPlanLabel(plan: PlanType): string {
+  switch (plan) {
+    case 'trial': return 'Trial 7 Giorni';
+    case 'quarterly': return 'Trimestrale';
+    case 'semiannual': return 'Semestrale';
+    case 'annual': return 'Annuale';
+    default: return 'Nessun piano';
+  }
+}
+
 export function App() {
+  // --- STATI AUTENTICAZIONE E ABBONAMENTO ---
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState<boolean>(false);
+  const [subLoading, setSubLoading] = useState<boolean>(false);
+  const [currentPlan, setCurrentPlan] = useState<PlanType>('none');
+  const [daysRemaining, setDaysRemaining] = useState<number>(0);
+  const [isSubscriptionExpired, setIsSubscriptionExpired] = useState<boolean>(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+
+  // --- STATI APPLICAZIONE ANALISI BIOMECCANICA ---
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
   const [weightKg, setWeightKg] = useState<number>(20);
   const [status, setStatus] = useState<string>('Pronto per iniziare');
@@ -87,8 +118,108 @@ export function App() {
 
   const lastGeomResultRef = useRef<AnalysisResult | null>(null);
 
+  // Carica stato sessione Supabase
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
+      setAuthReady(true);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthReady(true);
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  // Carica abbonamento dell'utente da public.subscriptions
+  const fetchUserSubscription = async (userId: string) => {
+    setSubLoading(true);
+    setPlanError(null);
+    try {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('plan_type, status, end_date')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        setCurrentPlan('none');
+        setDaysRemaining(0);
+        setIsSubscriptionExpired(false);
+        return;
+      }
+
+      const endDate = new Date(data.end_date);
+      const now = new Date();
+      const diffMs = endDate.getTime() - now.getTime();
+      const diffDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+
+      setCurrentPlan(data.plan_type as PlanType);
+      setDaysRemaining(diffDays);
+      setIsSubscriptionExpired(diffMs <= 0 || data.status === 'expired');
+    } catch (err: any) {
+      console.error('Errore lettura abbonamento:', err);
+      setPlanError(err?.message || 'Impossibile verificare lo stato dell’abbonamento.');
+    } finally {
+      setSubLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchUserSubscription(user.id);
+    } else {
+      setCurrentPlan('none');
+      setDaysRemaining(0);
+      setIsSubscriptionExpired(false);
+    }
+  }, [user?.id]);
+
+  // Attiva Trial gratuito di 7 giorni su Supabase
+  const handleActivateTrial = async () => {
+    if (!user) return;
+    setSubLoading(true);
+    setPlanError(null);
+    try {
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + 7);
+
+      const { error } = await supabase.from('subscriptions').insert({
+        user_id: user.id,
+        plan_type: 'trial',
+        status: 'active',
+        end_date: endDate.toISOString(),
+      });
+
+      if (error) throw error;
+      await fetchUserSubscription(user.id);
+    } catch (err: any) {
+      setPlanError(err?.message || 'Errore durante attivazione del Trial.');
+      setSubLoading(false);
+    }
+  };
+
+  // Predisposizione selezione piano a pagamento (da collegare a Stripe Checkout)
+  const handleSelectPaidPlan = async (plan: 'quarterly' | 'semiannual' | 'annual') => {
+    // Qui andrà il redirect a Stripe Checkout (es. chiamata a Edge Function / backend)
+    alert(`Checkout Stripe per piano "${getPlanLabel(plan)}" in fase di collegamento.`);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
   const selectedExerciseObj = EXERCISES.find((ex) => ex.id === selectedExercise) || EXERCISES[0];
   const currentHint = selectedExerciseObj.viewHint;
+  const isExerciseLocked = currentPlan === 'trial' && !selectedExerciseObj.isTrialAllowed;
 
   const scrollCarousel = (direction: 'left' | 'right') => {
     if (!carouselRef.current) return;
@@ -136,6 +267,11 @@ export function App() {
   };
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isExerciseLocked) {
+      alert('Questo esercizio è riservato agli abbonati. Passa a un piano completo per sbloccarlo!');
+      return;
+    }
+
     const file = e.target.files?.[0];
     if (!file || !videoRef.current || !canvasRef.current) return;
 
@@ -490,6 +626,124 @@ export function App() {
     }
   };
 
+  // ==========================================
+  // 1. ATTESA CHECK SESSIONE INIZIALE
+  // ==========================================
+  if (!authReady) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        Caricamento...
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 2. PAGINA ESTERNA DI REGISTRAZIONE / LOGIN
+  // ==========================================
+  if (!user) {
+    return <AuthScreen />;
+  }
+
+  // ==========================================
+  // 3. SCELTA PIANO (NUOVO UTENTE O PIANO SCADUTO)
+  // ==========================================
+  if (subLoading) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        Verifica abbonamento in corso...
+      </div>
+    );
+  }
+
+  if (currentPlan === 'none' || isSubscriptionExpired) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)', color: '#f8fafc', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        <div style={{ maxWidth: 460, width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <span style={{ fontSize: 12, color: '#94a3b8' }}>{user.email}</span>
+            <button onClick={handleLogout} style={{ background: 'transparent', border: '1px solid #334155', color: '#cbd5e1', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>
+              Esci
+            </button>
+          </div>
+
+          <h2 style={{ textAlign: 'center', color: '#38bdf8', marginBottom: 6 }}>
+            {isSubscriptionExpired ? 'Il tuo piano è scaduto' : 'Scegli il tuo piano'}
+          </h2>
+          <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginBottom: 20 }}>
+            Video illimitati su tutti i piani
+          </p>
+
+          {planError && (
+            <div style={{ padding: 12, marginBottom: 14, borderRadius: 8, background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#f43f5e', fontSize: 13 }}>
+              {planError}
+            </div>
+          )}
+
+          {/* Trial 7 Giorni (solo se l'utente non ha già usufruito di un piano) */}
+          {currentPlan === 'none' && (
+            <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #38bdf8', marginBottom: 14 }}>
+              <h3 style={{ margin: '0 0 6px 0', color: '#38bdf8' }}>Trial 7 Giorni</h3>
+              <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
+                Accesso a 2 esercizi (Squat e Panca piana). Analisi video illimitate per 7 giorni.
+              </p>
+              <button
+                onClick={handleActivateTrial}
+                style={{ width: '100%', padding: 10, background: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: '1px solid #38bdf8', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                Attiva Trial Gratuito
+              </button>
+            </div>
+          )}
+
+          {/* Trimestrale */}
+          <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #334155', marginBottom: 14 }}>
+            <h3 style={{ margin: '0 0 6px 0', color: '#fff' }}>Abbonamento Trimestrale</h3>
+            <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
+              Tutti gli esercizi sbloccati. Video illimitati per 3 mesi.
+            </p>
+            <button
+              onClick={() => handleSelectPaidPlan('quarterly')}
+              style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              Scegli Trimestrale
+            </button>
+          </div>
+
+          {/* Semestrale */}
+          <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #334155', marginBottom: 14 }}>
+            <h3 style={{ margin: '0 0 6px 0', color: '#fff' }}>Abbonamento Semestrale</h3>
+            <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
+              Tutti gli esercizi sbloccati. Video illimitati per 6 mesi.
+            </p>
+            <button
+              onClick={() => handleSelectPaidPlan('semiannual')}
+              style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              Scegli Semestrale
+            </button>
+          </div>
+
+          {/* Annuale */}
+          <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #22c55e' }}>
+            <h3 style={{ margin: '0 0 6px 0', color: '#22c55e' }}>Abbonamento Annuale (Miglior Valore)</h3>
+            <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
+              Tutti gli esercizi sbloccati. Video illimitati per 12 mesi.
+            </p>
+            <button
+              onClick={() => handleSelectPaidPlan('annual')}
+              style={{ width: '100%', padding: 10, background: '#22c55e', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              Scegli Annuale
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 4. AREA PERSONALE + APPLICAZIONE ANALISI
+  // ==========================================
   return (
     <div style={{ 
       minHeight: '100vh', 
@@ -499,6 +753,29 @@ export function App() {
     }}>
       <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
         
+        {/* BARRA AREA PERSONALE / CONTEGGIO GIORNI RIMASTI */}
+        <div style={{ background: '#1e293b', padding: '10px 14px', borderRadius: 10, border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>Piano attivo</span>
+            <strong style={{ fontSize: 13, color: '#38bdf8' }}>{getPlanLabel(currentPlan)}</strong>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>Scadenza</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: daysRemaining <= 2 ? '#ef4444' : '#22c55e' }}>
+                ⏱ {daysRemaining} {daysRemaining === 1 ? 'giorno' : 'giorni'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #334155', background: '#0f172a', color: '#cbd5e1', fontSize: 12, cursor: 'pointer' }}
+            >
+              Esci
+            </button>
+          </div>
+        </div>
+
         <div style={{ textAlign: 'center', marginBottom: 24, paddingTop: 10 }}>
           <h1 style={{ margin: '0 0 6px 0', fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', color: '#38bdf8' }}>
             Second Opinion
@@ -552,6 +829,7 @@ export function App() {
           >
             {EXERCISES.map((ex) => {
               const isSelected = selectedExercise === ex.id;
+              const locked = currentPlan === 'trial' && !ex.isTrialAllowed;
               return (
                 <div
                   key={ex.id}
@@ -570,9 +848,15 @@ export function App() {
                     gap: 6,
                     transition: 'all 0.2s ease',
                     position: 'relative',
+                    opacity: locked ? 0.55 : 1,
                     boxShadow: isSelected ? '0 10px 15px -3px rgba(56, 189, 248, 0.15)' : 'none',
                   }}
                 >
+                  {locked && (
+                    <span style={{ position: 'absolute', top: 10, right: 10, background: '#ef4444', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
+                      🔒 Abbonati
+                    </span>
+                  )}
                   <img 
                     src={ex.imagePath} 
                     alt={ex.label} 
@@ -682,17 +966,17 @@ export function App() {
           style={{ display: 'none' }}
         />
         <div
-          onClick={() => !isProcessing && fileInputRef.current?.click()}
+          onClick={() => !isProcessing && !isExerciseLocked && fileInputRef.current?.click()}
           style={{
             width: '100%',
             boxSizing: 'border-box',
             padding: '22px 16px',
             borderRadius: 12,
-            border: '2px dashed #38bdf8',
-            background: isProcessing ? '#1e293b' : 'rgba(56, 189, 248, 0.05)',
+            border: isExerciseLocked ? '2px dashed #64748b' : '2px dashed #38bdf8',
+            background: isExerciseLocked ? '#0f172a' : isProcessing ? '#1e293b' : 'rgba(56, 189, 248, 0.05)',
             color: '#f8fafc',
             textAlign: 'center',
-            cursor: isProcessing ? 'not-allowed' : 'pointer',
+            cursor: isProcessing || isExerciseLocked ? 'not-allowed' : 'pointer',
             transition: 'all 0.2s ease',
             display: 'flex',
             flexDirection: 'column',
@@ -700,9 +984,13 @@ export function App() {
             gap: 8,
           }}
         >
-          <span style={{ fontSize: 32, lineHeight: 1 }}>📤</span>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#38bdf8' }}>
-            {isProcessing ? 'Elaborazione in corso...' : "Seleziona file video"}
+          <span style={{ fontSize: 32, lineHeight: 1 }}>{isExerciseLocked ? '🔒' : '📤'}</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: isExerciseLocked ? '#94a3b8' : '#38bdf8' }}>
+            {isExerciseLocked
+              ? 'Esercizio bloccato nel piano Trial'
+              : isProcessing
+              ? 'Elaborazione in corso...'
+              : 'Seleziona file video'}
           </span>
           <span style={{ fontSize: 12, color: '#94a3b8' }}>
             Formati supportati: MP4, MOV, WebM
