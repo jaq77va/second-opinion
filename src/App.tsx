@@ -4,8 +4,11 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import { AuthScreen } from './components/AuthScreen';
 import { CameraGuidesView } from './components/CameraGuidesView';
+import { CookieBanner, type CookieConsentState } from './components/CookieBanner';
+import { LegalDocsModal, type LegalDocTab } from './components/LegalDocsModal';
 import { analyzeExerciseGeometry, type AnalysisResult } from './biomechanicsEngine';
 import { getGeminiFeedback } from './geminiCoach';
+import { logUserActivity } from './utils/activityLogger';
 
 type Exercise =
   | 'squat'
@@ -357,7 +360,6 @@ function getBilateralOrSingleAngle(
 
 function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | null {
   switch (exercise) {
-    // Logica originale invariata per Squat e Alzate laterali
     case 'squat': {
       const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.45);
       const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.45);
@@ -383,31 +385,27 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
       return null;
     }
 
-    // Esercizi su ginocchio / anca
     case 'stacco':
     case 'stacco_rumeno':
       return getBilateralOrSingleAngle(landmarks, [11, 23, 25], [12, 24, 26], 0.45);
 
     case 'affondi':
-    case 'bulgarian_squat':
-      {
-        const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.4);
-        const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.4);
-        if (leftOk && rightOk) {
-          const lAng = calculateLiveAngle(landmarks[23], landmarks[25], landmarks[27]);
-          const rAng = calculateLiveAngle(landmarks[24], landmarks[26], landmarks[28]);
-          // Prende l'angolo minore (gamba anteriore più flessa)
-          return Math.min(lAng, rAng);
-        }
-        if (leftOk) return calculateLiveAngle(landmarks[23], landmarks[25], landmarks[27]);
-        if (rightOk) return calculateLiveAngle(landmarks[24], landmarks[26], landmarks[28]);
-        return null;
+    case 'bulgarian_squat': {
+      const leftOk = areLandmarksVisible(landmarks, [23, 25, 27], 0.4);
+      const rightOk = areLandmarksVisible(landmarks, [24, 26, 28], 0.4);
+      if (leftOk && rightOk) {
+        const lAng = calculateLiveAngle(landmarks[23], landmarks[25], landmarks[27]);
+        const rAng = calculateLiveAngle(landmarks[24], landmarks[26], landmarks[28]);
+        return Math.min(lAng, rAng);
       }
+      if (leftOk) return calculateLiveAngle(landmarks[23], landmarks[25], landmarks[27]);
+      if (rightOk) return calculateLiveAngle(landmarks[24], landmarks[26], landmarks[28]);
+      return null;
+    }
     case 'leg_extension':
     case 'leg_curl':
       return getBilateralOrSingleAngle(landmarks, [23, 25, 27], [24, 26, 28], 0.45);
 
-    // Esercizi su gomito / spinta / trazione
     case 'panca_piana':
     case 'push_up':
     case 'military_press':
@@ -427,7 +425,6 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
   }
 }
 
-// Helper con fallback automatico GPU -> CPU per evitare blocchi WebGL su mobile
 async function createLandmarkerWithFallback(vision: any): Promise<PoseLandmarker> {
   try {
     return await PoseLandmarker.createFromOptions(vision, {
@@ -475,6 +472,11 @@ export function App() {
   const [isGuidesOpen, setIsGuidesOpen] = useState<boolean>(false);
   const [guideInitialExercise, setGuideInitialExercise] = useState<string | undefined>(undefined);
 
+  // --- STATI DOCUMENTI LEGALI E COOKIE ---
+  const [legalTab, setLegalTab] = useState<LegalDocTab | null>(null);
+  const [cookieForceOpenKey, setCookieForceOpenKey] = useState<number>(0);
+  const [analyticsConsent, setAnalyticsConsent] = useState<boolean>(false);
+
   // --- STATI APPLICAZIONE ANALISI BIOMECCANICA ---
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
   const [weightKg, setWeightKg] = useState<number>(20);
@@ -483,8 +485,7 @@ export function App() {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [repCount, setRepCount] = useState<number>(0);
-  
-  // Metriche in tempo reale
+
   const [romQuality, setRomQuality] = useState<number>(0);
   const [powerScore, setPowerScore] = useState<number>(0);
 
@@ -495,14 +496,14 @@ export function App() {
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [aiStatusCode, setAiStatusCode] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [aiStatusMessage, setAiStatusMessage] = useState<string>('In attesa di dati geometrici...');
-  
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const landmarksBufferRef = useRef<any[][]>([]);
   const carouselRef = useRef<HTMLDivElement | null>(null);
-
   const lastGeomResultRef = useRef<AnalysisResult | null>(null);
+  const loggedSessionKeyRef = useRef<string | null>(null);
 
   const resetAnalysisSession = (options?: { preserveExerciseAndWeight?: boolean }) => {
     if (!options?.preserveExerciseAndWeight) {
@@ -545,16 +546,36 @@ export function App() {
     }
   };
 
-  // Carica stato sessione Supabase
+  // Carica stato sessione Supabase e registra il login
   useEffect(() => {
+    const recordLoginIfNew = async (sessionUserId?: string, accessToken?: string) => {
+      if (!sessionUserId || !accessToken) return;
+      const sessionKey = `${sessionUserId}:${accessToken.slice(-16)}`;
+      if (loggedSessionKeyRef.current === sessionKey) return;
+
+      loggedSessionKeyRef.current = sessionKey;
+      await logUserActivity({
+        eventType: 'login',
+        exerciseAnalyzed: null,
+        aiResponse: null,
+      });
+    };
+
     supabase.auth.getSession().then(({ data }) => {
       setUser(data.session?.user ?? null);
       setAuthReady(true);
+      void recordLoginIfNew(data.session?.user?.id, data.session?.access_token);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       setAuthReady(true);
+
+      if (event === 'SIGNED_IN') {
+        void recordLoginIfNew(session?.user?.id, session?.access_token);
+      } else if (event === 'SIGNED_OUT') {
+        loggedSessionKeyRef.current = null;
+      }
     });
 
     return () => {
@@ -614,7 +635,6 @@ export function App() {
     }
   }, [user?.id]);
 
-  // Attiva Trial gratuito di 7 giorni su Supabase
   const handleActivateTrial = async () => {
     if (!user) return;
     setSubLoading(true);
@@ -638,7 +658,6 @@ export function App() {
     }
   };
 
-  // Predisposizione selezione piano a pagamento (da collegare a Stripe Checkout)
   const handleSelectPaidPlan = async (plan: 'quarterly' | 'semiannual' | 'annual') => {
     alert(`Checkout Stripe per piano "${getPlanLabel(plan)}" in fase di collegamento.`);
   };
@@ -646,9 +665,39 @@ export function App() {
   const handleLogout = async () => {
     setIsGuidesOpen(false);
     setGuideInitialExercise(undefined);
+    setLegalTab(null);
+    loggedSessionKeyRef.current = null;
     resetAnalysisSession();
     await supabase.auth.signOut();
   };
+
+  const handleOpenCookiePreferences = () => {
+    try {
+      localStorage.removeItem('cookie_consent_v1');
+    } catch {
+      // Ignora eventuali blocchi storage
+    }
+    setCookieForceOpenKey((prev) => prev + 1);
+  };
+
+  const renderLegalOverlays = () => (
+    <>
+      <CookieBanner
+        key={cookieForceOpenKey}
+        onOpenCookiePolicy={() => setLegalTab('cookies')}
+        onConsentChange={(consent: CookieConsentState) => {
+          setAnalyticsConsent(consent.analytics);
+        }}
+      />
+      {legalTab && (
+        <LegalDocsModal
+          activeTab={legalTab}
+          onChangeTab={setLegalTab}
+          onClose={() => setLegalTab(null)}
+        />
+      )}
+    </>
+  );
 
   const selectedExerciseObj = EXERCISES.find((ex) => ex.id === selectedExercise) || EXERCISES[0];
   const currentHint = selectedExerciseObj.viewHint;
@@ -687,10 +736,16 @@ export function App() {
     setAiFeedback('');
 
     getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
-      .then((feedback) => {
+      .then(async (feedback) => {
         setAiFeedback(feedback);
         setAiStatusCode('success');
         setAiStatusMessage('Risposta generata con successo');
+
+        await logUserActivity({
+          eventType: 'exercise_analysis',
+          exerciseAnalyzed: selectedExercise,
+          aiResponse: feedback,
+        });
       })
       .catch((err) => {
         setAiFeedback(`Errore AI: ${err.message}`);
@@ -752,7 +807,7 @@ export function App() {
 
           const originalWidth = video.videoWidth || 0;
           const originalHeight = video.videoHeight || 0;
-          
+
           if (originalWidth === 0 || originalHeight === 0) {
             setTimeout(startProcessingWhenReady, 100);
             return;
@@ -769,7 +824,7 @@ export function App() {
 
           setStatus('Analisi biomeccanica, ROM e potenza in corso...');
           setStatusCode('processing');
-          
+
           video.play().then(() => {
             let lastFrameTime = performance.now();
 
@@ -791,7 +846,7 @@ export function App() {
                   setPowerScore(0);
                   setStatus('Analisi completata con successo');
                   setStatusCode('success');
-                  
+
                   const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
                   setAnalysisResult(geomResult);
                   setRepPeakPowers(collectedRepPowers);
@@ -931,7 +986,7 @@ export function App() {
                       const smoothedPower = Math.round(
                         powerHistory.reduce((acc, v) => acc + v, 0) / powerHistory.length
                       );
-                      
+
                       setPowerScore(smoothedPower);
 
                       if (repPhase === 'ACTIVE' && smoothedPower > currentRepMaxPower) {
@@ -1001,620 +1056,658 @@ export function App() {
 
   const getTrafficLightColor = (code: 'idle' | 'processing' | 'success' | 'error') => {
     switch (code) {
-      case 'processing': return '#eab308'; // Giallo
-      case 'success': return '#22c55e';    // Verde
-      case 'error': return '#ef4444';      // Rosso
-      default: return '#94a3b8';           // Grigio
+      case 'processing': return '#eab308';
+      case 'success': return '#22c55e';
+      case 'error': return '#ef4444';
+      default: return '#94a3b8';
     }
   };
 
-  // ==========================================
-  // 1. ATTESA CHECK SESSIONE INIZIALE
-  // ==========================================
   if (!authReady) {
     return (
-      <div style={{ minHeight: '100vh', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        Caricamento...
-      </div>
+      <>
+        <div style={{ minHeight: '100vh', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          Caricamento...
+        </div>
+        {renderLegalOverlays()}
+      </>
     );
   }
 
-  // ==========================================
-  // 2. PAGINA ESTERNA DI REGISTRAZIONE / LOGIN
-  // ==========================================
   if (!user) {
-    return <AuthScreen />;
+    return (
+      <>
+        <AuthScreen />
+        {renderLegalOverlays()}
+      </>
+    );
   }
 
-  // ==========================================
-  // 3. SCELTA PIANO (NUOVO UTENTE O PIANO SCADUTO)
-  // ==========================================
   if (subLoading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        Verifica abbonamento in corso...
-      </div>
+      <>
+        <div style={{ minHeight: '100vh', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          Verifica abbonamento in corso...
+        </div>
+        {renderLegalOverlays()}
+      </>
     );
   }
 
   if (currentPlan === 'none' || isSubscriptionExpired) {
     return (
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)', color: '#f8fafc', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-        <div style={{ maxWidth: 460, width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <span style={{ fontSize: 12, color: '#94a3b8' }}>{user.email}</span>
-            <button onClick={handleLogout} style={{ background: 'transparent', border: '1px solid #334155', color: '#cbd5e1', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>
-              Esci
-            </button>
-          </div>
-
-          <h2 style={{ textAlign: 'center', color: '#38bdf8', marginBottom: 6 }}>
-            {isSubscriptionExpired ? 'Il tuo piano è scaduto' : 'Scegli il tuo piano'}
-          </h2>
-          <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginBottom: 20 }}>
-            Video illimitati su tutti i piani
-          </p>
-
-          {planError && (
-            <div style={{ padding: 12, marginBottom: 14, borderRadius: 8, background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#f43f5e', fontSize: 13 }}>
-              {planError}
-            </div>
-          )}
-
-          {/* Trial 7 Giorni (solo se l'utente non ha già usufruito di un piano) */}
-          {currentPlan === 'none' && (
-            <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #38bdf8', marginBottom: 14 }}>
-              <h3 style={{ margin: '0 0 6px 0', color: '#38bdf8' }}>Trial 7 Giorni</h3>
-              <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
-                Accesso a 2 esercizi (Squat e Panca piana). Analisi video illimitate per 7 giorni.
-              </p>
-              <button
-                onClick={handleActivateTrial}
-                style={{ width: '100%', padding: 10, background: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: '1px solid #38bdf8', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
-              >
-                Attiva Trial Gratuito
+      <>
+        <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)', color: '#f8fafc', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+          <div style={{ maxWidth: 460, width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 12, color: '#94a3b8' }}>{user.email}</span>
+              <button onClick={handleLogout} style={{ background: 'transparent', border: '1px solid #334155', color: '#cbd5e1', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>
+                Esci
               </button>
             </div>
-          )}
 
-          {/* Trimestrale */}
-          <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #334155', marginBottom: 14 }}>
-            <h3 style={{ margin: '0 0 6px 0', color: '#fff' }}>Abbonamento Trimestrale</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
-              Tutti gli esercizi sbloccati. Video illimitati per 3 mesi.
+            <h2 style={{ textAlign: 'center', color: '#38bdf8', marginBottom: 6 }}>
+              {isSubscriptionExpired ? 'Il tuo piano è scaduto' : 'Scegli il tuo piano'}
+            </h2>
+            <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginBottom: 20 }}>
+              Video illimitati su tutti i piani
             </p>
-            <button
-              onClick={() => handleSelectPaidPlan('quarterly')}
-              style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              Scegli Trimestrale
-            </button>
-          </div>
 
-          {/* Semestrale */}
-          <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #334155', marginBottom: 14 }}>
-            <h3 style={{ margin: '0 0 6px 0', color: '#fff' }}>Abbonamento Semestrale</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
-              Tutti gli esercizi sbloccati. Video illimitati per 6 mesi.
-            </p>
-            <button
-              onClick={() => handleSelectPaidPlan('semiannual')}
-              style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              Scegli Semestrale
-            </button>
-          </div>
+            {planError && (
+              <div style={{ padding: 12, marginBottom: 14, borderRadius: 8, background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#f43f5e', fontSize: 13 }}>
+                {planError}
+              </div>
+            )}
 
-          {/* Annuale */}
-          <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #22c55e' }}>
-            <h3 style={{ margin: '0 0 6px 0', color: '#22c55e' }}>Abbonamento Annuale (Miglior Valore)</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
-              Tutti gli esercizi sbloccati. Video illimitati per 12 mesi.
-            </p>
-            <button
-              onClick={() => handleSelectPaidPlan('annual')}
-              style={{ width: '100%', padding: 10, background: '#22c55e', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              Scegli Annuale
-            </button>
+            {currentPlan === 'none' && (
+              <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #38bdf8', marginBottom: 14 }}>
+                <h3 style={{ margin: '0 0 6px 0', color: '#38bdf8' }}>Trial 7 Giorni</h3>
+                <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
+                  Accesso a 2 esercizi (Squat e Panca piana). Analisi video illimitate per 7 giorni.
+                </p>
+                <button
+                  onClick={handleActivateTrial}
+                  style={{ width: '100%', padding: 10, background: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: '1px solid #38bdf8', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  Attiva Trial Gratuito
+                </button>
+              </div>
+            )}
+
+            <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #334155', marginBottom: 14 }}>
+              <h3 style={{ margin: '0 0 6px 0', color: '#fff' }}>Abbonamento Trimestrale</h3>
+              <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
+                Tutti gli esercizi sbloccati. Video illimitati per 3 mesi.
+              </p>
+              <button
+                onClick={() => handleSelectPaidPlan('quarterly')}
+                style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                Scegli Trimestrale
+              </button>
+            </div>
+
+            <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #334155', marginBottom: 14 }}>
+              <h3 style={{ margin: '0 0 6px 0', color: '#fff' }}>Abbonamento Semestrale</h3>
+              <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
+                Tutti gli esercizi sbloccati. Video illimitati per 6 mesi.
+              </p>
+              <button
+                onClick={() => handleSelectPaidPlan('semiannual')}
+                style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                Scegli Semestrale
+              </button>
+            </div>
+
+            <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #22c55e' }}>
+              <h3 style={{ margin: '0 0 6px 0', color: '#22c55e' }}>Abbonamento Annuale (Miglior Valore)</h3>
+              <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
+                Tutti gli esercizi sbloccati. Video illimitati per 12 mesi.
+              </p>
+              <button
+                onClick={() => handleSelectPaidPlan('annual')}
+                style={{ width: '100%', padding: 10, background: '#22c55e', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                Scegli Annuale
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+        {renderLegalOverlays()}
+      </>
     );
   }
 
-  // ==========================================
-  // VISTA LINEE GUIDA RIPRESE
-  // ==========================================
   if (isGuidesOpen) {
     return (
-      <CameraGuidesView
-        initialExerciseId={guideInitialExercise}
-        onClose={() => setIsGuidesOpen(false)}
-      />
+      <>
+        <CameraGuidesView
+          initialExerciseId={guideInitialExercise}
+          onClose={() => setIsGuidesOpen(false)}
+        />
+        {renderLegalOverlays()}
+      </>
     );
   }
 
-  // ==========================================
-  // 4. AREA PERSONALE + APPLICAZIONE ANALISI
-  // ==========================================
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)', 
-      color: '#f8fafc',
-      paddingBottom: 40
-    }}>
-      <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-        
-        {/* BARRA AREA PERSONALE / CONTEGGIO GIORNI RIMASTI */}
-        <div style={{ background: '#1e293b', padding: '10px 14px', borderRadius: 10, border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8 }}>
-          <div>
-            <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>Piano attivo</span>
-            <strong style={{ fontSize: 13, color: '#38bdf8' }}>{getPlanLabel(currentPlan)}</strong>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>Scadenza</span>
-              <span style={{ fontSize: 13, fontWeight: 800, color: daysRemaining <= 2 ? '#ef4444' : '#22c55e' }}>
-                ⏱ {daysRemaining} {daysRemaining === 1 ? 'giorno' : 'giorni'}
-              </span>
-            </div>
-            <button
-              type="button"
-              disabled={isProcessing}
-              onClick={() => {
-                setGuideInitialExercise(undefined);
-                setIsGuidesOpen(true);
-              }}
-              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #38bdf8', background: 'rgba(56,189,248,0.1)', color: '#38bdf8', fontSize: 12, fontWeight: 700, cursor: isProcessing ? 'not-allowed' : 'pointer' }}
-            >
-              📷 Guide
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #334155', background: '#0f172a', color: '#cbd5e1', fontSize: 12, cursor: 'pointer' }}
-            >
-              Esci
-            </button>
-          </div>
-        </div>
+    <>
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)',
+        color: '#f8fafc',
+        paddingBottom: 40,
+        display: 'none',
+      }} />
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)',
+        color: '#f8fafc',
+        paddingBottom: 40,
+      }}>
+        <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
 
-        <div style={{ textAlign: 'center', marginBottom: 24, paddingTop: 10 }}>
-          <h1 style={{ margin: '0 0 6px 0', fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', color: '#38bdf8' }}>
-            Second Opinion
-          </h1>
-          <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, fontWeight: 500, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
-            Analisi Biomeccanica Intelligente
-          </p>
-        </div>
-
-        <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
-          1. Seleziona l'esercizio
-        </label>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            type="button"
-            onClick={() => scrollCarousel('left')}
-            disabled={isProcessing}
-            aria-label="Esercizio precedente"
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              border: '1px solid #334155',
-              background: '#1e293b',
-              color: '#f8fafc',
-              fontSize: 16,
-              fontWeight: 'bold',
-              cursor: isProcessing ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)',
-            }}
-          >
-            ◀
-          </button>
-
-          <div
-            ref={carouselRef}
-            style={{
-              flex: 1,
-              display: 'flex',
-              overflowX: 'auto',
-              scrollSnapType: 'x mandatory',
-              scrollBehavior: 'smooth',
-              scrollbarWidth: 'none',
-              borderRadius: 14,
-            }}
-          >
-            {EXERCISES.map((ex) => {
-              const isSelected = selectedExercise === ex.id;
-              const locked = currentPlan === 'trial' && !ex.isTrialAllowed;
-              return (
-                <div
-                  key={ex.id}
-                  style={{
-                    flex: '0 0 100%',
-                    scrollSnapAlign: 'center',
-                    boxSizing: 'border-box',
-                    padding: '8px 10px',
-                    borderRadius: 14,
-                    border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
-                    background: isSelected ? '#1e293b' : '#0f172a',
-                    cursor: 'default',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 6,
-                    transition: 'all 0.2s ease',
-                    position: 'relative',
-                    opacity: locked ? 0.55 : 1,
-                    boxShadow: isSelected ? '0 10px 15px -3px rgba(56, 189, 248, 0.15)' : 'none',
-                  }}
-                >
-                  {locked && (
-                    <span style={{ position: 'absolute', top: 10, right: 10, background: '#ef4444', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
-                      🔒 Abbonati
-                    </span>
-                  )}
-                  <img 
-                    src={ex.imagePath} 
-                    alt={ex.label} 
-                    style={{ width: 110, height: 110, objectFit: 'contain', borderRadius: 8 }} 
-                  />
-                  <span style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#38bdf8' : '#cbd5e1' }}>
-                    {ex.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => scrollCarousel('right')}
-            disabled={isProcessing}
-            aria-label="Esercizio successivo"
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              border: '1px solid #334155',
-              background: '#1e293b',
-              color: '#f8fafc',
-              fontSize: 16,
-              fontWeight: 'bold',
-              cursor: isProcessing ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)',
-            }}
-          >
-            ▶
-          </button>
-        </div>
-
-        {/* --- INQUADRATURA CONSIGLIATA --- */}
-        <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-          <div>
-            <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Inquadratura consigliata</span>
-            <span style={{ fontSize: 11, color: '#94a3b8' }}>
-              {currentHint}
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <button
-              type="button"
-              disabled={isProcessing}
-              onClick={() => {
-                setGuideInitialExercise(selectedExercise);
-                setIsGuidesOpen(true);
-              }}
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#38bdf8',
-                background: 'rgba(56,189,248,0.1)',
-                border: '1px solid rgba(56,189,248,0.35)',
-                padding: '5px 9px',
-                borderRadius: 8,
-                cursor: isProcessing ? 'not-allowed' : 'pointer',
-              }}
-            >
-              📷 Guida
-            </button>
-            <span style={{ fontSize: 14, fontWeight: 800, color: '#38bdf8', background: 'rgba(56,189,248,0.1)', padding: '4px 10px', borderRadius: 8 }}>
-              {selectedExerciseObj.label}
-            </span>
-          </div>
-        </div>
-
-        {/* --- SELETTORE DEL PESO --- */}
-        <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Carico utilizzato</span>
-            <span style={{ fontSize: 11, color: '#94a3b8' }}>
-              {selectedExerciseObj.isDumbbell ? 'Peso del singolo manubrio (kg)' : 'Peso totale (kg)'}
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => handleWeightChange(-5)}
-              disabled={isProcessing}
-              style={{ width: 32, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 16, fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              -
-            </button>
-            <input
-              type="number"
-              value={weightKg}
-              onChange={handleWeightInputChange}
-              disabled={isProcessing}
-              style={{
-                width: 55,
-                height: 36,
-                textAlign: 'center',
-                background: '#0f172a',
-                border: '1px solid #334155',
-                borderRadius: 8,
-                color: '#f8fafc',
-                fontSize: 16,
-                fontWeight: 800,
-                outline: 'none',
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => handleWeightChange(5)}
-              disabled={isProcessing}
-              style={{ width: 32, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 16, fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              +
-            </button>
-          </div>
-        </div>
-
-        <label style={{ display: 'block', marginTop: 22, marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>2. Carica video</label>
-        
-        {/* --- UPLOAD FILE --- */}
-        <input
-          type="file"
-          accept="video/*"
-          ref={fileInputRef}
-          onChange={handleVideoUpload}
-          style={{ display: 'none' }}
-        />
-        <div
-          onClick={() => !isProcessing && !isExerciseLocked && fileInputRef.current?.click()}
-          style={{
-            width: '100%',
-            boxSizing: 'border-box',
-            padding: '22px 16px',
-            borderRadius: 12,
-            border: isExerciseLocked ? '2px dashed #64748b' : '2px dashed #38bdf8',
-            background: isExerciseLocked ? '#0f172a' : isProcessing ? '#1e293b' : 'rgba(56, 189, 248, 0.05)',
-            color: '#f8fafc',
-            textAlign: 'center',
-            cursor: isProcessing || isExerciseLocked ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 32, lineHeight: 1 }}>{isExerciseLocked ? '🔒' : '📤'}</span>
-          <span style={{ fontSize: 15, fontWeight: 700, color: isExerciseLocked ? '#94a3b8' : '#38bdf8' }}>
-            {isExerciseLocked
-              ? 'Esercizio bloccato nel piano Trial'
-              : isProcessing
-              ? 'Elaborazione in corso...'
-              : 'Seleziona file video'}
-          </span>
-          <span style={{ fontSize: 12, color: '#94a3b8' }}>
-            Formati supportati: MP4, MOV, WebM
-          </span>
-        </div>
-
-        {isProcessing && (
-          <div style={{ marginTop: 16, padding: 14, background: '#1e293b', borderRadius: 10, border: '1px solid #334155', color: '#fff' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-              <span style={{ color: '#94a3b8' }}>Avanzamento analisi:</span>
-              <span style={{ fontWeight: 800, color: '#38bdf8' }}>{progressPercent}%</span>
-            </div>
-            <div style={{ width: '100%', background: '#0f172a', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-              <div style={{ width: `${progressPercent}%`, background: '#38bdf8', height: '100%', transition: 'width 0.1s linear' }} />
-            </div>
-          </div>
-        )}
-
-        {/* --- INDICATORI ROM E POTENZA --- */}
-        <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ background: '#1e293b', padding: '10px 14px', borderRadius: 10, border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8 }}>
             <div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Ripetizioni</span>
-              <span style={{ fontSize: 34, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>{repCount}</span>
+              <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>Piano attivo</span>
+              <strong style={{ fontSize: 13, color: '#38bdf8' }}>{getPlanLabel(currentPlan)}</strong>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Potenza (Watt)</span>
-              <span style={{ fontSize: 24, fontWeight: 900, color: '#f43f5e', lineHeight: 1.1 }}>
-                {powerScore} W
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid #334155', paddingTop: 12 }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                <span style={{ color: '#94a3b8' }}>ROM</span>
-                <span style={{ color: getRomColor(romQuality) }}>{romQuality}%</span>
-              </div>
-              <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
-                <div 
-                  style={{ 
-                    width: `${romQuality}%`, 
-                    height: '100%', 
-                    background: getRomColor(romQuality),
-                    transition: 'width 0.1s ease, background 0.2s ease' 
-                  }} 
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* --- STATO VIDEO CON SEMAFORO DINAMICO --- */}
-        <div style={{ marginTop: 16, padding: 14, border: '1px solid #334155', borderRadius: 10, background: '#1e293b', fontSize: 14, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span 
-            style={{ 
-              width: 14, 
-              height: 14, 
-              borderRadius: '50%', 
-              backgroundColor: getTrafficLightColor(statusCode),
-              boxShadow: `0 0 8px ${getTrafficLightColor(statusCode)}`,
-              flexShrink: 0,
-              display: 'inline-block'
-            }} 
-          />
-          <div>
-            <strong style={{ color: '#38bdf8' }}>Stato Video:</strong> <span style={{ color: statusCode === 'error' ? '#f43f5e' : '#f8fafc' }}>{status}</span>
-          </div>
-        </div>
-
-        {/* --- PLAYER VIDEO / CANVAS --- */}
-        <div style={{ position: 'relative', marginTop: 16, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-          <video 
-            ref={videoRef} 
-            controls={statusCode === 'success'}
-            style={{ display: statusCode === 'success' ? 'block' : 'none', width: '100%', height: 'auto' }} 
-            muted={statusCode !== 'success'}
-            playsInline
-            preload="auto"
-          />
-          <canvas 
-            ref={canvasRef} 
-            style={{ display: statusCode === 'success' ? 'none' : 'block', width: '100%', height: 'auto' }} 
-          />
-        </div>
-
-        {analysisResult && (
-          <>
-            {/* SEZIONE ANALISI GEOMETRICA LOCALE (COLLASSABILE) */}
-            <div style={{ marginTop: 20, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-              <div 
-                onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
-                style={{
-                  padding: '16px 18px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  background: '#1e293b',
-                  userSelect: 'none'
-                }}
-              >
-                <h3 style={{ margin: 0, color: '#38bdf8', fontSize: 16, fontWeight: 800 }}>
-                  📊 Analisi Geometrica Locale {repCount > 0 ? `(${repCount} Reps)` : ''}
-                </h3>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
-                  {isAnalysisOpen ? '▲ Chiudi' : '▼ Espandi'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>Scadenza</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: daysRemaining <= 2 ? '#ef4444' : '#22c55e' }}>
+                  ⏱ {daysRemaining} {daysRemaining === 1 ? 'giorno' : 'giorni'}
                 </span>
               </div>
-
-              {isAnalysisOpen && (
-                <div style={{ padding: '0 18px 18px 18px', borderTop: '1px solid #334155' }}>
-                  <p style={{ margin: '12px 0 6px 0', fontSize: 14 }}><strong>Ripetizioni valide:</strong> {repCount}</p>
-                  <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
-                  <p style={{ margin: '6px 0 12px 0', fontSize: 13, color: '#94a3b8' }}>{analysisResult.trendSummary}</p>
-
-                  {repPeakPowers.length > 0 && (
-                    <div style={{ marginTop: 12, padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
-                        Potenza Massima per Ripetizione
-                      </span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {repPeakPowers.map((pwr, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                            <span style={{ color: '#cbd5e1' }}>Ripetizione #{idx + 1}</span>
-                            <span style={{ fontWeight: 800, color: '#f43f5e' }}>{pwr} W</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={() => {
+                  setGuideInitialExercise(undefined);
+                  setIsGuidesOpen(true);
+                }}
+                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #38bdf8', background: 'rgba(56,189,248,0.1)', color: '#38bdf8', fontSize: 12, fontWeight: 700, cursor: isProcessing ? 'not-allowed' : 'pointer' }}
+              >
+                📷 Guide
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #334155', background: '#0f172a', color: '#cbd5e1', fontSize: 12, cursor: 'pointer' }}
+              >
+                Esci
+              </button>
             </div>
+          </div>
 
-            {/* SEZIONE AI COACH */}
-            <div style={{ marginTop: 16, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span 
-                    style={{ 
-                      width: 12, 
-                      height: 12, 
-                      borderRadius: '50%', 
-                      backgroundColor: getTrafficLightColor(aiStatusCode),
-                      boxShadow: `0 0 8px ${getTrafficLightColor(aiStatusCode)}`,
-                      display: 'inline-block',
-                      flexShrink: 0
-                    }} 
-                  />
-                  <h4 style={{ margin: 0, color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>AI Coach</h4>
-                </div>
+          <div style={{ textAlign: 'center', marginBottom: 24, paddingTop: 10 }}>
+            <h1 style={{ margin: '0 0 6px 0', fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', color: '#38bdf8' }}>
+              Second Opinion
+            </h1>
+            <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, fontWeight: 500, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+              Analisi Biomeccanica Intelligente
+            </p>
+          </div>
 
-                <span style={{ fontSize: 13, color: '#94a3b8' }}>{aiStatusMessage}</span>
-              </div>
+          <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
+            1. Seleziona l'esercizio
+          </label>
 
-              {aiStatusCode === 'processing' && (
-                <p style={{ fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Elaborazione feedback IA in corso...</p>
-              )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => scrollCarousel('left')}
+              disabled={isProcessing}
+              aria-label="Esercizio precedente"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                border: '1px solid #334155',
+                background: '#1e293b',
+                color: '#f8fafc',
+                fontSize: 16,
+                fontWeight: 'bold',
+                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)',
+              }}
+            >
+              ◀
+            </button>
 
-              {aiStatusCode === 'success' && (
-                <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #f43f5e', border: '1px solid #334155' }}>
-                  <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: '#f8fafc' }}>{aiFeedback}</p>
-                </div>
-              )}
-
-              {aiStatusCode === 'error' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #ef4444', border: '1px solid #334155' }}>
-                    <p style={{ margin: 0, fontSize: 14, color: '#f43f5e' }}>{aiFeedback}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => lastGeomResultRef.current && triggerAiCoach(lastGeomResultRef.current)}
+            <div
+              ref={carouselRef}
+              style={{
+                flex: 1,
+                display: 'flex',
+                overflowX: 'auto',
+                scrollSnapType: 'x mandatory',
+                scrollBehavior: 'smooth',
+                scrollbarWidth: 'none',
+                borderRadius: 14,
+              }}
+            >
+              {EXERCISES.map((ex) => {
+                const isSelected = selectedExercise === ex.id;
+                const locked = currentPlan === 'trial' && !ex.isTrialAllowed;
+                return (
+                  <div
+                    key={ex.id}
                     style={{
-                      padding: '10px 16px',
-                      background: '#ef4444',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 8,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      alignSelf: 'flex-start',
-                      boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.3)',
+                      flex: '0 0 100%',
+                      scrollSnapAlign: 'center',
+                      boxSizing: 'border-box',
+                      padding: '8px 10px',
+                      borderRadius: 14,
+                      border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
+                      background: isSelected ? '#1e293b' : '#0f172a',
+                      cursor: 'default',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 6,
+                      transition: 'all 0.2s ease',
+                      position: 'relative',
+                      opacity: locked ? 0.55 : 1,
+                      boxShadow: isSelected ? '0 10px 15px -3px rgba(56, 189, 248, 0.15)' : 'none',
                     }}
                   >
-                    🔄 Riprova IA
-                  </button>
-                </div>
-              )}
+                    {locked && (
+                      <span style={{ position: 'absolute', top: 10, right: 10, background: '#ef4444', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
+                        🔒 Abbonati
+                      </span>
+                    )}
+                    <img
+                      src={ex.imagePath}
+                      alt={ex.label}
+                      style={{ width: 110, height: 110, objectFit: 'contain', borderRadius: 8 }}
+                    />
+                    <span style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#38bdf8' : '#cbd5e1' }}>
+                      {ex.label}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-          </>
-        )}
+
+            <button
+              type="button"
+              onClick={() => scrollCarousel('right')}
+              disabled={isProcessing}
+              aria-label="Esercizio successivo"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                border: '1px solid #334155',
+                background: '#1e293b',
+                color: '#f8fafc',
+                fontSize: 16,
+                fontWeight: 'bold',
+                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)',
+              }}
+            >
+              ▶
+            </button>
+          </div>
+
+          <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <div>
+              <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Inquadratura consigliata</span>
+              <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                {currentHint}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={() => {
+                  setGuideInitialExercise(selectedExercise);
+                  setIsGuidesOpen(true);
+                }}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: '#38bdf8',
+                  background: 'rgba(56,189,248,0.1)',
+                  border: '1px solid rgba(56,189,248,0.35)',
+                  padding: '5px 9px',
+                  borderRadius: 8,
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                }}
+              >
+                📷 Guida
+              </button>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#38bdf8', background: 'rgba(56,189,248,0.1)', padding: '4px 10px', borderRadius: 8 }}>
+                {selectedExerciseObj.label}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Carico utilizzato</span>
+              <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                {selectedExerciseObj.isDumbbell ? 'Peso del singolo manubrio (kg)' : 'Peso totale (kg)'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => handleWeightChange(-5)}
+                disabled={isProcessing}
+                style={{ width: 32, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 16, fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                -
+              </button>
+              <input
+                type="number"
+                value={weightKg}
+                onChange={handleWeightInputChange}
+                disabled={isProcessing}
+                style={{
+                  width: 55,
+                  height: 36,
+                  textAlign: 'center',
+                  background: '#0f172a',
+                  border: '1px solid #334155',
+                  borderRadius: 8,
+                  color: '#f8fafc',
+                  fontSize: 16,
+                  fontWeight: 800,
+                  outline: 'none',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => handleWeightChange(5)}
+                disabled={isProcessing}
+                style={{ width: 32, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 16, fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <label style={{ display: 'block', marginTop: 22, marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>2. Carica video</label>
+
+          <input
+            type="file"
+            accept="video/*"
+            ref={fileInputRef}
+            onChange={handleVideoUpload}
+            style={{ display: 'none' }}
+          />
+          <div
+            onClick={() => !isProcessing && !isExerciseLocked && fileInputRef.current?.click()}
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '22px 16px',
+              borderRadius: 12,
+              border: isExerciseLocked ? '2px dashed #64748b' : '2px dashed #38bdf8',
+              background: isExerciseLocked ? '#0f172a' : isProcessing ? '#1e293b' : 'rgba(56, 189, 248, 0.05)',
+              color: '#f8fafc',
+              textAlign: 'center',
+              cursor: isProcessing || isExerciseLocked ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span style={{ fontSize: 32, lineHeight: 1 }}>{isExerciseLocked ? '🔒' : '📤'}</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: isExerciseLocked ? '#94a3b8' : '#38bdf8' }}>
+              {isExerciseLocked
+                ? 'Esercizio bloccato nel piano Trial'
+                : isProcessing
+                ? 'Elaborazione in corso...'
+                : 'Seleziona file video'}
+            </span>
+            <span style={{ fontSize: 12, color: '#94a3b8' }}>
+              Formati supportati: MP4, MOV, WebM
+            </span>
+          </div>
+
+          {isProcessing && (
+            <div style={{ marginTop: 16, padding: 14, background: '#1e293b', borderRadius: 10, border: '1px solid #334155', color: '#fff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+                <span style={{ color: '#94a3b8' }}>Avanzamento analisi:</span>
+                <span style={{ fontWeight: 800, color: '#38bdf8' }}>{progressPercent}%</span>
+              </div>
+              <div style={{ width: '100%', background: '#0f172a', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{ width: `${progressPercent}%`, background: '#38bdf8', height: '100%', transition: 'width 0.1s linear' }} />
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Ripetizioni</span>
+                <span style={{ fontSize: 34, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>{repCount}</span>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Potenza (Watt)</span>
+                <span style={{ fontSize: 24, fontWeight: 900, color: '#f43f5e', lineHeight: 1.1 }}>
+                  {powerScore} W
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid #334155', paddingTop: 12 }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                  <span style={{ color: '#94a3b8' }}>ROM</span>
+                  <span style={{ color: getRomColor(romQuality) }}>{romQuality}%</span>
+                </div>
+                <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                  <div
+                    style={{
+                      width: `${romQuality}%`,
+                      height: '100%',
+                      background: getRomColor(romQuality),
+                      transition: 'width 0.1s ease, background 0.2s ease'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 16, padding: 14, border: '1px solid #334155', borderRadius: 10, background: '#1e293b', fontSize: 14, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: '50%',
+                backgroundColor: getTrafficLightColor(statusCode),
+                boxShadow: `0 0 8px ${getTrafficLightColor(statusCode)}`,
+                flexShrink: 0,
+                display: 'inline-block'
+              }}
+            />
+            <div>
+              <strong style={{ color: '#38bdf8' }}>Stato Video:</strong> <span style={{ color: statusCode === 'error' ? '#f43f5e' : '#f8fafc' }}>{status}</span>
+            </div>
+          </div>
+
+          <div style={{ position: 'relative', marginTop: 16, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+            <video
+              ref={videoRef}
+              controls={statusCode === 'success'}
+              style={{ display: statusCode === 'success' ? 'block' : 'none', width: '100%', height: 'auto' }}
+              muted={statusCode !== 'success'}
+              playsInline
+              preload="auto"
+            />
+            <canvas
+              ref={canvasRef}
+              style={{ display: statusCode === 'success' ? 'none' : 'block', width: '100%', height: 'auto' }}
+            />
+          </div>
+
+          {analysisResult && (
+            <>
+              <div style={{ marginTop: 20, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+                <div
+                  onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
+                  style={{
+                    padding: '16px 18px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    background: '#1e293b',
+                    userSelect: 'none'
+                  }}
+                >
+                  <h3 style={{ margin: 0, color: '#38bdf8', fontSize: 16, fontWeight: 800 }}>
+                    📊 Analisi Geometrica Locale {repCount > 0 ? `(${repCount} Reps)` : ''}
+                  </h3>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
+                    {isAnalysisOpen ? '▲ Chiudi' : '▼ Espandi'}
+                  </span>
+                </div>
+
+                {isAnalysisOpen && (
+                  <div style={{ padding: '0 18px 18px 18px', borderTop: '1px solid #334155' }}>
+                    <p style={{ margin: '12px 0 6px 0', fontSize: 14 }}><strong>Ripetizioni valide:</strong> {repCount}</p>
+                    <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
+                    <p style={{ margin: '6px 0 12px 0', fontSize: 13, color: '#94a3b8' }}>{analysisResult.trendSummary}</p>
+
+                    {repPeakPowers.length > 0 && (
+                      <div style={{ marginTop: 12, padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
+                          Potenza Massima per Ripetizione
+                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {repPeakPowers.map((pwr, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+                              <span style={{ color: '#cbd5e1' }}>Ripetizione #{idx + 1}</span>
+                              <span style={{ fontWeight: 800, color: '#f43f5e' }}>{pwr} W</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginTop: 16, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span
+                      style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        backgroundColor: getTrafficLightColor(aiStatusCode),
+                        boxShadow: `0 0 8px ${getTrafficLightColor(aiStatusCode)}`,
+                        display: 'inline-block',
+                        flexShrink: 0
+                      }}
+                    />
+                    <h4 style={{ margin: 0, color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>AI Coach</h4>
+                  </div>
+
+                  <span style={{ fontSize: 13, color: '#94a3b8' }}>{aiStatusMessage}</span>
+                </div>
+
+                {aiStatusCode === 'processing' && (
+                  <p style={{ fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Elaborazione feedback IA in corso...</p>
+                )}
+
+                {aiStatusCode === 'success' && (
+                  <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #f43f5e', border: '1px solid #334155' }}>
+                    <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: '#f8fafc' }}>{aiFeedback}</p>
+                  </div>
+                )}
+
+                {aiStatusCode === 'error' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #ef4444', border: '1px solid #334155' }}>
+                      <p style={{ margin: 0, fontSize: 14, color: '#f43f5e' }}>{aiFeedback}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => lastGeomResultRef.current && triggerAiCoach(lastGeomResultRef.current)}
+                      style={{
+                        padding: '10px 16px',
+                        background: '#ef4444',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 8,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        alignSelf: 'flex-start',
+                        boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.3)',
+                      }}
+                    >
+                      🔄 Riprova IA
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          <footer
+            style={{
+              marginTop: 24,
+              paddingTop: 14,
+              borderTop: '1px solid #334155',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 14,
+              flexWrap: 'wrap',
+              fontSize: 12,
+              color: '#94a3b8',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setLegalTab('privacy')}
+              style={{ background: 'none', border: 'none', padding: 0, color: '#94a3b8', textDecoration: 'underline', fontSize: 12, cursor: 'pointer' }}
+            >
+              Privacy Policy
+            </button>
+            <span>•</span>
+            <button
+              type="button"
+              onClick={() => setLegalTab('terms')}
+              style={{ background: 'none', border: 'none', padding: 0, color: '#94a3b8', textDecoration: 'underline', fontSize: 12, cursor: 'pointer' }}
+            >
+              Termini d'Uso
+            </button>
+            <span>•</span>
+            <button
+              type="button"
+              onClick={handleOpenCookiePreferences}
+              style={{ background: 'none', border: 'none', padding: 0, color: '#94a3b8', textDecoration: 'underline', fontSize: 12, cursor: 'pointer' }}
+            >
+              Preferenze Cookie
+            </button>
+            {analyticsConsent && <span style={{ display: 'none' }} aria-hidden="true" />}
+          </footer>
+        </div>
       </div>
-    </div>
+      {renderLegalOverlays()}
+    </>
   );
 }
 

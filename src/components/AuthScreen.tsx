@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { LegalDocsModal, type LegalDocTab } from './LegalDocsModal';
 
 interface AuthScreenProps {
   onAuthSuccess?: () => void;
@@ -12,6 +13,7 @@ export function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [authLoading, setAuthLoading] = useState(false);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [legalTab, setLegalTab] = useState<LegalDocTab | null>(null);
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -181,7 +183,51 @@ export function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             {authLoading ? 'Attendere...' : authMode === 'signup' ? 'Crea account' : 'Entra'}
           </button>
         </form>
+
+        <p style={{ marginTop: 14, marginBottom: 0, fontSize: 11, lineHeight: 1.5, color: '#94a3b8', textAlign: 'center' }}>
+          Proseguendo prendi visione della{' '}
+          <button
+            type="button"
+            onClick={() => setLegalTab('privacy')}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: '#38bdf8',
+              textDecoration: 'underline',
+              fontSize: 11,
+              cursor: 'pointer',
+            }}
+          >
+            Privacy Policy
+          </button>{' '}
+          e accetti i{' '}
+          <button
+            type="button"
+            onClick={() => setLegalTab('terms')}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: '#38bdf8',
+              textDecoration: 'underline',
+              fontSize: 11,
+              cursor: 'pointer',
+            }}
+          >
+            Termini d'Uso
+          </button>
+          .
+        </p>
       </div>
+
+      {legalTab && (
+        <LegalDocsModal
+          activeTab={legalTab}
+          onChangeTab={setLegalTab}
+          onClose={() => setLegalTab(null)}
+        />
+      )}
     </div>
   );
 }
