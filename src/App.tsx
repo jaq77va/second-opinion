@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
@@ -713,6 +713,7 @@ export function App() {
   const [isSubscriptionExpired, setIsSubscriptionExpired] = useState<boolean>(false);
   const [isTester, setIsTester] = useState<boolean>(false);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [unlockedByPlan, setUnlockedByPlan] = useState<Record<string, boolean>>({});
 
   // --- STATI LINEE GUIDA RIPRESE ---
   const [isGuidesOpen, setIsGuidesOpen] = useState<boolean>(false);
@@ -753,6 +754,48 @@ export function App() {
   const loggedSessionKeyRef = useRef<string | null>(null);
   const analysisSessionIdRef = useRef<number>(0);
   const isProgrammaticScrollRef = useRef<boolean>(false);
+
+  const fetchPlanExercises = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('plan_exercises')
+        .select('plan_type, exercise_id, is_unlocked');
+
+      if (error) {
+        console.warn('Lettura plan_exercises non disponibile o in attesa di configurazione DB:', error.message);
+        return;
+      }
+
+      if (data && Array.isArray(data)) {
+        const map: Record<string, boolean> = {};
+        for (const row of data) {
+          if (row.plan_type && row.exercise_id) {
+            map[`${row.plan_type}:${row.exercise_id}`] = Boolean(row.is_unlocked);
+          }
+        }
+        setUnlockedByPlan(map);
+      }
+    } catch (err) {
+      console.warn('Errore caricamento matrice plan_exercises:', err);
+    }
+  }, []);
+
+  const isExerciseUnlockedForPlan = useCallback(
+    (plan: PlanType, exerciseId: Exercise, fallbackTrialAllowed: boolean): boolean => {
+      if (plan === 'none' || isSubscriptionExpired) {
+        return false;
+      }
+      const key = `${plan}:${exerciseId}`;
+      if (Object.prototype.hasOwnProperty.call(unlockedByPlan, key)) {
+        return Boolean(unlockedByPlan[key]);
+      }
+      if (plan === 'trial') {
+        return fallbackTrialAllowed;
+      }
+      return true;
+    },
+    [unlockedByPlan, isSubscriptionExpired]
+  );
 
   const resetAnalysisSession = (options?: { preserveExerciseAndWeight?: boolean }) => {
     if (!options?.preserveExerciseAndWeight) {
@@ -871,11 +914,13 @@ export function App() {
     }
   }, [selectedExercise, isGuidesOpen]);
 
-  // Carica abbonamento dell'utente da public.subscriptions (lettura is_tester)
+  // Carica abbonamento dell'utente da public.subscriptions e configurazione sblocchi da public.plan_exercises
   const fetchUserSubscription = async (userId: string) => {
     setSubLoading(true);
     setPlanError(null);
     try {
+      await fetchPlanExercises();
+
       const { data, error } = await supabase
         .from('subscriptions')
         .select('plan_type, status, end_date, is_tester')
@@ -921,6 +966,7 @@ export function App() {
       setDaysRemaining(0);
       setIsSubscriptionExpired(false);
       setIsTester(false);
+      setUnlockedByPlan({});
     }
   }, [user?.id]);
 
@@ -1023,7 +1069,11 @@ export function App() {
 
   const selectedExerciseObj = EXERCISES.find((ex) => ex.id === selectedExercise) || EXERCISES[0];
   const currentHint = selectedExerciseObj.viewHint;
-  const isExerciseLocked = currentPlan === 'trial' && !selectedExerciseObj.isTrialAllowed;
+  const isExerciseLocked = !isExerciseUnlockedForPlan(
+    currentPlan,
+    selectedExerciseObj.id,
+    selectedExerciseObj.isTrialAllowed
+  );
 
   // Blocca scelta esercizio e carico appena viene caricato/avviato un video o c'è un'analisi attiva
   const hasActiveOrCompletedSession =
@@ -1522,7 +1572,7 @@ export function App() {
               <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #38bdf8', marginBottom: 14 }}>
                 <h3 style={{ margin: '0 0 6px 0', color: '#38bdf8' }}>Trial 7 Giorni</h3>
                 <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
-                  Accesso a 2 esercizi (Squat e Panca piana). Analisi video illimitate per 7 giorni.
+                  Accesso agli esercizi inclusi nel piano Trial. Analisi video illimitate per 7 giorni.
                 </p>
                 <button
                   onClick={handleActivateTrial}
@@ -1676,7 +1726,7 @@ export function App() {
             >
               {EXERCISES.map((ex) => {
                 const isSelected = selectedExercise === ex.id;
-                const locked = currentPlan === 'trial' && !ex.isTrialAllowed;
+                const locked = !isExerciseUnlockedForPlan(currentPlan, ex.id, ex.isTrialAllowed);
                 return (
                   <div
                     key={ex.id}
@@ -1856,7 +1906,7 @@ export function App() {
             <span style={{ fontSize: 32, lineHeight: 1 }}>{isExerciseLocked ? '🔒' : '📤'}</span>
             <span style={{ fontSize: 15, fontWeight: 700, color: isExerciseLocked ? '#94a3b8' : '#38bdf8' }}>
               {isExerciseLocked
-                ? 'Esercizio bloccato nel piano Trial'
+                ? 'Esercizio bloccato per questo piano'
                 : isProcessing
                 ? 'Elaborazione in corso...'
                 : hasActiveOrCompletedSession
