@@ -61,16 +61,35 @@ export function TesterFeedbackPanel({
   sessionContext,
   defaultVideoFile,
 }: TesterFeedbackPanelProps) {
-  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [isOpen, setIsOpen] = useState<boolean>(true);
   const [issueCategory, setIssueCategory] = useState<string>(TESTER_ISSUE_CATEGORIES[0].value);
   const [description, setDescription] = useState<string>('');
-  const [attachVideo, setAttachVideo] = useState<boolean>(false);
   const [customVideoFile, setCustomVideoFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
   const selectedFile = customVideoFile ?? defaultVideoFile ?? null;
+
+  const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const chosenFile = e.target.files?.[0] ?? null;
+    setSubmitError(null);
+    setSubmitSuccess(null);
+
+    if (!chosenFile) {
+      setCustomVideoFile(null);
+      return;
+    }
+
+    if (chosenFile.size > MAX_VIDEO_SIZE_BYTES) {
+      setCustomVideoFile(null);
+      e.target.value = '';
+      setSubmitError('Il file video supera il limite massimo di 50 MB.');
+      return;
+    }
+
+    setCustomVideoFile(chosenFile);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +100,7 @@ export function TesterFeedbackPanel({
     try {
       let uploadedVideoPath: string | null = null;
 
-      if (attachVideo && selectedFile) {
+      if (selectedFile) {
         if (selectedFile.size > MAX_VIDEO_SIZE_BYTES) {
           throw new Error('Il file video supera il limite massimo di 50 MB.');
         }
@@ -132,7 +151,6 @@ export function TesterFeedbackPanel({
 
       setSubmitSuccess('Feedback inviato con successo! Grazie per il supporto al test.');
       setDescription('');
-      setAttachVideo(false);
       setCustomVideoFile(null);
     } catch (err: any) {
       setSubmitError(err?.message || 'Impossibile inviare il feedback.');
@@ -289,52 +307,34 @@ export function TesterFeedbackPanel({
               border: '1px solid #334155',
               display: 'flex',
               flexDirection: 'column',
-              gap: 8,
+              gap: 6,
+              fontSize: 12,
+              color: '#94a3b8',
             }}
           >
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: 13,
-                fontWeight: 700,
-                color: '#e2e8f0',
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={attachVideo}
-                onChange={(e) => setAttachVideo(e.target.checked)}
-                disabled={submitting}
-              />
+            <strong style={{ fontSize: 13, color: '#e2e8f0' }}>
               Allega anche il video analizzato (facoltativo, max 50 MB)
-            </label>
+            </strong>
 
-            {attachVideo && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#94a3b8' }}>
-                {selectedFile ? (
-                  <div>
-                    File selezionato: <strong style={{ color: '#38bdf8' }}>{selectedFile.name}</strong> (
-                    {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB)
-                  </div>
-                ) : (
-                  <div>Nessun video in memoria nella sessione corrente.</div>
-                )}
-
-                <input
-                  type="file"
-                  accept="video/*"
-                  disabled={submitting}
-                  onChange={(e) => setCustomVideoFile(e.target.files?.[0] ?? null)}
-                  style={{ fontSize: 12, color: '#cbd5e1' }}
-                />
-                <span>
-                  Il video verrà usato esclusivamente per calibrare gli algoritmi di analisi durante il periodo di test.
-                </span>
+            {selectedFile ? (
+              <div>
+                File selezionato: <strong style={{ color: '#38bdf8' }}>{selectedFile.name}</strong> (
+                {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB)
               </div>
+            ) : (
+              <div>Nessun video allegato (puoi inviare anche un altro file fino a 50 MB).</div>
             )}
+
+            <input
+              type="file"
+              accept="video/*"
+              disabled={submitting}
+              onChange={handleVideoFileChange}
+              style={{ fontSize: 12, color: '#cbd5e1' }}
+            />
+            <span>
+              Il video verrà usato esclusivamente per calibrare gli algoritmi di analisi durante il periodo di test.
+            </span>
           </div>
 
           {submitError && (

@@ -53,6 +53,8 @@ interface ExerciseConfig {
   romMaxAngle?: number;
 }
 
+const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+
 const EXERCISES: ExerciseConfig[] = [
   {
     id: 'squat',
@@ -704,7 +706,12 @@ export function App() {
     await supabase.auth.signOut();
   };
 
-  const handleStopAndResetVideo = () => {
+  const handleInterruptAnalysis = () => {
+    analysisSessionIdRef.current += 1;
+    resetAnalysisSession({ preserveExerciseAndWeight: true });
+  };
+
+  const handleStartNewAnalysis = () => {
     analysisSessionIdRef.current += 1;
     resetAnalysisSession({ preserveExerciseAndWeight: true });
   };
@@ -741,8 +748,17 @@ export function App() {
   const currentHint = selectedExerciseObj.viewHint;
   const isExerciseLocked = currentPlan === 'trial' && !selectedExerciseObj.isTrialAllowed;
 
+  // Blocca scelta esercizio e carico appena viene caricato/avviato un video o c'è un'analisi attiva
+  const hasActiveOrCompletedSession =
+    isProcessing || statusCode === 'success' || statusCode === 'error' || Boolean(analysisResult);
+  const areExerciseAndWeightLocked = isProcessing || hasActiveOrCompletedSession;
+
+  // "Nuova analisi" abilitato solo quando l'analisi video è terminata e l'IA ha dato risposta
+  const isNewAnalysisEnabled =
+    !isProcessing && statusCode === 'success' && aiStatusCode === 'success';
+
   const scrollCarousel = (direction: 'left' | 'right') => {
-    if (!carouselRef.current) return;
+    if (!carouselRef.current || areExerciseAndWeightLocked) return;
     const container = carouselRef.current;
     const scrollAmount = container.clientWidth;
     isProgrammaticScrollRef.current = true;
@@ -758,16 +774,16 @@ export function App() {
     const itemWidth = container.clientWidth;
     const index = Math.round(newScrollLeft / itemWidth);
     const targetIndex = Math.max(0, Math.min(EXERCISES.length - 1, index));
-    if (!isProcessing) {
-      setSelectedExercise(EXERCISES[targetIndex].id);
-    }
+    setSelectedExercise(EXERCISES[targetIndex].id);
   };
 
   const handleWeightChange = (delta: number) => {
+    if (areExerciseAndWeightLocked) return;
     setWeightKg((prev) => Math.max(0, prev + delta));
   };
 
   const handleWeightInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (areExerciseAndWeightLocked) return;
     const val = parseInt(e.target.value, 10);
     setWeightKg(isNaN(val) ? 0 : Math.max(0, val));
   };
@@ -813,6 +829,17 @@ export function App() {
 
     const file = e.target.files?.[0];
     if (!file || !videoRef.current || !canvasRef.current) return;
+
+    if (file.size > MAX_VIDEO_SIZE_BYTES) {
+      analysisSessionIdRef.current += 1;
+      resetAnalysisSession({ preserveExerciseAndWeight: true });
+      setStatus('Il file video supera il limite massimo di 50 MB.');
+      setStatusCode('error');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
 
     analysisSessionIdRef.current += 1;
     const currentSessionId = analysisSessionIdRef.current;
@@ -1257,7 +1284,7 @@ export function App() {
           initialExerciseId={guideInitialExercise}
           onSelectExercise={(exId) => {
             const matched = EXERCISES.find((ex) => ex.id === exId);
-            if (matched && !isProcessing) {
+            if (matched && !areExerciseAndWeightLocked) {
               setSelectedExercise(matched.id);
             }
           }}
@@ -1265,7 +1292,7 @@ export function App() {
             setIsGuidesOpen(false);
             const targetId = chosenExerciseId || guideInitialExercise;
             const matched = EXERCISES.find((ex) => ex.id === targetId);
-            if (matched && !isProcessing) {
+            if (matched && !areExerciseAndWeightLocked) {
               setSelectedExercise(matched.id);
             }
           }}
@@ -1299,12 +1326,12 @@ export function App() {
               </div>
               <button
                 type="button"
-                disabled={isProcessing}
+                disabled={areExerciseAndWeightLocked}
                 onClick={() => {
                   setGuideInitialExercise(selectedExercise);
                   setIsGuidesOpen(true);
                 }}
-                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #38bdf8', background: 'rgba(56,189,248,0.1)', color: '#38bdf8', fontSize: 12, fontWeight: 700, cursor: isProcessing ? 'not-allowed' : 'pointer' }}
+                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #38bdf8', background: 'rgba(56,189,248,0.1)', color: '#38bdf8', fontSize: 12, fontWeight: 700, cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer', opacity: areExerciseAndWeightLocked ? 0.5 : 1 }}
               >
                 📷 Guide
               </button>
@@ -1328,14 +1355,14 @@ export function App() {
           </div>
 
           <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
-            1. Seleziona l'esercizio
+            1. Seleziona l&apos;esercizio
           </label>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: areExerciseAndWeightLocked ? 0.65 : 1 }}>
             <button
               type="button"
               onClick={() => scrollCarousel('left')}
-              disabled={isProcessing}
+              disabled={areExerciseAndWeightLocked}
               aria-label="Esercizio precedente"
               style={{
                 width: 40,
@@ -1346,7 +1373,7 @@ export function App() {
                 color: '#f8fafc',
                 fontSize: 16,
                 fontWeight: 'bold',
-                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1362,7 +1389,7 @@ export function App() {
               style={{
                 flex: 1,
                 display: 'flex',
-                overflowX: 'auto',
+                overflowX: areExerciseAndWeightLocked ? 'hidden' : 'auto',
                 scrollSnapType: 'x mandatory',
                 scrollBehavior: 'smooth',
                 scrollbarWidth: 'none',
@@ -1415,7 +1442,7 @@ export function App() {
             <button
               type="button"
               onClick={() => scrollCarousel('right')}
-              disabled={isProcessing}
+              disabled={areExerciseAndWeightLocked}
               aria-label="Esercizio successivo"
               style={{
                 width: 40,
@@ -1426,7 +1453,7 @@ export function App() {
                 color: '#f8fafc',
                 fontSize: 16,
                 fontWeight: 'bold',
-                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1448,7 +1475,7 @@ export function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <button
                 type="button"
-                disabled={isProcessing}
+                disabled={areExerciseAndWeightLocked}
                 onClick={() => {
                   setGuideInitialExercise(selectedExercise);
                   setIsGuidesOpen(true);
@@ -1461,7 +1488,8 @@ export function App() {
                   border: '1px solid rgba(56,189,248,0.35)',
                   padding: '5px 9px',
                   borderRadius: 8,
-                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer',
+                  opacity: areExerciseAndWeightLocked ? 0.5 : 1,
                 }}
               >
                 📷 Guida
@@ -1472,7 +1500,7 @@ export function App() {
             </div>
           </div>
 
-          <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: areExerciseAndWeightLocked ? 0.65 : 1 }}>
             <div>
               <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Carico utilizzato</span>
               <span style={{ fontSize: 11, color: '#94a3b8' }}>
@@ -1483,8 +1511,8 @@ export function App() {
               <button
                 type="button"
                 onClick={() => handleWeightChange(-5)}
-                disabled={isProcessing}
-                style={{ width: 32, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 16, fontWeight: 'bold', cursor: 'pointer' }}
+                disabled={areExerciseAndWeightLocked}
+                style={{ width: 32, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 16, fontWeight: 'bold', cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer' }}
               >
                 -
               </button>
@@ -1492,7 +1520,7 @@ export function App() {
                 type="number"
                 value={weightKg}
                 onChange={handleWeightInputChange}
-                disabled={isProcessing}
+                disabled={areExerciseAndWeightLocked}
                 style={{
                   width: 55,
                   height: 36,
@@ -1504,13 +1532,14 @@ export function App() {
                   fontSize: 16,
                   fontWeight: 800,
                   outline: 'none',
+                  cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'text',
                 }}
               />
               <button
                 type="button"
                 onClick={() => handleWeightChange(5)}
-                disabled={isProcessing}
-                style={{ width: 32, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 16, fontWeight: 'bold', cursor: 'pointer' }}
+                disabled={areExerciseAndWeightLocked}
+                style={{ width: 32, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 16, fontWeight: 'bold', cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer' }}
               >
                 +
               </button>
@@ -1527,22 +1556,23 @@ export function App() {
             style={{ display: 'none' }}
           />
           <div
-            onClick={() => !isProcessing && !isExerciseLocked && fileInputRef.current?.click()}
+            onClick={() => !hasActiveOrCompletedSession && !isExerciseLocked && fileInputRef.current?.click()}
             style={{
               width: '100%',
               boxSizing: 'border-box',
               padding: '22px 16px',
               borderRadius: 12,
-              border: isExerciseLocked ? '2px dashed #64748b' : '2px dashed #38bdf8',
+              border: isExerciseLocked || hasActiveOrCompletedSession ? '2px dashed #64748b' : '2px dashed #38bdf8',
               background: isExerciseLocked ? '#0f172a' : isProcessing ? '#1e293b' : 'rgba(56, 189, 248, 0.05)',
               color: '#f8fafc',
               textAlign: 'center',
-              cursor: isProcessing || isExerciseLocked ? 'not-allowed' : 'pointer',
+              cursor: hasActiveOrCompletedSession || isExerciseLocked ? 'not-allowed' : 'pointer',
               transition: 'all 0.2s ease',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: 8,
+              opacity: hasActiveOrCompletedSession && !isProcessing ? 0.65 : 1,
             }}
           >
             <span style={{ fontSize: 32, lineHeight: 1 }}>{isExerciseLocked ? '🔒' : '📤'}</span>
@@ -1551,10 +1581,12 @@ export function App() {
                 ? 'Esercizio bloccato nel piano Trial'
                 : isProcessing
                 ? 'Elaborazione in corso...'
+                : hasActiveOrCompletedSession
+                ? 'Usa "Nuova analisi" per caricare un altro video'
                 : 'Seleziona file video'}
             </span>
             <span style={{ fontSize: 12, color: '#94a3b8' }}>
-              Formati supportati: MP4, MOV, WebM
+              Formati supportati: MP4, MOV, WebM (max 50 MB)
             </span>
           </div>
 
@@ -1621,11 +1653,11 @@ export function App() {
             </div>
           </div>
 
-          {(isProcessing || statusCode === 'success' || statusCode === 'error' || Boolean(analysisResult)) && (
+          {isProcessing && (
             <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="button"
-                onClick={handleStopAndResetVideo}
+                onClick={handleInterruptAnalysis}
                 style={{
                   padding: '9px 14px',
                   borderRadius: 8,
@@ -1637,7 +1669,7 @@ export function App() {
                   cursor: 'pointer',
                 }}
               >
-                ⏹ Interrompi e carica altro video
+                ⏹ Interrompi analisi
               </button>
             </div>
           )}
@@ -1763,7 +1795,29 @@ export function App() {
             </>
           )}
 
-          {isTester && (
+          <div style={{ marginTop: 18 }}>
+            <button
+              type="button"
+              disabled={!isNewAnalysisEnabled}
+              onClick={handleStartNewAnalysis}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: 10,
+                border: isNewAnalysisEnabled ? '1px solid #22c55e' : '1px solid #334155',
+                background: isNewAnalysisEnabled ? 'rgba(34, 197, 94, 0.16)' : '#0f172a',
+                color: isNewAnalysisEnabled ? '#86efac' : '#64748b',
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: isNewAnalysisEnabled ? 'pointer' : 'not-allowed',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              🔁 Nuova analisi
+            </button>
+          </div>
+
+          {isTester && statusCode === 'success' && Boolean(analysisResult) && (
             <TesterFeedbackPanel
               userId={user.id}
               defaultVideoFile={lastUploadedFile}
@@ -1808,7 +1862,7 @@ export function App() {
               onClick={() => setLegalTab('terms')}
               style={{ background: 'none', border: 'none', padding: 0, color: '#94a3b8', textDecoration: 'underline', fontSize: 12, cursor: 'pointer' }}
             >
-              Termini d'Uso
+              Termini d&apos;Uso
             </button>
             <span>•</span>
             <button
