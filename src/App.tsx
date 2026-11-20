@@ -783,7 +783,15 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    analysisSessionIdRef.current += 1;
     resetAnalysisSession();
+    if (carouselRef.current) {
+      isProgrammaticScrollRef.current = true;
+      carouselRef.current.scrollLeft = 0;
+      window.setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 150);
+    }
   }, [user?.id]);
 
   // Allinea il carosello quando l'esercizio cambia (es. rientro dalla Guida)
