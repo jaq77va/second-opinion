@@ -794,7 +794,7 @@ export function App() {
     }
   }, [user?.id]);
 
-  // Allinea il carosello quando l'esercizio cambia (es. rientro dalla Guida)
+  // Allinea il carosello quando l'esercizio cambia (es. rientro dalla Guida o reset)
   useEffect(() => {
     if (isGuidesOpen || !carouselRef.current) return;
     const idx = EXERCISES.findIndex((ex) => ex.id === selectedExercise);
@@ -806,9 +806,15 @@ export function App() {
       isProgrammaticScrollRef.current = true;
       container.scrollTo({
         left: targetLeft,
-        behavior: 'smooth',
+        behavior: idx === 0 ? 'auto' : 'smooth',
       });
+      if (idx === 0) {
+        container.scrollLeft = 0;
+      }
       window.setTimeout(() => {
+        if (idx === 0 && carouselRef.current) {
+          carouselRef.current.scrollLeft = 0;
+        }
         isProgrammaticScrollRef.current = false;
       }, 350);
     }
@@ -907,12 +913,33 @@ export function App() {
 
   const handleInterruptAnalysis = () => {
     analysisSessionIdRef.current += 1;
-    resetAnalysisSession({ preserveExerciseAndWeight: true });
+    resetAnalysisSession();
+    if (carouselRef.current) {
+      isProgrammaticScrollRef.current = true;
+      carouselRef.current.scrollLeft = 0;
+      window.setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 250);
+    }
+  };
+
+  const scrollCarouselToStart = () => {
+    if (!carouselRef.current) return;
+    isProgrammaticScrollRef.current = true;
+    carouselRef.current.scrollTo({ left: 0, behavior: 'auto' });
+    carouselRef.current.scrollLeft = 0;
+    window.setTimeout(() => {
+      if (carouselRef.current) {
+        carouselRef.current.scrollLeft = 0;
+      }
+      isProgrammaticScrollRef.current = false;
+    }, 300);
   };
 
   const handleStartNewAnalysis = () => {
     analysisSessionIdRef.current += 1;
-    resetAnalysisSession({ preserveExerciseAndWeight: true });
+    resetAnalysisSession();
+    scrollCarouselToStart();
   };
 
   const handleOpenCookiePreferences = () => {
@@ -1534,7 +1561,7 @@ export function App() {
         <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
 
           <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
-            1. Seleziona l&apos;esercizio
+            1. Seleziona l'esercizio
           </label>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: areExerciseAndWeightLocked ? 0.65 : 1 }}>
@@ -1996,23 +2023,31 @@ export function App() {
             </button>
           </div>
 
-          {isTester && statusCode === 'success' && Boolean(analysisResult) && (
-            <TesterFeedbackPanel
-              userId={user.id}
-              defaultVideoFile={lastUploadedFile}
-              sessionContext={{
-                exerciseId: selectedExercise,
-                exerciseLabel: selectedExerciseObj.label,
-                weightKg,
-                repCount,
-                romQuality,
-                powerScore,
-                minAngle: analysisResult?.minAngle,
-                maxAngle: analysisResult?.maxAngle,
-                trendSummary: analysisResult?.trendSummary,
-              }}
-            />
-          )}
+          {isTester &&
+            !isProcessing &&
+            statusCode === 'success' &&
+            Boolean(analysisResult) &&
+            aiStatusCode === 'success' &&
+            Boolean(aiFeedback.trim()) && (
+              <TesterFeedbackPanel
+                key={`${analysisSessionIdRef.current}-${aiStatusCode}`}
+                userId={user.id}
+                defaultVideoFile={lastUploadedFile}
+                attachVideoByDefault={Boolean(lastUploadedFile)}
+                initialExpanded={false}
+                sessionContext={{
+                  exerciseId: selectedExercise,
+                  exerciseLabel: selectedExerciseObj.label,
+                  weightKg,
+                  repCount,
+                  romQuality,
+                  powerScore,
+                  minAngle: analysisResult?.minAngle,
+                  maxAngle: analysisResult?.maxAngle,
+                  trendSummary: analysisResult?.trendSummary,
+                }}
+              />
+            )}
 
           <footer
             style={{
@@ -2041,7 +2076,7 @@ export function App() {
               onClick={() => setLegalTab('terms')}
               style={{ background: 'none', border: 'none', padding: 0, color: '#94a3b8', textDecoration: 'underline', fontSize: 12, cursor: 'pointer' }}
             >
-              Termini d&apos;Uso
+              Termini d'Uso
             </button>
             <span>•</span>
             <button
