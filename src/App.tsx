@@ -6,6 +6,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { CameraGuidesView } from './components/CameraGuidesView';
 import { CookieBanner, type CookieConsentState } from './components/CookieBanner';
 import { LegalDocsModal, type LegalDocTab } from './components/LegalDocsModal';
+import { TesterFeedbackPanel } from './components/TesterFeedbackPanel';
 import { analyzeExerciseGeometry, type AnalysisResult } from './biomechanicsEngine';
 import { getGeminiFeedback } from './geminiCoach';
 import { logUserActivity } from './utils/activityLogger';
@@ -466,6 +467,7 @@ export function App() {
   const [currentPlan, setCurrentPlan] = useState<PlanType>('none');
   const [daysRemaining, setDaysRemaining] = useState<number>(0);
   const [isSubscriptionExpired, setIsSubscriptionExpired] = useState<boolean>(false);
+  const [isTester, setIsTester] = useState<boolean>(false);
   const [planError, setPlanError] = useState<string | null>(null);
 
   // --- STATI LINEE GUIDA RIPRESE ---
@@ -492,6 +494,7 @@ export function App() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [repPeakPowers, setRepPeakPowers] = useState<number[]>([]);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState<boolean>(false);
+  const [lastUploadedFile, setLastUploadedFile] = useState<File | null>(null);
 
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [aiStatusCode, setAiStatusCode] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
@@ -522,6 +525,7 @@ export function App() {
     setAnalysisResult(null);
     setRepPeakPowers([]);
     setIsAnalysisOpen(false);
+    setLastUploadedFile(null);
     setAiFeedback('');
     setAiStatusCode('idle');
     setAiStatusMessage('In attesa di dati geometrici...');
@@ -609,14 +613,14 @@ export function App() {
     }
   }, [selectedExercise, isGuidesOpen]);
 
-  // Carica abbonamento dell'utente da public.subscriptions
+  // Carica abbonamento dell'utente da public.subscriptions (lettura is_tester)
   const fetchUserSubscription = async (userId: string) => {
     setSubLoading(true);
     setPlanError(null);
     try {
       const { data, error } = await supabase
         .from('subscriptions')
-        .select('plan_type, status, end_date')
+        .select('plan_type, status, end_date, is_tester')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -628,6 +632,7 @@ export function App() {
         setCurrentPlan('none');
         setDaysRemaining(0);
         setIsSubscriptionExpired(false);
+        setIsTester(false);
         return;
       }
 
@@ -635,13 +640,16 @@ export function App() {
       const now = new Date();
       const diffMs = endDate.getTime() - now.getTime();
       const diffDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+      const expired = diffMs <= 0 || data.status === 'expired';
 
       setCurrentPlan(data.plan_type as PlanType);
       setDaysRemaining(diffDays);
-      setIsSubscriptionExpired(diffMs <= 0 || data.status === 'expired');
+      setIsSubscriptionExpired(expired);
+      setIsTester(Boolean(data.is_tester) && !expired && data.status === 'active');
     } catch (err: any) {
       console.error('Errore lettura abbonamento:', err);
       setPlanError(err?.message || 'Impossibile verificare lo stato dell’abbonamento.');
+      setIsTester(false);
     } finally {
       setSubLoading(false);
     }
@@ -654,6 +662,7 @@ export function App() {
       setCurrentPlan('none');
       setDaysRemaining(0);
       setIsSubscriptionExpired(false);
+      setIsTester(false);
     }
   }, [user?.id]);
 
@@ -689,6 +698,7 @@ export function App() {
     setIsGuidesOpen(false);
     setGuideInitialExercise(undefined);
     setLegalTab(null);
+    setIsTester(false);
     loggedSessionKeyRef.current = null;
     resetAnalysisSession();
     await supabase.auth.signOut();
@@ -808,6 +818,7 @@ export function App() {
     const currentSessionId = analysisSessionIdRef.current;
 
     resetAnalysisSession({ preserveExerciseAndWeight: true });
+    setLastUploadedFile(file);
 
     setIsProcessing(true);
     setStatus('Caricamento modello AI locale in corso...');
@@ -1750,6 +1761,24 @@ export function App() {
                 )}
               </div>
             </>
+          )}
+
+          {isTester && (
+            <TesterFeedbackPanel
+              userId={user.id}
+              defaultVideoFile={lastUploadedFile}
+              sessionContext={{
+                exerciseId: selectedExercise,
+                exerciseLabel: selectedExerciseObj.label,
+                weightKg,
+                repCount,
+                romQuality,
+                powerScore,
+                minAngle: analysisResult?.minAngle,
+                maxAngle: analysisResult?.maxAngle,
+                trendSummary: analysisResult?.trendSummary,
+              }}
+            />
           )}
 
           <footer
