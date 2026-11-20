@@ -494,8 +494,8 @@ function AppBrandHeader() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 10,
-        padding: '12px 16px',
+        gap: 12,
+        padding: '14px 18px',
         background: '#0f172a',
         borderBottom: '1px solid #334155',
       }}
@@ -503,14 +503,14 @@ function AppBrandHeader() {
       <img
         src="/images/logo_icon.png"
         alt="Second Opinion Logo"
-        style={{ width: 34, height: 34, objectFit: 'contain' }}
+        style={{ width: 44, height: 44, objectFit: 'contain' }}
       />
       <span
         style={{
-          fontSize: 18,
+          fontSize: 23,
           fontWeight: 900,
           color: '#38bdf8',
-          letterSpacing: '-0.4px',
+          letterSpacing: '-0.5px',
         }}
       >
         Second Opinion
@@ -1408,10 +1408,7 @@ export function App() {
             </div>
           </div>
 
-          <div style={{ textAlign: 'center', marginBottom: 24, paddingTop: 10 }}>
-            <h1 style={{ margin: '0 0 6px 0', fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', color: '#38bdf8' }}>
-              Second Opinion
-            </h1>
+          <div style={{ textAlign: 'center', marginBottom: 20, paddingTop: 6 }}>
             <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, fontWeight: 500, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
               Analisi Biomeccanica Intelligente
             </p>
