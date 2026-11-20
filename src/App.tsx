@@ -509,20 +509,16 @@ function AppBrandHeader({
   return (
     <header
       style={{
-        display: 'grid',
-        gridTemplateColumns: showPlanInfo ? '1fr auto 1fr' : '1fr',
-        alignItems: 'center',
-        gap: '12px 20px',
-        padding: '12px 20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: showPlanInfo ? 12 : 0,
+        padding: '12px 16px',
         background: '#0f172a',
         borderBottom: '1px solid #334155',
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
-      {/* Colonna sinistra vuota su schermi larghi per centrare perfettamente il brand */}
-      {showPlanInfo && <div style={{ minWidth: 0 }} />}
-
-      {/* Centro: Logo ingrandito + Sottotitolo centrati nell'header */}
+      {/* Fascia superiore: Logo + Tagline centrati */}
       <div
         style={{
           display: 'flex',
@@ -531,6 +527,7 @@ function AppBrandHeader({
           justifyContent: 'center',
           gap: '8px 18px',
           textAlign: 'center',
+          width: '100%',
         }}
       >
         <img
@@ -560,90 +557,146 @@ function AppBrandHeader({
         </span>
       </div>
 
-      {/* Destra: Piano attivo, Scadenza, Guide, Esci + Username sotto */}
+      {/* Fascia inferiore: info a sinistra, Guide + Esci a destra */}
       {showPlanInfo && (
         <div
           style={{
             display: 'flex',
-            flexDirection: 'column',
+            flexWrap: 'wrap',
             alignItems: 'flex-end',
-            justifySelf: 'end',
-            gap: 4,
+            justifyContent: 'space-between',
+            gap: '10px 16px',
+            width: '100%',
+            paddingTop: 8,
+            borderTop: '1px solid rgba(51, 65, 85, 0.55)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <div>
-              <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>
-                Piano attivo
+          {/* Sinistra: Nome utente + Piano attivo + Scadenza */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              gap: 6,
+              minWidth: 0,
+              flex: '1 1 240px',
+            }}
+          >
+            {userDisplayName && (
+              <span
+                style={{
+                  fontSize: 12,
+                  color: '#e2e8f0',
+                  fontWeight: 600,
+                  wordBreak: 'break-word',
+                }}
+              >
+                👤 {userDisplayName}
               </span>
-              <strong style={{ fontSize: 13, color: '#38bdf8' }}>{getPlanLabel(currentPlan)}</strong>
-            </div>
+            )}
 
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>
-                Scadenza
-              </span>
-              <span style={{ fontSize: 13, fontWeight: 800, color: daysRemaining <= 2 ? '#ef4444' : '#22c55e' }}>
-                ⏱ {daysRemaining} {daysRemaining === 1 ? 'giorno' : 'giorni'}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {onOpenGuides && (
-                <button
-                  type="button"
-                  disabled={areGuidesDisabled}
-                  onClick={onOpenGuides}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: '8px 20px',
+              }}
+            >
+              <div>
+                <span
                   style={{
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    border: '1px solid #38bdf8',
-                    background: 'rgba(56,189,248,0.1)',
-                    color: '#38bdf8',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: areGuidesDisabled ? 'not-allowed' : 'pointer',
-                    opacity: areGuidesDisabled ? 0.5 : 1,
+                    fontSize: 10,
+                    color: '#94a3b8',
+                    display: 'block',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.4px',
                   }}
                 >
-                  📷 Guide
-                </button>
-              )}
-              {onLogout && (
-                <button
-                  type="button"
-                  onClick={onLogout}
+                  PIANO ATTIVO
+                </span>
+                <strong style={{ fontSize: 13, color: '#38bdf8' }}>
+                  {getPlanLabel(currentPlan)}
+                </strong>
+              </div>
+
+              <div>
+                <span
                   style={{
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    border: '1px solid #334155',
-                    background: '#1e293b',
-                    color: '#cbd5e1',
-                    fontSize: 12,
-                    cursor: 'pointer',
+                    fontSize: 10,
+                    color: '#94a3b8',
+                    display: 'block',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.4px',
                   }}
                 >
-                  Esci
-                </button>
-              )}
+                  SCADENZA
+                </span>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 800,
+                    color: daysRemaining <= 2 ? '#ef4444' : '#22c55e',
+                  }}
+                >
+                  ⏱ {daysRemaining} {daysRemaining === 1 ? 'giorno' : 'giorni'}
+                </span>
+              </div>
             </div>
           </div>
 
-          {userDisplayName && (
-            <div
-              style={{
-                width: '100%',
-                textAlign: 'left',
-                fontSize: 11,
-                color: '#cbd5e1',
-                fontWeight: 500,
-                borderTop: '1px solid rgba(51, 65, 85, 0.7)',
-                paddingTop: 3,
-              }}
-            >
-              👤 {userDisplayName}
-            </div>
-          )}
+          {/* Destra: Pulsanti Guide e Esci allineati a destra */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: 8,
+              flexShrink: 0,
+              marginLeft: 'auto',
+            }}
+          >
+            {onOpenGuides && (
+              <button
+                type="button"
+                disabled={areGuidesDisabled}
+                onClick={onOpenGuides}
+                style={{
+                  padding: '7px 11px',
+                  borderRadius: 7,
+                  border: '1px solid #38bdf8',
+                  background: 'rgba(56,189,248,0.12)',
+                  color: '#38bdf8',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: areGuidesDisabled ? 'not-allowed' : 'pointer',
+                  opacity: areGuidesDisabled ? 0.5 : 1,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                📷 Guide
+              </button>
+            )}
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                style={{
+                  padding: '7px 11px',
+                  borderRadius: 7,
+                  border: '1px solid #334155',
+                  background: '#1e293b',
+                  color: '#cbd5e1',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Esci
+              </button>
+            )}
+          </div>
         </div>
       )}
     </header>
