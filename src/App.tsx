@@ -451,6 +451,32 @@ async function createLandmarkerWithFallback(vision: any): Promise<PoseLandmarker
   }
 }
 
+async function loadPoseLandmarkerWithRetry(maxAttempts = 3): Promise<PoseLandmarker> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+      );
+      return await createLandmarkerWithFallback(vision);
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+      }
+    }
+  }
+  throw lastError;
+}
+
+function formatUploadErrorMessage(err: unknown): string {
+  const rawMessage = err instanceof Error ? err.message : String(err ?? '');
+  if (/failed to fetch|networkerror|load failed|fetch/i.test(rawMessage)) {
+    return 'Errore di rete (Failed to fetch) durante il caricamento del modello o del video. Verifica la connessione o che il video sia scaricato sul telefono, poi riprova.';
+  }
+  return `Errore caricamento modello: ${rawMessage || 'errore sconosciuto'}`;
+}
+
 function getPlanLabel(plan: PlanType): string {
   switch (plan) {
     case 'trial': return 'Trial 7 Giorni';
@@ -459,6 +485,38 @@ function getPlanLabel(plan: PlanType): string {
     case 'annual': return 'Annuale';
     default: return 'Nessun piano';
   }
+}
+
+function AppBrandHeader() {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        padding: '12px 16px',
+        background: '#0f172a',
+        borderBottom: '1px solid #334155',
+      }}
+    >
+      <img
+        src="/images/logo_icon.png"
+        alt="Second Opinion Logo"
+        style={{ width: 34, height: 34, objectFit: 'contain' }}
+      />
+      <span
+        style={{
+          fontSize: 18,
+          fontWeight: 900,
+          color: '#38bdf8',
+          letterSpacing: '-0.4px',
+        }}
+      >
+        Second Opinion
+      </span>
+    </div>
+  );
 }
 
 export function App() {
@@ -821,7 +879,7 @@ export function App() {
       });
   };
 
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isExerciseLocked) {
       alert('Questo esercizio è riservato agli abbonati. Passa a un piano completo per sbloccarlo!');
       return;
@@ -848,302 +906,301 @@ export function App() {
     setLastUploadedFile(file);
 
     setIsProcessing(true);
-    setStatus('Caricamento modello AI locale in corso...');
+    setStatus('Verifica file e caricamento modello AI in corso...');
     setStatusCode('processing');
 
-    FilesetResolver.forVisionTasks(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
-    )
-      .then((vision) => createLandmarkerWithFallback(vision))
-      .then((landmarker) => {
+    try {
+      await file.slice(0, 1).arrayBuffer();
+      if (analysisSessionIdRef.current !== currentSessionId) return;
+
+      const landmarker = await loadPoseLandmarkerWithRetry(3);
+      if (analysisSessionIdRef.current !== currentSessionId) {
+        try { landmarker.close(); } catch {}
+        return;
+      }
+
+      const video = videoRef.current!;
+      const canvas = canvasRef.current!;
+      const ctx = canvas.getContext('2d');
+
+      video.muted = true;
+      video.playsInline = true;
+      video.src = URL.createObjectURL(file);
+      video.load();
+
+      const MAX_WIDTH = 480;
+      const FRAME_SKIP = 3;
+      let frameCounter = 0;
+      let targetWidth = 640;
+      let targetHeight = 480;
+
+      let repPhase: 'START' | 'ACTIVE' = 'START';
+      let hasReachedInitialPosition = false;
+      let localReps = 0;
+      let angleHistory: number[] = [];
+      let powerHistory: number[] = [];
+      let transitionStreak = 0;
+      let hasStarted = false;
+
+      let currentRepMaxPower = 0;
+      let collectedRepPowers: number[] = [];
+
+      const effectiveMass = selectedExerciseObj.isDumbbell ? weightKg * 2 : weightKg;
+
+      const startProcessingWhenReady = () => {
         if (analysisSessionIdRef.current !== currentSessionId) {
           try { landmarker.close(); } catch {}
           return;
         }
+        if (hasStarted) return;
 
-        const video = videoRef.current!;
-        const canvas = canvasRef.current!;
-        const ctx = canvas.getContext('2d');
+        const originalWidth = video.videoWidth || 0;
+        const originalHeight = video.videoHeight || 0;
 
-        video.muted = true;
-        video.playsInline = true;
-        video.src = URL.createObjectURL(file);
-        video.load();
+        if (originalWidth === 0 || originalHeight === 0) {
+          setTimeout(startProcessingWhenReady, 100);
+          return;
+        }
 
-        const MAX_WIDTH = 480;
-        const FRAME_SKIP = 3;
-        let frameCounter = 0;
-        let targetWidth = 640;
-        let targetHeight = 480;
+        hasStarted = true;
 
-        let repPhase: 'START' | 'ACTIVE' = 'START';
-        let hasReachedInitialPosition = false;
-        let localReps = 0;
-        let angleHistory: number[] = [];
-        let powerHistory: number[] = [];
-        let transitionStreak = 0;
-        let hasStarted = false;
+        const scale = MAX_WIDTH / originalWidth;
+        targetWidth = MAX_WIDTH;
+        targetHeight = Math.round(originalHeight * scale);
 
-        let currentRepMaxPower = 0;
-        let collectedRepPowers: number[] = [];
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
 
-        const effectiveMass = selectedExerciseObj.isDumbbell ? weightKg * 2 : weightKg;
+        setStatus('Analisi biomeccanica, ROM e potenza in corso...');
+        setStatusCode('processing');
 
-        const startProcessingWhenReady = () => {
-          if (analysisSessionIdRef.current !== currentSessionId) {
-            try { landmarker.close(); } catch {}
-            return;
-          }
-          if (hasStarted) return;
+        video.play().then(() => {
+          let lastFrameTime = performance.now();
 
-          const originalWidth = video.videoWidth || 0;
-          const originalHeight = video.videoHeight || 0;
+          const processFrame = () => {
+            if (analysisSessionIdRef.current !== currentSessionId) {
+              try { landmarker.close(); } catch {}
+              return;
+            }
 
-          if (originalWidth === 0 || originalHeight === 0) {
-            setTimeout(startProcessingWhenReady, 100);
-            return;
-          }
+            const now = performance.now();
+            const deltaTime = (now - lastFrameTime) / 1000;
+            lastFrameTime = now;
 
-          hasStarted = true;
+            if (video.duration && !isNaN(video.duration)) {
+              const currentProgress = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
+              setProgressPercent(currentProgress);
+            }
 
-          const scale = MAX_WIDTH / originalWidth;
-          targetWidth = MAX_WIDTH;
-          targetHeight = Math.round(originalHeight * scale);
+            if (video.ended || video.paused) {
+              if (video.ended) {
+                setIsProcessing(false);
+                setProgressPercent(100);
+                setRomQuality(0);
+                setPowerScore(0);
+                setStatus('Analisi completata con successo');
+                setStatusCode('success');
 
-          canvas.width = targetWidth;
-          canvas.height = targetHeight;
+                const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
+                setAnalysisResult(geomResult);
+                setRepPeakPowers(collectedRepPowers);
+                lastGeomResultRef.current = geomResult;
 
-          setStatus('Analisi biomeccanica, ROM e potenza in corso...');
-          setStatusCode('processing');
+                triggerAiCoach(geomResult, currentSessionId);
 
-          video.play().then(() => {
-            let lastFrameTime = performance.now();
-
-            const processFrame = () => {
-              if (analysisSessionIdRef.current !== currentSessionId) {
                 try { landmarker.close(); } catch {}
-                return;
               }
+              return;
+            }
 
-              const now = performance.now();
-              const deltaTime = (now - lastFrameTime) / 1000;
-              lastFrameTime = now;
+            frameCounter++;
+            let currentLandmarks: any = null;
 
-              if (video.duration && !isNaN(video.duration)) {
-                const currentProgress = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
-                setProgressPercent(currentProgress);
-              }
+            if (frameCounter % FRAME_SKIP === 0) {
+              try {
+                const result = landmarker.detectForVideo(video, now);
+                if (result.landmarks && result.landmarks.length > 0) {
+                  currentLandmarks = result.landmarks[0];
+                  landmarksBufferRef.current.push(currentLandmarks);
 
-              if (video.ended || video.paused) {
-                if (video.ended) {
-                  setIsProcessing(false);
-                  setProgressPercent(100);
-                  setRomQuality(0);
-                  setPowerScore(0);
-                  setStatus('Analisi completata con successo');
-                  setStatusCode('success');
+                  const rawAngle = extractExerciseAngle(selectedExercise, currentLandmarks);
 
-                  const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
-                  setAnalysisResult(geomResult);
-                  setRepPeakPowers(collectedRepPowers);
-                  lastGeomResultRef.current = geomResult;
+                  if (rawAngle !== null) {
+                    angleHistory.push(rawAngle);
+                    if (angleHistory.length > 3) angleHistory.shift();
+                    const smoothAngle = Math.round(
+                      angleHistory.reduce((acc, v) => acc + v, 0) / angleHistory.length
+                    );
 
-                  triggerAiCoach(geomResult, currentSessionId);
+                    if (selectedExerciseObj.mode === 'abduction_up') {
+                      const REST_MAX = selectedExerciseObj.restMax ?? 55;
+                      const APEX_MIN = selectedExerciseObj.apexMin ?? 88;
 
-                  try { landmarker.close(); } catch {}
-                }
-                return;
-              }
+                      if (!hasReachedInitialPosition) {
+                        if (smoothAngle <= REST_MAX) {
+                          hasReachedInitialPosition = true;
+                        }
+                      } else if (repPhase === 'START') {
+                        if (smoothAngle >= APEX_MIN) {
+                          transitionStreak++;
+                          if (transitionStreak >= 1) {
+                            repPhase = 'ACTIVE';
+                            transitionStreak = 0;
+                            currentRepMaxPower = 0;
+                          }
+                        } else {
+                          transitionStreak = 0;
+                        }
+                      } else if (repPhase === 'ACTIVE') {
+                        if (smoothAngle <= REST_MAX) {
+                          transitionStreak++;
+                          if (transitionStreak >= 1) {
+                            repPhase = 'START';
+                            transitionStreak = 0;
+                            localReps++;
+                            setRepCount(localReps);
+                            collectedRepPowers.push(Math.round(currentRepMaxPower));
+                          }
+                        } else {
+                          transitionStreak = 0;
+                        }
+                      }
+                    } else {
+                      const TOP_MIN = selectedExerciseObj.topMin ?? 150;
+                      const BOTTOM_MAX = selectedExerciseObj.bottomMax ?? 100;
 
-              frameCounter++;
-              let currentLandmarks: any = null;
-
-              if (frameCounter % FRAME_SKIP === 0) {
-                try {
-                  const result = landmarker.detectForVideo(video, now);
-                  if (result.landmarks && result.landmarks.length > 0) {
-                    currentLandmarks = result.landmarks[0];
-                    landmarksBufferRef.current.push(currentLandmarks);
-
-                    const rawAngle = extractExerciseAngle(selectedExercise, currentLandmarks);
-
-                    if (rawAngle !== null) {
-                      angleHistory.push(rawAngle);
-                      if (angleHistory.length > 3) angleHistory.shift();
-                      const smoothAngle = Math.round(
-                        angleHistory.reduce((acc, v) => acc + v, 0) / angleHistory.length
-                      );
-
-                      if (selectedExerciseObj.mode === 'abduction_up') {
-                        const REST_MAX = selectedExerciseObj.restMax ?? 55;
-                        const APEX_MIN = selectedExerciseObj.apexMin ?? 88;
-
-                        if (!hasReachedInitialPosition) {
-                          if (smoothAngle <= REST_MAX) {
+                      if (!hasReachedInitialPosition) {
+                        if (smoothAngle >= TOP_MIN) {
+                          transitionStreak++;
+                          if (transitionStreak >= 1) {
                             hasReachedInitialPosition = true;
-                          }
-                        } else if (repPhase === 'START') {
-                          if (smoothAngle >= APEX_MIN) {
-                            transitionStreak++;
-                            if (transitionStreak >= 1) {
-                              repPhase = 'ACTIVE';
-                              transitionStreak = 0;
-                              currentRepMaxPower = 0;
-                            }
-                          } else {
                             transitionStreak = 0;
                           }
-                        } else if (repPhase === 'ACTIVE') {
-                          if (smoothAngle <= REST_MAX) {
-                            transitionStreak++;
-                            if (transitionStreak >= 1) {
-                              repPhase = 'START';
-                              transitionStreak = 0;
-                              localReps++;
-                              setRepCount(localReps);
-                              collectedRepPowers.push(Math.round(currentRepMaxPower));
-                            }
-                          } else {
-                            transitionStreak = 0;
-                          }
+                        } else {
+                          transitionStreak = 0;
                         }
-                      } else {
-                        const TOP_MIN = selectedExerciseObj.topMin ?? 150;
-                        const BOTTOM_MAX = selectedExerciseObj.bottomMax ?? 100;
-
-                        if (!hasReachedInitialPosition) {
-                          if (smoothAngle >= TOP_MIN) {
-                            transitionStreak++;
-                            if (transitionStreak >= 1) {
-                              hasReachedInitialPosition = true;
-                              transitionStreak = 0;
-                            }
-                          } else {
+                      } else if (repPhase === 'START') {
+                        if (smoothAngle <= BOTTOM_MAX) {
+                          transitionStreak++;
+                          if (transitionStreak >= 1) {
+                            repPhase = 'ACTIVE';
                             transitionStreak = 0;
+                            currentRepMaxPower = 0;
                           }
-                        } else if (repPhase === 'START') {
-                          if (smoothAngle <= BOTTOM_MAX) {
-                            transitionStreak++;
-                            if (transitionStreak >= 1) {
-                              repPhase = 'ACTIVE';
-                              transitionStreak = 0;
-                              currentRepMaxPower = 0;
-                            }
-                          } else {
+                        } else {
+                          transitionStreak = 0;
+                        }
+                      } else if (repPhase === 'ACTIVE') {
+                        if (smoothAngle >= TOP_MIN) {
+                          transitionStreak++;
+                          if (transitionStreak >= 1) {
+                            repPhase = 'START';
                             transitionStreak = 0;
+                            localReps++;
+                            setRepCount(localReps);
+                            collectedRepPowers.push(Math.round(currentRepMaxPower));
                           }
-                        } else if (repPhase === 'ACTIVE') {
-                          if (smoothAngle >= TOP_MIN) {
-                            transitionStreak++;
-                            if (transitionStreak >= 1) {
-                              repPhase = 'START';
-                              transitionStreak = 0;
-                              localReps++;
-                              setRepCount(localReps);
-                              collectedRepPowers.push(Math.round(currentRepMaxPower));
-                            }
-                          } else {
-                            transitionStreak = 0;
-                          }
+                        } else {
+                          transitionStreak = 0;
                         }
                       }
+                    }
 
-                      let rom = 0;
-                      if (selectedExercise === 'alzate_laterali') {
-                        rom = ((smoothAngle - 35) / (100 - 35)) * 100;
-                      } else if (selectedExercise === 'squat') {
-                        rom = ((155 - smoothAngle) / (155 - 65)) * 100;
-                      } else {
-                        const rMin = selectedExerciseObj.romMinAngle ?? 65;
-                        const rMax = selectedExerciseObj.romMaxAngle ?? 155;
-                        rom = ((rMax - smoothAngle) / (rMax - rMin)) * 100;
+                    let rom = 0;
+                    if (selectedExercise === 'alzate_laterali') {
+                      rom = ((smoothAngle - 35) / (100 - 35)) * 100;
+                    } else if (selectedExercise === 'squat') {
+                      rom = ((155 - smoothAngle) / (155 - 65)) * 100;
+                    } else {
+                      const rMin = selectedExerciseObj.romMinAngle ?? 65;
+                      const rMax = selectedExerciseObj.romMaxAngle ?? 155;
+                      rom = ((rMax - smoothAngle) / (rMax - rMin)) * 100;
+                    }
+                    rom = Math.max(0, Math.min(100, Math.round(rom)));
+                    setRomQuality(rom);
+
+                    let instantPower = 0;
+                    if (repPhase === 'ACTIVE') {
+                      const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
+                      const MOVEMENT_DEADZONE = 2.0;
+
+                      if (angleDelta >= MOVEMENT_DEADZONE) {
+                        const safeDt = Math.max(deltaTime, 0.012);
+                        const safeDeltaAngle = Math.min(angleDelta, 4.0);
+
+                        const velocityFactor = safeDeltaAngle / (safeDt * 10);
+                        instantPower = effectiveMass * velocityFactor * 1.2;
+                        instantPower = Math.min(instantPower, 850);
                       }
-                      rom = Math.max(0, Math.min(100, Math.round(rom)));
-                      setRomQuality(rom);
+                    }
 
-                      let instantPower = 0;
-                      if (repPhase === 'ACTIVE') {
-                        const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
-                        const MOVEMENT_DEADZONE = 2.0;
+                    powerHistory.push(instantPower);
+                    if (powerHistory.length > 8) powerHistory.shift();
 
-                        if (angleDelta >= MOVEMENT_DEADZONE) {
-                          const safeDt = Math.max(deltaTime, 0.012);
-                          const safeDeltaAngle = Math.min(angleDelta, 4.0);
+                    const smoothedPower = Math.round(
+                      powerHistory.reduce((acc, v) => acc + v, 0) / powerHistory.length
+                    );
 
-                          const velocityFactor = safeDeltaAngle / (safeDt * 10);
-                          instantPower = effectiveMass * velocityFactor * 1.2;
-                          instantPower = Math.min(instantPower, 850);
-                        }
-                      }
+                    setPowerScore(smoothedPower);
 
-                      powerHistory.push(instantPower);
-                      if (powerHistory.length > 8) powerHistory.shift();
-
-                      const smoothedPower = Math.round(
-                        powerHistory.reduce((acc, v) => acc + v, 0) / powerHistory.length
-                      );
-
-                      setPowerScore(smoothedPower);
-
-                      if (repPhase === 'ACTIVE' && smoothedPower > currentRepMaxPower) {
-                        currentRepMaxPower = smoothedPower;
-                      }
+                    if (repPhase === 'ACTIVE' && smoothedPower > currentRepMaxPower) {
+                      currentRepMaxPower = smoothedPower;
                     }
                   }
-                } catch (err) {}
-              }
-
-              if (ctx) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
-
-                if (currentLandmarks) {
-                  ctx.strokeStyle = '#00ffcc';
-                  ctx.lineWidth = 3;
-                  POSE_CONNECTIONS.forEach(([i, j]) => {
-                    const p1 = currentLandmarks[i];
-                    const p2 = currentLandmarks[j];
-                    if (p1 && p2 && p1.visibility && p1.visibility > 0.3 && p2.visibility && p2.visibility > 0.3) {
-                      ctx.beginPath();
-                      ctx.moveTo(p1.x * targetWidth, p1.y * targetHeight);
-                      ctx.lineTo(p2.x * targetWidth, p2.y * targetHeight);
-                      ctx.stroke();
-                    }
-                  });
-
-                  ctx.fillStyle = '#ff0055';
-                  currentLandmarks.forEach((lm: any) => {
-                    if (lm.visibility && lm.visibility > 0.3) {
-                      ctx.beginPath();
-                      ctx.arc(lm.x * targetWidth, lm.y * targetHeight, 4, 0, 2 * Math.PI);
-                      ctx.fill();
-                    }
-                  });
                 }
-              }
+              } catch (err) {}
+            }
 
-              requestAnimationFrame(processFrame);
-            };
+            if (ctx) {
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+
+              if (currentLandmarks) {
+                ctx.strokeStyle = '#00ffcc';
+                ctx.lineWidth = 3;
+                POSE_CONNECTIONS.forEach(([i, j]) => {
+                  const p1 = currentLandmarks[i];
+                  const p2 = currentLandmarks[j];
+                  if (p1 && p2 && p1.visibility && p1.visibility > 0.3 && p2.visibility && p2.visibility > 0.3) {
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x * targetWidth, p1.y * targetHeight);
+                    ctx.lineTo(p2.x * targetWidth, p2.y * targetHeight);
+                    ctx.stroke();
+                  }
+                });
+
+                ctx.fillStyle = '#ff0055';
+                currentLandmarks.forEach((lm: any) => {
+                  if (lm.visibility && lm.visibility > 0.3) {
+                    ctx.beginPath();
+                    ctx.arc(lm.x * targetWidth, lm.y * targetHeight, 4, 0, 2 * Math.PI);
+                    ctx.fill();
+                  }
+                });
+              }
+            }
 
             requestAnimationFrame(processFrame);
-          }).catch((playErr) => {
-            if (analysisSessionIdRef.current !== currentSessionId) return;
-            setIsProcessing(false);
-            setStatus(`Errore riproduzione video: ${playErr.message}`);
-            setStatusCode('error');
-          });
-        };
+          };
 
-        video.onloadedmetadata = startProcessingWhenReady;
-        video.oncanplay = startProcessingWhenReady;
-        setTimeout(startProcessingWhenReady, 500);
-      })
-      .catch((err) => {
-        if (analysisSessionIdRef.current !== currentSessionId) return;
-        setIsProcessing(false);
-        setStatus(`Errore caricamento modello: ${(err as Error).message}`);
-        setStatusCode('error');
-      });
+          requestAnimationFrame(processFrame);
+        }).catch((playErr) => {
+          if (analysisSessionIdRef.current !== currentSessionId) return;
+          setIsProcessing(false);
+          setStatus(`Errore riproduzione video: ${playErr.message}`);
+          setStatusCode('error');
+        });
+      };
+
+      video.onloadedmetadata = startProcessingWhenReady;
+      video.oncanplay = startProcessingWhenReady;
+      setTimeout(startProcessingWhenReady, 500);
+    } catch (err) {
+      if (analysisSessionIdRef.current !== currentSessionId) return;
+      setIsProcessing(false);
+      setStatus(formatUploadErrorMessage(err));
+      setStatusCode('error');
+    }
   };
 
   const getRomColor = (val: number) => {
@@ -1164,7 +1221,8 @@ export function App() {
   if (!authReady) {
     return (
       <>
-        <div style={{ minHeight: '100vh', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <AppBrandHeader />
+        <div style={{ minHeight: 'calc(100vh - 60px)', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           Caricamento...
         </div>
         {renderLegalOverlays()}
@@ -1175,6 +1233,7 @@ export function App() {
   if (!user) {
     return (
       <>
+        <AppBrandHeader />
         <AuthScreen />
         {renderLegalOverlays()}
       </>
@@ -1184,7 +1243,8 @@ export function App() {
   if (subLoading) {
     return (
       <>
-        <div style={{ minHeight: '100vh', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <AppBrandHeader />
+        <div style={{ minHeight: 'calc(100vh - 60px)', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           Verifica abbonamento in corso...
         </div>
         {renderLegalOverlays()}
@@ -1195,7 +1255,8 @@ export function App() {
   if (currentPlan === 'none' || isSubscriptionExpired) {
     return (
       <>
-        <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)', color: '#f8fafc', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        <AppBrandHeader />
+        <div style={{ minHeight: 'calc(100vh - 60px)', background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)', color: '#f8fafc', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
           <div style={{ maxWidth: 460, width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <span style={{ fontSize: 12, color: '#94a3b8' }}>{user.email}</span>
@@ -1280,6 +1341,7 @@ export function App() {
   if (isGuidesOpen) {
     return (
       <>
+        <AppBrandHeader />
         <CameraGuidesView
           initialExerciseId={guideInitialExercise}
           onSelectExercise={(exId) => {
@@ -1304,8 +1366,9 @@ export function App() {
 
   return (
     <>
+      <AppBrandHeader />
       <div style={{
-        minHeight: '100vh',
+        minHeight: 'calc(100vh - 60px)',
         background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)',
         color: '#f8fafc',
         paddingBottom: 40,
