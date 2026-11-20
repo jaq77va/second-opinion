@@ -1561,7 +1561,7 @@ export function App() {
         <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
 
           <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
-            1. Seleziona l'esercizio
+            1. Seleziona l&apos;esercizio
           </label>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: areExerciseAndWeightLocked ? 0.65 : 1 }}>
@@ -1880,6 +1880,8 @@ export function App() {
             </div>
           )}
 
+
+
           {analysisResult && (
             <>
               <div style={{ marginTop: 20, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
@@ -1928,63 +1930,76 @@ export function App() {
                 )}
               </div>
 
-              <div style={{ marginTop: 16, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span
-                      style={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: '50%',
-                        backgroundColor: getTrafficLightColor(aiStatusCode),
-                        boxShadow: `0 0 8px ${getTrafficLightColor(aiStatusCode)}`,
-                        display: 'inline-block',
-                        flexShrink: 0
-                      }}
-                    />
-                    <h4 style={{ margin: 0, color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>AI Coach</h4>
-                  </div>
-
-                  <span style={{ fontSize: 13, color: '#94a3b8' }}>{aiStatusMessage}</span>
-                </div>
-
-                {aiStatusCode === 'processing' && (
-                  <p style={{ fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Elaborazione feedback IA in corso...</p>
-                )}
-
-                {aiStatusCode === 'success' && (
-                  <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #f43f5e', border: '1px solid #334155' }}>
-                    <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: '#f8fafc' }}>{aiFeedback}</p>
-                  </div>
-                )}
-
-                {aiStatusCode === 'error' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #ef4444', border: '1px solid #334155' }}>
-                      <p style={{ margin: 0, fontSize: 14, color: '#f43f5e' }}>{aiFeedback}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => lastGeomResultRef.current && triggerAiCoach(lastGeomResultRef.current, analysisSessionIdRef.current)}
-                      style={{
-                        padding: '10px 16px',
-                        background: '#ef4444',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 8,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        alignSelf: 'flex-start',
-                        boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.3)',
-                      }}
-                    >
-                      🔄 Riprova IA
-                    </button>
-                  </div>
-                )}
-              </div>
             </>
           )}
+
+          <div style={{ marginTop: 16, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    backgroundColor: getTrafficLightColor(aiStatusCode),
+                    boxShadow: `0 0 8px ${getTrafficLightColor(aiStatusCode)}`,
+                    display: 'inline-block',
+                    flexShrink: 0
+                  }}
+                />
+                <h4 style={{ margin: 0, color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>AI Coach</h4>
+              </div>
+
+              <span style={{ fontSize: 13, color: '#94a3b8' }}>
+                {aiStatusCode === 'idle' && isProcessing
+                  ? 'In attesa del completamento analisi video...'
+                  : aiStatusMessage}
+              </span>
+            </div>
+
+            {aiStatusCode === 'idle' && (
+              <p style={{ margin: 0, fontSize: 13, color: '#94a3b8' }}>
+                {isProcessing
+                  ? 'Analisi video in corso: il feedback AI Coach partirà al termine dell’analisi.'
+                  : 'Avvia l’analisi di un video per ricevere il feedback dell’AI Coach.'}
+              </p>
+            )}
+
+            {aiStatusCode === 'processing' && (
+              <p style={{ margin: 0, fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Elaborazione feedback IA in corso...</p>
+            )}
+
+            {aiStatusCode === 'success' && (
+              <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #f43f5e', border: '1px solid #334155' }}>
+                <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: '#f8fafc' }}>{aiFeedback}</p>
+              </div>
+            )}
+
+            {aiStatusCode === 'error' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #ef4444', border: '1px solid #334155' }}>
+                  <p style={{ margin: 0, fontSize: 14, color: '#f43f5e' }}>{aiFeedback}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => lastGeomResultRef.current && triggerAiCoach(lastGeomResultRef.current, analysisSessionIdRef.current)}
+                  style={{
+                    padding: '10px 16px',
+                    background: '#ef4444',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    alignSelf: 'flex-start',
+                    boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.3)',
+                  }}
+                >
+                  🔄 Riprova IA
+                </button>
+              </div>
+            )}
+          </div>
 
           <div style={{ marginTop: 18 }}>
             <button
@@ -2078,7 +2093,7 @@ export function App() {
               onClick={() => setLegalTab('terms')}
               style={{ background: 'none', border: 'none', padding: 0, color: '#94a3b8', textDecoration: 'underline', fontSize: 12, cursor: 'pointer' }}
             >
-              Termini d'Uso
+              Termini d&apos;Uso
             </button>
             <span>•</span>
             <button
