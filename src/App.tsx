@@ -1077,13 +1077,31 @@ export function App() {
     setStatus('Verifica file e caricamento modello AI in corso...');
     setStatusCode('processing');
 
+    let localVideoUrl: string | null = null;
+
     try {
-      await file.slice(0, 1).arrayBuffer();
-      if (analysisSessionIdRef.current !== currentSessionId) return;
+      let localVideoBlob: Blob;
+      try {
+        const fileBuffer = await file.arrayBuffer();
+        if (analysisSessionIdRef.current !== currentSessionId) return;
+        localVideoBlob = new Blob([fileBuffer], { type: file.type || 'video/mp4' });
+      } catch (readErr) {
+        if (analysisSessionIdRef.current !== currentSessionId) return;
+        const readMsg = readErr instanceof Error ? readErr.message : String(readErr ?? '');
+        setIsProcessing(false);
+        setStatus(
+          `Impossibile leggere il file video in locale (${readMsg || 'accesso negato o riferimento scaduto'}). Se il video è su cloud o galleria remota, salvalo o scaricalo sul dispositivo e riprova.`
+        );
+        setStatusCode('error');
+        return;
+      }
+
+      localVideoUrl = URL.createObjectURL(localVideoBlob);
 
       const landmarker = await loadPoseLandmarkerWithRetry(3);
       if (analysisSessionIdRef.current !== currentSessionId) {
         try { landmarker.close(); } catch {}
+        if (localVideoUrl) URL.revokeObjectURL(localVideoUrl);
         return;
       }
 
@@ -1093,7 +1111,7 @@ export function App() {
 
       video.muted = true;
       video.playsInline = true;
-      video.src = URL.createObjectURL(file);
+      video.src = localVideoUrl;
       video.load();
 
       const MAX_WIDTH = 480;
@@ -1364,6 +1382,9 @@ export function App() {
       video.oncanplay = startProcessingWhenReady;
       setTimeout(startProcessingWhenReady, 500);
     } catch (err) {
+      if (localVideoUrl && videoRef.current?.src !== localVideoUrl) {
+        URL.revokeObjectURL(localVideoUrl);
+      }
       if (analysisSessionIdRef.current !== currentSessionId) return;
       setIsProcessing(false);
       setStatus(formatUploadErrorMessage(err));
@@ -1561,7 +1582,7 @@ export function App() {
         <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
 
           <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
-            1. Seleziona l&apos;esercizio
+            1. Seleziona l'esercizio
           </label>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: areExerciseAndWeightLocked ? 0.65 : 1 }}>
@@ -2093,7 +2114,7 @@ export function App() {
               onClick={() => setLegalTab('terms')}
               style={{ background: 'none', border: 'none', padding: 0, color: '#94a3b8', textDecoration: 'underline', fontSize: 12, cursor: 'pointer' }}
             >
-              Termini d&apos;Uso
+              Termini d'Uso
             </button>
             <span>•</span>
             <button
