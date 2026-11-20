@@ -509,10 +509,9 @@ function AppBrandHeader({
   return (
     <header
       style={{
-        display: 'flex',
-        flexWrap: 'wrap',
+        display: 'grid',
+        gridTemplateColumns: showPlanInfo ? '1fr auto 1fr' : '1fr',
         alignItems: 'center',
-        justifyContent: showPlanInfo ? 'space-between' : 'center',
         gap: '12px 20px',
         padding: '12px 20px',
         background: '#0f172a',
@@ -520,45 +519,44 @@ function AppBrandHeader({
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
-      {/* Sinistra: Logo + Second Opinion + Sottotitolo */}
+      {/* Colonna sinistra vuota su schermi larghi per centrare perfettamente il brand */}
+      {showPlanInfo && <div style={{ minWidth: 0 }} />}
+
+      {/* Centro: Logo ingrandito + Sottotitolo centrati nell'header */}
       <div
         style={{
           display: 'flex',
           flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: showPlanInfo ? 'flex-start' : 'center',
-          gap: '10px 24px',
+          alignItems: 'flex-end',
+          justifyContent: 'center',
+          gap: '8px 18px',
+          textAlign: 'center',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img
-            src="/images/logo_icon.png"
-            alt="Second Opinion Logo"
-            style={{ width: 44, height: 44, objectFit: 'contain' }}
-          />
-          <span
-            style={{
-              fontSize: 23,
-              fontWeight: 900,
-              color: '#38bdf8',
-              letterSpacing: '-0.5px',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Second Opinion
-          </span>
-        </div>
+        <img
+          src="/images/logo_icon.png"
+          alt="Second Opinion"
+          style={{
+            width: 82,
+            height: 82,
+            objectFit: 'contain',
+            display: 'block',
+            flexShrink: 0,
+          }}
+        />
 
         <span
           style={{
-            fontSize: 12,
+            fontSize: 13,
             color: '#94a3b8',
             fontWeight: 600,
-            letterSpacing: '0.4px',
+            letterSpacing: '0.6px',
             textTransform: 'uppercase',
+            paddingBottom: 12,
+            lineHeight: 1.2,
           }}
         >
-          Analisi Biomeccanica Intelligente
+          ANALISI BIOMECCANICA INTELLIGENTE
         </span>
       </div>
 
@@ -569,8 +567,8 @@ function AppBrandHeader({
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'flex-end',
+            justifySelf: 'end',
             gap: 4,
-            marginLeft: 'auto',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -1411,7 +1409,7 @@ export function App() {
     return (
       <>
         <AppBrandHeader />
-        <div style={{ minHeight: 'calc(100vh - 60px)', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ minHeight: 'calc(100vh - 107px)', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           Caricamento...
         </div>
         {renderLegalOverlays()}
@@ -1433,7 +1431,7 @@ export function App() {
     return (
       <>
         <AppBrandHeader />
-        <div style={{ minHeight: 'calc(100vh - 60px)', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ minHeight: 'calc(100vh - 107px)', background: '#090d16', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           Verifica abbonamento in corso...
         </div>
         {renderLegalOverlays()}
@@ -1445,7 +1443,7 @@ export function App() {
     return (
       <>
         <AppBrandHeader />
-        <div style={{ minHeight: 'calc(100vh - 60px)', background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)', color: '#f8fafc', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        <div style={{ minHeight: 'calc(100vh - 107px)', background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)', color: '#f8fafc', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
           <div style={{ maxWidth: 460, width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <span style={{ fontSize: 12, color: '#94a3b8' }}>{user.email}</span>
@@ -1574,7 +1572,7 @@ export function App() {
         onLogout={handleLogout}
       />
       <div style={{
-        minHeight: 'calc(100vh - 68px)',
+        minHeight: 'calc(100vh - 107px)',
         background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)',
         color: '#f8fafc',
         paddingBottom: 40,
@@ -1901,8 +1899,6 @@ export function App() {
             </div>
           )}
 
-
-
           {analysisResult && (
             <>
               <div style={{ marginTop: 20, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
@@ -1950,7 +1946,6 @@ export function App() {
                   </div>
                 )}
               </div>
-
             </>
           )}
 
