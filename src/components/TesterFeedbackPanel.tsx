@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
 export const TESTER_ISSUE_CATEGORIES = [
@@ -52,6 +52,8 @@ interface TesterFeedbackPanelProps {
   userId: string;
   sessionContext: TesterSessionContext;
   defaultVideoFile?: File | null;
+  attachVideoByDefault?: boolean;
+  initialExpanded?: boolean;
 }
 
 const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
@@ -60,16 +62,34 @@ export function TesterFeedbackPanel({
   userId,
   sessionContext,
   defaultVideoFile,
+  attachVideoByDefault,
+  initialExpanded = false,
 }: TesterFeedbackPanelProps) {
-  const [isOpen, setIsOpen] = useState<boolean>(true);
+  const [isOpen, setIsOpen] = useState<boolean>(initialExpanded);
   const [issueCategory, setIssueCategory] = useState<string>(TESTER_ISSUE_CATEGORIES[0].value);
   const [description, setDescription] = useState<string>('');
   const [customVideoFile, setCustomVideoFile] = useState<File | null>(null);
+  const [attachVideo, setAttachVideo] = useState<boolean>(
+    attachVideoByDefault ?? Boolean(defaultVideoFile)
+  );
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const selectedFile = customVideoFile ?? defaultVideoFile ?? null;
+
+  useEffect(() => {
+    setIsOpen(initialExpanded);
+  }, [initialExpanded]);
+
+  useEffect(() => {
+    setCustomVideoFile(null);
+    setAttachVideo(attachVideoByDefault ?? Boolean(defaultVideoFile));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [defaultVideoFile, attachVideoByDefault]);
 
   const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const chosenFile = e.target.files?.[0] ?? null;
@@ -89,6 +109,13 @@ export function TesterFeedbackPanel({
     }
 
     setCustomVideoFile(chosenFile);
+    setAttachVideo(true);
+  };
+
+  const handleAttachToggle = (checked: boolean) => {
+    setSubmitError(null);
+    setSubmitSuccess(null);
+    setAttachVideo(checked);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,19 +126,20 @@ export function TesterFeedbackPanel({
 
     try {
       let uploadedVideoPath: string | null = null;
+      const fileToSend = attachVideo ? selectedFile : null;
 
-      if (selectedFile) {
-        if (selectedFile.size > MAX_VIDEO_SIZE_BYTES) {
+      if (fileToSend) {
+        if (fileToSend.size > MAX_VIDEO_SIZE_BYTES) {
           throw new Error('Il file video supera il limite massimo di 50 MB.');
         }
 
-        const safeExt = selectedFile.name.split('.').pop()?.toLowerCase() || 'mp4';
+        const safeExt = fileToSend.name.split('.').pop()?.toLowerCase() || 'mp4';
         const filePath = `${userId}/${Date.now()}_${sessionContext.exerciseId}.${safeExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from('tester-feedback-videos')
-          .upload(filePath, selectedFile, {
-            contentType: selectedFile.type || 'video/mp4',
+          .upload(filePath, fileToSend, {
+            contentType: fileToSend.type || 'video/mp4',
             upsert: false,
           });
 
@@ -152,6 +180,9 @@ export function TesterFeedbackPanel({
       setSubmitSuccess('Feedback inviato con successo! Grazie per il supporto al test.');
       setDescription('');
       setCustomVideoFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch (err: any) {
       setSubmitError(err?.message || 'Impossibile inviare il feedback.');
     } finally {
@@ -307,31 +338,88 @@ export function TesterFeedbackPanel({
               border: '1px solid #334155',
               display: 'flex',
               flexDirection: 'column',
-              gap: 6,
+              gap: 8,
               fontSize: 12,
               color: '#94a3b8',
             }}
           >
-            <strong style={{ fontSize: 13, color: '#e2e8f0' }}>
-              Allega anche il video analizzato (facoltativo, max 50 MB)
-            </strong>
-
-            {selectedFile ? (
-              <div>
-                File selezionato: <strong style={{ color: '#38bdf8' }}>{selectedFile.name}</strong> (
-                {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB)
-              </div>
-            ) : (
-              <div>Nessun video allegato (puoi inviare anche un altro file fino a 50 MB).</div>
-            )}
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                userSelect: 'none',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={attachVideo}
+                disabled={submitting}
+                onChange={(e) => handleAttachToggle(e.target.checked)}
+                style={{ width: 15, height: 15, accentColor: '#a855f7', cursor: submitting ? 'not-allowed' : 'pointer' }}
+              />
+              <strong style={{ fontSize: 13, color: '#e2e8f0' }}>
+                Allega anche video analizzato (facoltativo, max 50 MB)
+              </strong>
+            </label>
 
             <input
+              ref={fileInputRef}
               type="file"
               accept="video/*"
               disabled={submitting}
               onChange={handleVideoFileChange}
-              style={{ fontSize: 12, color: '#cbd5e1' }}
+              style={{ display: 'none' }}
             />
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                flexWrap: 'wrap',
+                padding: '8px 10px',
+                borderRadius: 6,
+                background: '#1e293b',
+                border: '1px solid #334155',
+              }}
+            >
+              <div style={{ fontSize: 12, color: '#cbd5e1' }}>
+                {selectedFile ? (
+                  <span>
+                    File pronto: <strong style={{ color: '#38bdf8' }}>{selectedFile.name}</strong> (
+                    {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB)
+                    {!attachVideo && (
+                      <span style={{ color: '#f59e0b', marginLeft: 6 }}>(non verrà allegato)</span>
+                    )}
+                  </span>
+                ) : (
+                  <span style={{ color: '#94a3b8' }}>Nessun file video selezionato</span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #38bdf8',
+                  background: 'rgba(56, 189, 248, 0.12)',
+                  color: '#38bdf8',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                {selectedFile ? 'Cambia file' : 'Seleziona file'}
+              </button>
+            </div>
+
             <span>
               Il video verrà usato esclusivamente per calibrare gli algoritmi di analisi durante il periodo di test.
             </span>

@@ -1,233 +1,256 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { LegalDocsModal, type LegalDocTab } from './LegalDocsModal';
 
-interface AuthScreenProps {
-  onAuthSuccess?: () => void;
-}
+export const AuthScreen: React.FC = () => {
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
-export function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authMessage, setAuthMessage] = useState<string | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [legalTab, setLegalTab] = useState<LegalDocTab | null>(null);
-
-  const handleAuthSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAuthLoading(true);
-    setAuthError(null);
-    setAuthMessage(null);
+    setLoading(true);
+    setErrorMessage(null);
+    setInfoMessage(null);
 
     try {
-      if (authMode === 'signup') {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+      if (mode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
         if (error) throw error;
-
-        if (data.session) {
-          onAuthSuccess?.();
-        } else {
-          setAuthMessage(
-            'Registrazione inviata! Controlla la tua email per confermare l’account, poi accedi.'
-          );
-        }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
         if (error) throw error;
-        onAuthSuccess?.();
+        setInfoMessage('Registrazione completata! Controlla la tua email per confermare l’account.');
       }
     } catch (err: any) {
-      setAuthError(err?.message || 'Errore durante l’autenticazione.');
+      setErrorMessage(err?.message || 'Si è verificato un errore durante l’autenticazione.');
     } finally {
-      setAuthLoading(false);
+      setLoading(false);
     }
   };
 
   return (
     <div
       style={{
-        minHeight: '100vh',
+        minHeight: 'calc(100vh - 68px)',
         background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)',
         color: '#f8fafc',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: 20,
+        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
       <div
         style={{
-          maxWidth: 400,
           width: '100%',
+          maxWidth: 400,
           background: '#1e293b',
-          padding: 24,
-          borderRadius: 16,
           border: '1px solid #334155',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+          borderRadius: 14,
+          padding: 24,
+          boxShadow: '0 12px 24px -6px rgba(0, 0, 0, 0.45)',
         }}
       >
-        <h2 style={{ textAlign: 'center', color: '#38bdf8', marginBottom: 6, fontSize: 24 }}>
-          Second Opinion
-        </h2>
-        <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginBottom: 20 }}>
-          {authMode === 'signup' ? 'Crea il tuo account per iniziare' : 'Accedi al tuo account'}
-        </p>
-
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           <button
             type="button"
             onClick={() => {
-              setAuthMode('signup');
-              setAuthError(null);
-              setAuthMessage(null);
+              setMode('login');
+              setErrorMessage(null);
+              setInfoMessage(null);
             }}
             style={{
               flex: 1,
-              padding: 8,
+              padding: '9px 12px',
               borderRadius: 8,
-              border: '1px solid #334155',
-              background: authMode === 'signup' ? '#38bdf8' : '#0f172a',
-              color: authMode === 'signup' ? '#0f172a' : '#cbd5e1',
+              border: mode === 'login' ? '1px solid #38bdf8' : '1px solid #334155',
+              background: mode === 'login' ? 'rgba(56, 189, 248, 0.16)' : '#0f172a',
+              color: mode === 'login' ? '#38bdf8' : '#94a3b8',
               fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            Registrati
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAuthMode('login');
-              setAuthError(null);
-              setAuthMessage(null);
-            }}
-            style={{
-              flex: 1,
-              padding: 8,
-              borderRadius: 8,
-              border: '1px solid #334155',
-              background: authMode === 'login' ? '#38bdf8' : '#0f172a',
-              color: authMode === 'login' ? '#0f172a' : '#cbd5e1',
-              fontWeight: 700,
+              fontSize: 13,
               cursor: 'pointer',
             }}
           >
             Accedi
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode('signup');
+              setErrorMessage(null);
+              setInfoMessage(null);
+            }}
+            style={{
+              flex: 1,
+              padding: '9px 12px',
+              borderRadius: 8,
+              border: mode === 'signup' ? '1px solid #38bdf8' : '1px solid #334155',
+              background: mode === 'signup' ? 'rgba(56, 189, 248, 0.16)' : '#0f172a',
+              color: mode === 'signup' ? '#38bdf8' : '#94a3b8',
+              fontWeight: 700,
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            Registrati
+          </button>
         </div>
 
-        <form onSubmit={handleAuthSubmit}>
-          <input
-            type="email"
-            required
-            placeholder="La tua email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{
-              width: '100%',
-              padding: 12,
-              marginBottom: 12,
-              borderRadius: 8,
-              background: '#0f172a',
-              border: '1px solid #334155',
-              color: '#fff',
-              boxSizing: 'border-box',
-            }}
-          />
-          <input
-            type="password"
-            required
-            minLength={6}
-            placeholder="Password (min. 6 caratteri)"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{
-              width: '100%',
-              padding: 12,
-              marginBottom: 14,
-              borderRadius: 8,
-              background: '#0f172a',
-              border: '1px solid #334155',
-              color: '#fff',
-              boxSizing: 'border-box',
-            }}
-          />
+        <h2 style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#f8fafc' }}>
+          {mode === 'login' ? 'Accedi al tuo account' : 'Crea un account'}
+        </h2>
+        <p style={{ margin: '0 0 18px 0', fontSize: 13, color: '#94a3b8' }}>
+          {mode === 'login'
+            ? 'Inserisci email e password per accedere.'
+            : 'Registrati con email e password per iniziare.'}
+        </p>
 
-          {authError && (
-            <p style={{ color: '#f43f5e', fontSize: 13, marginTop: 0, marginBottom: 12 }}>
-              {authError}
-            </p>
-          )}
-          {authMessage && (
-            <p style={{ color: '#22c55e', fontSize: 13, marginTop: 0, marginBottom: 12 }}>
-              {authMessage}
-            </p>
-          )}
+        {errorMessage && (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: 12,
+              borderRadius: 8,
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid #ef4444',
+              color: '#fca5a5',
+              fontSize: 13,
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
+
+        {infoMessage && (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: 12,
+              borderRadius: 8,
+              background: 'rgba(34, 197, 94, 0.12)',
+              border: '1px solid #22c55e',
+              color: '#86efac',
+              fontSize: 13,
+            }}
+          >
+            {infoMessage}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label
+              htmlFor="auth-email"
+              style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}
+            >
+              Email
+            </label>
+            <input
+              id="auth-email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="nome@esempio.it"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1px solid #334155',
+                background: '#0f172a',
+                color: '#f8fafc',
+                fontSize: 14,
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="auth-password"
+              style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}
+            >
+              Password
+            </label>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input
+                id="auth-password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '10px 42px 10px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #334155',
+                  background: '#0f172a',
+                  color: '#f8fafc',
+                  fontSize: 14,
+                  outline: 'none',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Nascondi password' : 'Mostra password'}
+                title={showPassword ? 'Nascondi password' : 'Mostra password'}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: 4,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 16,
+                }}
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
+          </div>
 
           <button
             type="submit"
-            disabled={authLoading}
+            disabled={loading}
             style={{
+              marginTop: 6,
               width: '100%',
-              padding: 12,
+              padding: '11px 14px',
+              borderRadius: 8,
+              border: 'none',
               background: '#38bdf8',
               color: '#0f172a',
+              fontSize: 14,
               fontWeight: 800,
-              border: 'none',
-              borderRadius: 8,
-              cursor: authLoading ? 'not-allowed' : 'pointer',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1,
             }}
           >
-            {authLoading ? 'Attendere...' : authMode === 'signup' ? 'Crea account' : 'Entra'}
+            {loading ? 'Attendere...' : mode === 'login' ? 'Accedi' : 'Registrati'}
           </button>
         </form>
-
-        <p style={{ marginTop: 14, marginBottom: 0, fontSize: 11, lineHeight: 1.5, color: '#94a3b8', textAlign: 'center' }}>
-          Proseguendo prendi visione della{' '}
-          <button
-            type="button"
-            onClick={() => setLegalTab('privacy')}
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              color: '#38bdf8',
-              textDecoration: 'underline',
-              fontSize: 11,
-              cursor: 'pointer',
-            }}
-          >
-            Privacy Policy
-          </button>{' '}
-          e accetti i{' '}
-          <button
-            type="button"
-            onClick={() => setLegalTab('terms')}
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              color: '#38bdf8',
-              textDecoration: 'underline',
-              fontSize: 11,
-              cursor: 'pointer',
-            }}
-          >
-            Termini d'Uso
-          </button>
-          .
-        </p>
       </div>
-
-      {legalTab && (
-        <LegalDocsModal
-          activeTab={legalTab}
-          onChangeTab={setLegalTab}
-          onClose={() => setLegalTab(null)}
-        />
-      )}
     </div>
   );
-}
+};
+
+export default AuthScreen;
