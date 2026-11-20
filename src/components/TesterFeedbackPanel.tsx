@@ -54,6 +54,7 @@ interface TesterFeedbackPanelProps {
   defaultVideoFile?: File | null;
   attachVideoByDefault?: boolean;
   initialExpanded?: boolean;
+  disabled?: boolean;
 }
 
 const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
@@ -64,8 +65,9 @@ export function TesterFeedbackPanel({
   defaultVideoFile,
   attachVideoByDefault,
   initialExpanded = false,
+  disabled = false,
 }: TesterFeedbackPanelProps) {
-  const [isOpen, setIsOpen] = useState<boolean>(initialExpanded);
+  const [isOpen, setIsOpen] = useState<boolean>(false);
   const [issueCategory, setIssueCategory] = useState<string>(TESTER_ISSUE_CATEGORIES[0].value);
   const [description, setDescription] = useState<string>('');
   const [customVideoFile, setCustomVideoFile] = useState<File | null>(null);
@@ -80,8 +82,14 @@ export function TesterFeedbackPanel({
   const selectedFile = customVideoFile ?? defaultVideoFile ?? null;
 
   useEffect(() => {
-    setIsOpen(initialExpanded);
+    setIsOpen(false);
   }, [initialExpanded]);
+
+  useEffect(() => {
+    if (disabled) {
+      setIsOpen(false);
+    }
+  }, [disabled]);
 
   useEffect(() => {
     setCustomVideoFile(null);
@@ -120,6 +128,7 @@ export function TesterFeedbackPanel({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (disabled) return;
     setSubmitting(true);
     setSubmitError(null);
     setSubmitSuccess(null);
@@ -195,49 +204,43 @@ export function TesterFeedbackPanel({
       style={{
         marginTop: 18,
         background: '#1e293b',
-        border: '1px solid #a855f7',
+        border: disabled ? '1px solid #475569' : '1px solid #a855f7',
         borderRadius: 12,
         overflow: 'hidden',
         boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.35)',
+        opacity: disabled ? 0.55 : 1,
       }}
     >
-      <div
-        onClick={() => setIsOpen(!isOpen)}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => {
+          if (!disabled) {
+            setIsOpen((prev) => !prev);
+          }
+        }}
         style={{
+          width: '100%',
           padding: '14px 16px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          cursor: 'pointer',
-          background: 'rgba(168, 85, 247, 0.12)',
+          border: 'none',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          background: disabled ? 'rgba(71, 85, 105, 0.16)' : 'rgba(168, 85, 247, 0.12)',
           userSelect: 'none',
+          textAlign: 'left',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              padding: '3px 7px',
-              borderRadius: 5,
-              background: '#a855f7',
-              color: '#fff',
-            }}
-          >
-            Tester
-          </span>
-          <strong style={{ fontSize: 14, color: '#f8fafc' }}>
-            Segnala problematica analisi
-          </strong>
-        </div>
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#d8b4fe' }}>
-          {isOpen ? '▲ Chiudi' : '▼ Apri form'}
+        <strong style={{ fontSize: 14, color: disabled ? '#94a3b8' : '#f8fafc' }}>
+          Segnala problematica analisi
+        </strong>
+        <span style={{ fontSize: 12, fontWeight: 700, color: disabled ? '#64748b' : '#d8b4fe' }}>
+          {disabled ? 'In attesa IA' : isOpen ? '▲ Chiudi' : '▼ Apri form'}
         </span>
-      </div>
+      </button>
 
-      {isOpen && (
+      {!disabled && isOpen && (
         <form
           onSubmit={handleSubmit}
           style={{

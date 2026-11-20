@@ -1880,21 +1880,6 @@ export function App() {
             </div>
           )}
 
-          <div style={{ position: 'relative', marginTop: 16, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-            <video
-              ref={videoRef}
-              controls={statusCode === 'success'}
-              style={{ display: statusCode === 'success' ? 'block' : 'none', width: '100%', height: 'auto' }}
-              muted={statusCode !== 'success'}
-              playsInline
-              preload="auto"
-            />
-            <canvas
-              ref={canvasRef}
-              style={{ display: statusCode === 'success' ? 'none' : 'block', width: '100%', height: 'auto' }}
-            />
-          </div>
-
           {analysisResult && (
             <>
               <div style={{ marginTop: 20, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
@@ -2023,31 +2008,48 @@ export function App() {
             </button>
           </div>
 
-          {isTester &&
-            !isProcessing &&
-            statusCode === 'success' &&
-            Boolean(analysisResult) &&
-            aiStatusCode === 'success' &&
-            Boolean(aiFeedback.trim()) && (
-              <TesterFeedbackPanel
-                key={`${analysisSessionIdRef.current}-${aiStatusCode}`}
-                userId={user.id}
-                defaultVideoFile={lastUploadedFile}
-                attachVideoByDefault={Boolean(lastUploadedFile)}
-                initialExpanded={false}
-                sessionContext={{
-                  exerciseId: selectedExercise,
-                  exerciseLabel: selectedExerciseObj.label,
-                  weightKg,
-                  repCount,
-                  romQuality,
-                  powerScore,
-                  minAngle: analysisResult?.minAngle,
-                  maxAngle: analysisResult?.maxAngle,
-                  trendSummary: analysisResult?.trendSummary,
-                }}
-              />
-            )}
+          {isTester && (
+            <TesterFeedbackPanel
+              key={`${analysisSessionIdRef.current}-${aiStatusCode}`}
+              userId={user.id}
+              defaultVideoFile={lastUploadedFile}
+              attachVideoByDefault={Boolean(lastUploadedFile)}
+              initialExpanded={false}
+              disabled={
+                isProcessing ||
+                statusCode !== 'success' ||
+                !analysisResult ||
+                aiStatusCode !== 'success' ||
+                !aiFeedback.trim()
+              }
+              sessionContext={{
+                exerciseId: selectedExercise,
+                exerciseLabel: selectedExerciseObj.label,
+                weightKg,
+                repCount,
+                romQuality,
+                powerScore,
+                minAngle: analysisResult?.minAngle,
+                maxAngle: analysisResult?.maxAngle,
+                trendSummary: analysisResult?.trendSummary,
+              }}
+            />
+          )}
+
+          <div style={{ position: 'relative', marginTop: 18, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+            <video
+              ref={videoRef}
+              controls={statusCode === 'success'}
+              style={{ display: statusCode === 'success' ? 'block' : 'none', width: '100%', height: 'auto' }}
+              muted={statusCode !== 'success'}
+              playsInline
+              preload="auto"
+            />
+            <canvas
+              ref={canvasRef}
+              style={{ display: statusCode === 'success' ? 'none' : 'block', width: '100%', height: 'auto' }}
+            />
+          </div>
 
           <footer
             style={{
