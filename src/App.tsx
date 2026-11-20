@@ -487,35 +487,168 @@ function getPlanLabel(plan: PlanType): string {
   }
 }
 
-function AppBrandHeader() {
+interface AppBrandHeaderProps {
+  showPlanInfo?: boolean;
+  currentPlan?: PlanType;
+  daysRemaining?: number;
+  userDisplayName?: string;
+  areGuidesDisabled?: boolean;
+  onOpenGuides?: () => void;
+  onLogout?: () => void;
+}
+
+function AppBrandHeader({
+  showPlanInfo = false,
+  currentPlan = 'none',
+  daysRemaining = 0,
+  userDisplayName,
+  areGuidesDisabled = false,
+  onOpenGuides,
+  onLogout,
+}: AppBrandHeaderProps) {
   return (
-    <div
+    <header
       style={{
         display: 'flex',
+        flexWrap: 'wrap',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: 12,
-        padding: '14px 18px',
+        justifyContent: showPlanInfo ? 'space-between' : 'center',
+        gap: '12px 20px',
+        padding: '12px 20px',
         background: '#0f172a',
         borderBottom: '1px solid #334155',
+        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
-      <img
-        src="/images/logo_icon.png"
-        alt="Second Opinion Logo"
-        style={{ width: 44, height: 44, objectFit: 'contain' }}
-      />
-      <span
+      {/* Sinistra: Logo + Second Opinion + Sottotitolo */}
+      <div
         style={{
-          fontSize: 23,
-          fontWeight: 900,
-          color: '#38bdf8',
-          letterSpacing: '-0.5px',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: showPlanInfo ? 'flex-start' : 'center',
+          gap: '10px 24px',
         }}
       >
-        Second Opinion
-      </span>
-    </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <img
+            src="/images/logo_icon.png"
+            alt="Second Opinion Logo"
+            style={{ width: 44, height: 44, objectFit: 'contain' }}
+          />
+          <span
+            style={{
+              fontSize: 23,
+              fontWeight: 900,
+              color: '#38bdf8',
+              letterSpacing: '-0.5px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Second Opinion
+          </span>
+        </div>
+
+        <span
+          style={{
+            fontSize: 12,
+            color: '#94a3b8',
+            fontWeight: 600,
+            letterSpacing: '0.4px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Analisi Biomeccanica Intelligente
+        </span>
+      </div>
+
+      {/* Destra: Piano attivo, Scadenza, Guide, Esci + Username sotto */}
+      {showPlanInfo && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: 4,
+            marginLeft: 'auto',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <div>
+              <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>
+                Piano attivo
+              </span>
+              <strong style={{ fontSize: 13, color: '#38bdf8' }}>{getPlanLabel(currentPlan)}</strong>
+            </div>
+
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>
+                Scadenza
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: daysRemaining <= 2 ? '#ef4444' : '#22c55e' }}>
+                ⏱ {daysRemaining} {daysRemaining === 1 ? 'giorno' : 'giorni'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {onOpenGuides && (
+                <button
+                  type="button"
+                  disabled={areGuidesDisabled}
+                  onClick={onOpenGuides}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #38bdf8',
+                    background: 'rgba(56,189,248,0.1)',
+                    color: '#38bdf8',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: areGuidesDisabled ? 'not-allowed' : 'pointer',
+                    opacity: areGuidesDisabled ? 0.5 : 1,
+                  }}
+                >
+                  📷 Guide
+                </button>
+              )}
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #334155',
+                    background: '#1e293b',
+                    color: '#cbd5e1',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Esci
+                </button>
+              )}
+            </div>
+          </div>
+
+          {userDisplayName && (
+            <div
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                fontSize: 11,
+                color: '#cbd5e1',
+                fontWeight: 500,
+                borderTop: '1px solid rgba(51, 65, 85, 0.7)',
+                paddingTop: 3,
+              }}
+            >
+              👤 {userDisplayName}
+            </div>
+          )}
+        </div>
+      )}
+    </header>
   );
 }
 
@@ -1364,55 +1497,33 @@ export function App() {
     );
   }
 
+  const loggedUserLabel =
+    (user.user_metadata?.username as string | undefined) ||
+    (user.user_metadata?.full_name as string | undefined) ||
+    user.email ||
+    '';
+
   return (
     <>
-      <AppBrandHeader />
+      <AppBrandHeader
+        showPlanInfo
+        currentPlan={currentPlan}
+        daysRemaining={daysRemaining}
+        userDisplayName={loggedUserLabel}
+        areGuidesDisabled={areExerciseAndWeightLocked}
+        onOpenGuides={() => {
+          setGuideInitialExercise(selectedExercise);
+          setIsGuidesOpen(true);
+        }}
+        onLogout={handleLogout}
+      />
       <div style={{
-        minHeight: 'calc(100vh - 60px)',
+        minHeight: 'calc(100vh - 68px)',
         background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)',
         color: '#f8fafc',
         paddingBottom: 40,
       }}>
         <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-
-          <div style={{ background: '#1e293b', padding: '10px 14px', borderRadius: 10, border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8 }}>
-            <div>
-              <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>Piano attivo</span>
-              <strong style={{ fontSize: 13, color: '#38bdf8' }}>{getPlanLabel(currentPlan)}</strong>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>Scadenza</span>
-                <span style={{ fontSize: 13, fontWeight: 800, color: daysRemaining <= 2 ? '#ef4444' : '#22c55e' }}>
-                  ⏱ {daysRemaining} {daysRemaining === 1 ? 'giorno' : 'giorni'}
-                </span>
-              </div>
-              <button
-                type="button"
-                disabled={areExerciseAndWeightLocked}
-                onClick={() => {
-                  setGuideInitialExercise(selectedExercise);
-                  setIsGuidesOpen(true);
-                }}
-                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #38bdf8', background: 'rgba(56,189,248,0.1)', color: '#38bdf8', fontSize: 12, fontWeight: 700, cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer', opacity: areExerciseAndWeightLocked ? 0.5 : 1 }}
-              >
-                📷 Guide
-              </button>
-              <button
-                type="button"
-                onClick={handleLogout}
-                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #334155', background: '#0f172a', color: '#cbd5e1', fontSize: 12, cursor: 'pointer' }}
-              >
-                Esci
-              </button>
-            </div>
-          </div>
-
-          <div style={{ textAlign: 'center', marginBottom: 20, paddingTop: 6 }}>
-            <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, fontWeight: 500, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
-              Analisi Biomeccanica Intelligente
-            </p>
-          </div>
 
           <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
             1. Seleziona l&apos;esercizio
