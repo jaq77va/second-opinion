@@ -347,12 +347,119 @@ const POSE_CONNECTIONS = [
   [24, 26], [26, 28],
 ];
 
+function getWorkingAngleTriplets(
+  exercise: Exercise
+): Array<{ label: string; triplet: [number, number, number]; fill: string; stroke: string }> {
+  if (
+    exercise === 'squat' ||
+    exercise === 'leg_extension' ||
+    exercise === 'leg_curl' ||
+    exercise === 'affondi' ||
+    exercise === 'bulgarian_squat'
+  ) {
+    return [
+      { label: 'SX', triplet: [23, 25, 27], fill: 'rgba(250, 204, 21, 0.34)', stroke: '#facc15' },
+      { label: 'DX', triplet: [24, 26, 28], fill: 'rgba(56, 189, 248, 0.34)', stroke: '#38bdf8' },
+    ];
+  }
+
+  if (exercise === 'stacco' || exercise === 'stacco_rumeno') {
+    return [
+      { label: 'SX', triplet: [11, 23, 25], fill: 'rgba(250, 204, 21, 0.34)', stroke: '#facc15' },
+      { label: 'DX', triplet: [12, 24, 26], fill: 'rgba(56, 189, 248, 0.34)', stroke: '#38bdf8' },
+    ];
+  }
+
+  if (exercise === 'alzate_laterali') {
+    return [
+      { label: 'SX', triplet: [23, 11, 13], fill: 'rgba(250, 204, 21, 0.34)', stroke: '#facc15' },
+      { label: 'DX', triplet: [24, 12, 14], fill: 'rgba(56, 189, 248, 0.34)', stroke: '#38bdf8' },
+    ];
+  }
+
+  return [
+    { label: 'SX', triplet: [11, 13, 15], fill: 'rgba(250, 204, 21, 0.34)', stroke: '#facc15' },
+    { label: 'DX', triplet: [12, 14, 16], fill: 'rgba(56, 189, 248, 0.34)', stroke: '#38bdf8' },
+  ];
+}
+
+function drawWorkingAngleSectors(
+  ctx: CanvasRenderingContext2D,
+  exercise: Exercise,
+  landmarks: any[],
+  width: number,
+  height: number
+) {
+  if (!landmarks || !landmarks.length) return;
+
+  const isDrawable = (lm: any) =>
+    lm && isFinite(lm.x) && isFinite(lm.y) && (lm.visibility ?? 1) > 0.25;
+
+  const triplets = getWorkingAngleTriplets(exercise);
+  const sectorRadius = Math.max(22, Math.min(44, Math.round(Math.min(width, height) * 0.085)));
+
+  ctx.save();
+  for (const item of triplets) {
+    const [idxA, idxB, idxC] = item.triplet;
+    const pA = landmarks[idxA];
+    const pB = landmarks[idxB];
+    const pC = landmarks[idxC];
+    if (!isDrawable(pA) || !isDrawable(pB) || !isDrawable(pC)) continue;
+
+    const ax = pA.x * width;
+    const ay = pA.y * height;
+    const bx = pB.x * width;
+    const by = pB.y * height;
+    const cx = pC.x * width;
+    const cy = pC.y * height;
+
+    const startAngle = Math.atan2(ay - by, ax - bx);
+    const endAngle = Math.atan2(cy - by, cx - bx);
+
+    let delta = endAngle - startAngle;
+    while (delta > Math.PI) delta -= 2 * Math.PI;
+    while (delta < -Math.PI) delta += 2 * Math.PI;
+
+    const anticlockwise = delta < 0;
+    const degValue = Math.round((Math.abs(delta) * 180) / Math.PI);
+
+    // Settore circolare pieno stile Pac-Man centrato sul giunto b
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.arc(bx, by, sectorRadius, startAngle, endAngle, anticlockwise);
+    ctx.closePath();
+    ctx.fillStyle = item.fill;
+    ctx.fill();
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = item.stroke;
+    ctx.stroke();
+
+    // Etichetta angolo posizionata sulla bisettrice del settore
+    const midAngle = startAngle + delta * 0.5;
+    const labelDist = sectorRadius + 12;
+    const lx = Math.max(20, Math.min(width - 28, bx + Math.cos(midAngle) * labelDist));
+    const ly = Math.max(14, Math.min(height - 10, by + Math.sin(midAngle) * labelDist));
+
+    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#090d16';
+    ctx.fillText(`${degValue}°`, lx + 1, ly + 1);
+    ctx.fillStyle = item.stroke;
+    ctx.fillText(`${degValue}°`, lx, ly);
+  }
+  ctx.restore();
+}
+
 function drawStickmanOverlay(
   ctx: CanvasRenderingContext2D,
+  exercise: Exercise,
   landmarks: any[],
   width: number,
   height: number,
-  stickOnlyMode: boolean
+  stickOnlyMode: boolean,
+  showAngles: boolean
 ) {
   if (!landmarks || !landmarks.length) return;
 
@@ -362,6 +469,10 @@ function drawStickmanOverlay(
   if (stickOnlyMode) {
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
+
+    if (showAngles) {
+      drawWorkingAngleSectors(ctx, exercise, landmarks, width, height);
+    }
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -421,6 +532,10 @@ function drawStickmanOverlay(
       }
     });
   } else {
+    if (showAngles) {
+      drawWorkingAngleSectors(ctx, exercise, landmarks, width, height);
+    }
+
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     POSE_CONNECTIONS.forEach(([i, j]) => {
@@ -553,11 +668,6 @@ function constrainSegmentLength(
   };
 }
 
-/**
- * Ricostruisce e stabilizza lo scheletro gestendo anche occlusioni parziali
- * da inquadrature oblique/posteriori (es. braccio controlaterale coperto
- * in front squat / rack position o scorcio prospettico).
- */
 function deduceMissingBodyLandmarks(
   rawLandmarks: any[],
   prevSmoothed: any[] | null,
@@ -681,11 +791,6 @@ function deduceMissingBodyLandmarks(
   const legSegMin = torsoLen * 0.55;
   const legSegMax = torsoLen * 1.15;
 
-  // Correzione posturale per arto superiore coperto/scorciato in ripresa obliqua:
-  // se un braccio è chiaramente alto/flesso (es. presa bilanciere) e l'altro ha
-  // visibilità bassa o cade verso il basso per occlusione prospettica, lo si
-  // ricostruisce specularmente rispetto alla linea delle spalle invece di farlo
-  // penzolare verso l'anca.
   const applyContralateralArmGuidance = (
     visSh: any,
     visEl: any,
@@ -1072,10 +1177,6 @@ function getLeftRightAngles(
     rightTriplet = [12, 14, 16];
   }
 
-  // Per visualizzare il singolo lato accettiamo visibilità >= 0.48,
-  // mentre per calcolare il delta di simmetria pretendiamo entrambi i lati
-  // realmente visibili (non dedotti e con confidenza >= 0.58) evitando falsi spike
-  // dovuti a lati coperti in riprese a 45° o laterali.
   const leftReadable = areLandmarksVisible(landmarks, leftTriplet, 0.48, false);
   const rightReadable = areLandmarksVisible(landmarks, rightTriplet, 0.48, false);
 
@@ -1496,6 +1597,7 @@ export function App() {
   const [lastUploadedFile, setLastUploadedFile] = useState<File | null>(null);
 
   const [stickOnlyMode, setStickOnlyMode] = useState<boolean>(false);
+  const [showAnglesOverlay, setShowAnglesOverlay] = useState<boolean>(true);
 
   const [isReplayPlaying, setIsReplayPlaying] = useState<boolean>(false);
   const [replayCurrentTime, setReplayCurrentTime] = useState<number>(0);
@@ -1513,6 +1615,8 @@ export function App() {
   const timedLandmarksRef = useRef<TimedLandmarkFrame[]>([]);
   const timedTelemetryRef = useRef<TimedTelemetryPoint[]>([]);
   const stickOnlyModeRef = useRef<boolean>(false);
+  const showAnglesOverlayRef = useRef<boolean>(true);
+  const selectedExerciseRef = useRef<Exercise>('squat');
   const carouselRef = useRef<HTMLDivElement | null>(null);
   const scrollSyncTimeoutRef = useRef<number | null>(null);
   const lastGeomResultRef = useRef<{ exercise: Exercise; result: AnalysisResult } | null>(null);
@@ -1540,6 +1644,14 @@ export function App() {
   useEffect(() => {
     stickOnlyModeRef.current = stickOnlyMode;
   }, [stickOnlyMode]);
+
+  useEffect(() => {
+    showAnglesOverlayRef.current = showAnglesOverlay;
+  }, [showAnglesOverlay]);
+
+  useEffect(() => {
+    selectedExerciseRef.current = selectedExercise;
+  }, [selectedExercise]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -1789,10 +1901,12 @@ export function App() {
 
       const currentVideoTime = video.currentTime || 0;
       const nearestLandmarks = interpolateTimedFrames(timedLandmarksRef.current, currentVideoTime);
+      const exId = selectedExerciseRef.current;
+      const withAngles = showAnglesOverlay;
 
       if (stickOnlyMode) {
         if (nearestLandmarks) {
-          drawStickmanOverlay(ctx, nearestLandmarks, w, h, true);
+          drawStickmanOverlay(ctx, exId, nearestLandmarks, w, h, true, withAngles);
         } else {
           ctx.fillStyle = '#000000';
           ctx.fillRect(0, 0, w, h);
@@ -1803,7 +1917,7 @@ export function App() {
           ctx.drawImage(video, 0, 0, w, h);
         }
         if (nearestLandmarks) {
-          drawStickmanOverlay(ctx, nearestLandmarks, w, h, false);
+          drawStickmanOverlay(ctx, exId, nearestLandmarks, w, h, false, withAngles);
         }
       }
 
@@ -1863,7 +1977,7 @@ export function App() {
       video.removeEventListener('seeked', handleSeeked);
       video.removeEventListener('timeupdate', renderReplayFrame);
     };
-  }, [statusCode, stickOnlyMode, replaySpeed]);
+  }, [statusCode, stickOnlyMode, replaySpeed, showAnglesOverlay]);
 
   const fetchUserSubscription = async (userId: string) => {
     setSubLoading(true);
@@ -2487,11 +2601,20 @@ export function App() {
 
             if (ctx) {
               const isStickOnly = stickOnlyModeRef.current;
+              const withAngles = showAnglesOverlayRef.current;
               const landmarksToDraw = currentLandmarks || latestKnownLandmarks;
 
               if (isStickOnly) {
                 if (landmarksToDraw) {
-                  drawStickmanOverlay(ctx, landmarksToDraw, targetWidth, targetHeight, true);
+                  drawStickmanOverlay(
+                    ctx,
+                    sessionExerciseId,
+                    landmarksToDraw,
+                    targetWidth,
+                    targetHeight,
+                    true,
+                    withAngles
+                  );
                 } else {
                   ctx.fillStyle = '#000000';
                   ctx.fillRect(0, 0, targetWidth, targetHeight);
@@ -2500,7 +2623,15 @@ export function App() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
                 if (currentLandmarks) {
-                  drawStickmanOverlay(ctx, currentLandmarks, targetWidth, targetHeight, false);
+                  drawStickmanOverlay(
+                    ctx,
+                    sessionExerciseId,
+                    currentLandmarks,
+                    targetWidth,
+                    targetHeight,
+                    false,
+                    withAngles
+                  );
                 }
               }
             }
@@ -3513,14 +3644,42 @@ export function App() {
               borderRadius: 10,
               border: '1px solid #334155',
               display: 'flex',
+              flexWrap: 'wrap',
               justifyContent: 'space-between',
               alignItems: 'center',
               gap: 8,
             }}
           >
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>
-              Vista player:
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>
+                Vista player:
+              </span>
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  background: showAnglesOverlay ? 'rgba(250, 204, 21, 0.14)' : '#0f172a',
+                  border: showAnglesOverlay ? '1px solid rgba(250, 204, 21, 0.55)' : '1px solid #334155',
+                  color: showAnglesOverlay ? '#fde047' : '#94a3b8',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={showAnglesOverlay}
+                  onChange={(e) => setShowAnglesOverlay(e.target.checked)}
+                  style={{ margin: 0, accentColor: '#facc15', cursor: 'pointer' }}
+                />
+                Angoli
+              </label>
+            </div>
+
             <div
               style={{
                 display: 'inline-flex',
