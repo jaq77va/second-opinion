@@ -338,19 +338,26 @@ function drawStickmanOverlay(
   height: number,
   stickOnlyMode: boolean
 ) {
+  if (!landmarks || !landmarks.length) return;
+
+  const isDrawable = (lm: any) =>
+    lm && isFinite(lm.x) && isFinite(lm.y) && (lm.visibility ?? 1) > 0.25;
+
   if (stickOnlyMode) {
     // Sfondo nero puro per modalità Solo Human Stick
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
 
-    // Connessioni principali del corpo
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 4;
+    // Connessioni principali del corpo sempre continue e fluide
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     POSE_CONNECTIONS.forEach(([i, j]) => {
       const p1 = landmarks[i];
       const p2 = landmarks[j];
-      if (p1 && p2 && (p1.visibility ?? 1) > 0.3 && (p2.visibility ?? 1) > 0.3) {
+      if (isDrawable(p1) && isDrawable(p2)) {
+        const inferredSeg = Boolean(p1.__inferred || p2.__inferred);
+        ctx.strokeStyle = inferredSeg ? 'rgba(56, 189, 248, 0.78)' : '#38bdf8';
+        ctx.lineWidth = inferredSeg ? 3.5 : 4.2;
         ctx.beginPath();
         ctx.moveTo(p1.x * width, p1.y * height);
         ctx.lineTo(p2.x * width, p2.y * height);
@@ -358,18 +365,13 @@ function drawStickmanOverlay(
       }
     });
 
-    // Testa stilizzata (landmark 0 = naso, 7/8 = orecchie)
+    // Testa stilizzata collegata al baricentro delle spalle
     const nose = landmarks[0];
     const leftShoulder = landmarks[11];
     const rightShoulder = landmarks[12];
-    if (nose && (nose.visibility ?? 1) > 0.3) {
+    if (isDrawable(nose)) {
       let headRadius = Math.max(10, Math.round(width * 0.032));
-      if (
-        leftShoulder &&
-        rightShoulder &&
-        (leftShoulder.visibility ?? 1) > 0.3 &&
-        (rightShoulder.visibility ?? 1) > 0.3
-      ) {
+      if (isDrawable(leftShoulder) && isDrawable(rightShoulder)) {
         const shoulderSpanPx = Math.hypot(
           (leftShoulder.x - rightShoulder.x) * width,
           (leftShoulder.y - rightShoulder.y) * height
@@ -379,6 +381,8 @@ function drawStickmanOverlay(
         }
         const midShoulderX = ((leftShoulder.x + rightShoulder.x) / 2) * width;
         const midShoulderY = ((leftShoulder.y + rightShoulder.y) / 2) * height;
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.moveTo(midShoulderX, midShoulderY);
         ctx.lineTo(nose.x * width, nose.y * height);
@@ -394,25 +398,27 @@ function drawStickmanOverlay(
       ctx.stroke();
     }
 
-    // Articolazioni evidenziate
+    // Articolazioni principali sempre presenti
     const jointIndices = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
-    ctx.fillStyle = '#f43f5e';
     jointIndices.forEach((idx) => {
       const lm = landmarks[idx];
-      if (lm && (lm.visibility ?? 1) > 0.3) {
+      if (isDrawable(lm)) {
+        ctx.fillStyle = lm.__inferred ? '#fb7185' : '#f43f5e';
         ctx.beginPath();
         ctx.arc(lm.x * width, lm.y * height, 4.5, 0, 2 * Math.PI);
         ctx.fill();
       }
     });
   } else {
-    ctx.strokeStyle = '#00ffcc';
-    ctx.lineWidth = 3;
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     POSE_CONNECTIONS.forEach(([i, j]) => {
       const p1 = landmarks[i];
       const p2 = landmarks[j];
-      if (p1 && p2 && (p1.visibility ?? 1) > 0.3 && (p2.visibility ?? 1) > 0.3) {
+      if (isDrawable(p1) && isDrawable(p2)) {
+        const inferredSeg = Boolean(p1.__inferred || p2.__inferred);
+        ctx.strokeStyle = inferredSeg ? 'rgba(0, 255, 204, 0.72)' : '#00ffcc';
+        ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(p1.x * width, p1.y * height);
         ctx.lineTo(p2.x * width, p2.y * height);
@@ -420,9 +426,11 @@ function drawStickmanOverlay(
       }
     });
 
-    ctx.fillStyle = '#ff0055';
-    landmarks.forEach((lm: any) => {
-      if (lm && (lm.visibility ?? 1) > 0.3) {
+    const bodyJoints = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+    bodyJoints.forEach((idx) => {
+      const lm = landmarks[idx];
+      if (isDrawable(lm)) {
+        ctx.fillStyle = lm.__inferred ? 'rgba(255, 0, 85, 0.75)' : '#ff0055';
         ctx.beginPath();
         ctx.arc(lm.x * width, lm.y * height, 4, 0, 2 * Math.PI);
         ctx.fill();
@@ -431,32 +439,320 @@ function drawStickmanOverlay(
   }
 }
 
-function findNearestTimedFrame(frames: TimedLandmarkFrame[], targetTimeSec: number): any[] | null {
+function clamp01(v: number): number {
+  if (!isFinite(v)) return 0.5;
+  return Math.max(0, Math.min(1, v));
+}
+
+function cloneLandmark(lm: any) {
+  if (!lm) return null;
+  return {
+    x: clamp01(lm.x),
+    y: clamp01(lm.y),
+    z: isFinite(lm.z) ? lm.z : 0,
+    visibility: typeof lm.visibility === 'number' ? lm.visibility : 0.85,
+    __inferred: Boolean(lm.__inferred),
+  };
+}
+
+function lerpLm(a: any, b: any, t: number, inferred = false) {
+  const clampedT = Math.max(0, Math.min(1, t));
+  return {
+    x: clamp01(a.x + (b.x - a.x) * clampedT),
+    y: clamp01(a.y + (b.y - a.y) * clampedT),
+    z: (a.z ?? 0) + ((b.z ?? 0) - (a.z ?? 0)) * clampedT,
+    visibility: Math.min(0.95, Math.max(0.55, ((a.visibility ?? 0.7) + (b.visibility ?? 0.7)) * 0.5)),
+    __inferred: inferred,
+  };
+}
+
+function extrapolateLinear(prev2: any, prev1: any, alpha = 0.65, damping = 0.78) {
+  if (!prev1) return null;
+  if (!prev2) return cloneLandmark({ ...prev1, visibility: Math.max(0.5, (prev1.visibility ?? 0.7) * 0.85), __inferred: true });
+  const vx = (prev1.x - prev2.x) * damping;
+  const vy = (prev1.y - prev2.y) * damping;
+  const vz = ((prev1.z ?? 0) - (prev2.z ?? 0)) * damping;
+  return {
+    x: clamp01(prev1.x + vx * alpha),
+    y: clamp01(prev1.y + vy * alpha),
+    z: (prev1.z ?? 0) + vz * alpha,
+    visibility: Math.max(0.5, Math.min(0.9, (prev1.visibility ?? 0.75) * 0.88)),
+    __inferred: true,
+  };
+}
+
+function segmentLength(a: any, b: any, width: number, height: number): number {
+  if (!a || !b) return 0;
+  return Math.hypot((a.x - b.x) * width, (a.y - b.y) * height);
+}
+
+function deduceMissingBodyLandmarks(
+  rawLandmarks: any[],
+  prevSmoothed: any[] | null,
+  prev2Smoothed: any[] | null,
+  width = 480,
+  height = 360
+): any[] {
+  const out: any[] = new Array(33);
+  const MIN_DIRECT_VIS = 0.36;
+
+  // 1. Copia landmark validi o deduci da storico recente (inerzia / estrapolazione)
+  for (let i = 0; i < 33; i++) {
+    const raw = rawLandmarks?.[i];
+    const vis = raw && typeof raw.visibility === 'number' ? raw.visibility : raw ? 0.85 : 0;
+    if (raw && isFinite(raw.x) && isFinite(raw.y) && vis >= MIN_DIRECT_VIS) {
+      out[i] = cloneLandmark(raw);
+    } else if (prevSmoothed?.[i] && prev2Smoothed?.[i]) {
+      out[i] = extrapolateLinear(prev2Smoothed[i], prevSmoothed[i], 0.55, 0.72);
+    } else if (prevSmoothed?.[i]) {
+      out[i] = cloneLandmark({
+        ...prevSmoothed[i],
+        visibility: Math.max(0.5, (prevSmoothed[i].visibility ?? 0.7) * 0.85),
+        __inferred: true,
+      });
+    } else if (raw && isFinite(raw.x) && isFinite(raw.y)) {
+      out[i] = cloneLandmark({ ...raw, visibility: Math.max(0.5, vis), __inferred: true });
+    }
+  }
+
+  // 2. Simmetria bilaterale & proporzioni anatomiche per colmare eventuali buchi (spalle, fianchi, ginocchia, caviglie, gomiti, polsi)
+  const ensureSymmetric = (primaryIdx: number, mirrorIdx: number, offsetX = 0, offsetY = 0) => {
+    const p = out[primaryIdx];
+    const m = out[mirrorIdx];
+    if (p && !m) {
+      out[mirrorIdx] = {
+        x: clamp01(p.x + offsetX),
+        y: clamp01(p.y + offsetY),
+        z: p.z ?? 0,
+        visibility: Math.max(0.52, (p.visibility ?? 0.75) * 0.82),
+        __inferred: true,
+      };
+    } else if (m && !p) {
+      out[primaryIdx] = {
+        x: clamp01(m.x - offsetX),
+        y: clamp01(m.y - offsetY),
+        z: m.z ?? 0,
+        visibility: Math.max(0.52, (m.visibility ?? 0.75) * 0.82),
+        __inferred: true,
+      };
+    }
+  };
+
+  // Spalle (11 <-> 12) e Fianchi (23 <-> 24)
+  ensureSymmetric(11, 12, 0, 0);
+  ensureSymmetric(23, 24, 0, 0);
+
+  if (!out[11] && out[23]) {
+    out[11] = {
+      x: out[23].x,
+      y: clamp01(out[23].y - 0.24),
+      z: out[23].z ?? 0,
+      visibility: 0.6,
+      __inferred: true,
+    };
+  }
+  if (!out[12] && out[24]) {
+    out[12] = {
+      x: out[24].x,
+      y: clamp01(out[24].y - 0.24),
+      z: out[24].z ?? 0,
+      visibility: 0.6,
+      __inferred: true,
+    };
+  }
+  ensureSymmetric(11, 12, 0, 0);
+
+  if (!out[23] && out[11]) {
+    out[23] = {
+      x: out[11].x,
+      y: clamp01(out[11].y + 0.22),
+      z: out[11].z ?? 0,
+      visibility: 0.6,
+      __inferred: true,
+    };
+  }
+  if (!out[24] && out[12]) {
+    out[24] = {
+      x: out[12].x,
+      y: clamp01(out[12].y + 0.22),
+      z: out[12].z ?? 0,
+      visibility: 0.6,
+      __inferred: true,
+    };
+  }
+  ensureSymmetric(23, 24, 0, 0);
+
+  const torsoLeftLen = out[11] && out[23] ? Math.hypot(out[23].x - out[11].x, out[23].y - out[11].y) : 0.22;
+  const torsoRightLen = out[12] && out[24] ? Math.hypot(out[24].x - out[12].x, out[24].y - out[12].y) : torsoLeftLen;
+
+  // Deduzione arti superiori: gomiti (13, 14) e polsi (15, 16)
+  const inferArmSide = (shIdx: number, elIdx: number, wrIdx: number, hipIdx: number, torsoLen: number) => {
+    const sh = out[shIdx];
+    const hip = out[hipIdx];
+    if (!sh) return;
+    const armSeg = Math.max(0.11, torsoLen * 0.72);
+    const dirX = hip ? (sh.x - hip.x) * 0.45 : 0;
+
+    if (!out[elIdx]) {
+      out[elIdx] = {
+        x: clamp01(sh.x + dirX),
+        y: clamp01(sh.y + armSeg * 0.92),
+        z: sh.z ?? 0,
+        visibility: 0.58,
+        __inferred: true,
+      };
+    }
+    if (!out[wrIdx]) {
+      const el = out[elIdx];
+      out[wrIdx] = {
+        x: clamp01(el.x + dirX * 0.6),
+        y: clamp01(el.y + armSeg * 0.88),
+        z: el.z ?? 0,
+        visibility: 0.55,
+        __inferred: true,
+      };
+    }
+  };
+
+  inferArmSide(11, 13, 15, 23, torsoLeftLen);
+  inferArmSide(12, 14, 16, 24, torsoRightLen);
+  ensureSymmetric(13, 14, 0, 0);
+  ensureSymmetric(15, 16, 0, 0);
+
+  // Deduzione arti inferiori: ginocchia (25, 26) e caviglie (27, 28)
+  const inferLegSide = (hipIdx: number, knIdx: number, anIdx: number, torsoLen: number) => {
+    const hip = out[hipIdx];
+    if (!hip) return;
+    const thighLen = Math.max(0.14, torsoLen * 0.92);
+    const shinLen = Math.max(0.14, torsoLen * 0.90);
+
+    if (!out[knIdx]) {
+      out[knIdx] = {
+        x: clamp01(hip.x),
+        y: clamp01(hip.y + thighLen),
+        z: hip.z ?? 0,
+        visibility: 0.6,
+        __inferred: true,
+      };
+    }
+    if (!out[anIdx]) {
+      const kn = out[knIdx];
+      out[anIdx] = {
+        x: clamp01(kn.x),
+        y: clamp01(kn.y + shinLen),
+        z: kn.z ?? 0,
+        visibility: 0.56,
+        __inferred: true,
+      };
+    }
+  };
+
+  inferLegSide(23, 25, 27, torsoLeftLen);
+  inferLegSide(24, 26, 28, torsoRightLen);
+  ensureSymmetric(25, 26, 0, 0);
+  ensureSymmetric(27, 28, 0, 0);
+
+  // Testa (0 = naso): se assente, deduci sopra il punto medio delle spalle
+  if (!out[0] && out[11] && out[12]) {
+    const midX = (out[11].x + out[12].x) * 0.5;
+    const midY = (out[11].y + out[12].y) * 0.5;
+    const headDist = Math.max(0.06, Math.min(0.14, torsoLeftLen * 0.36));
+    out[0] = {
+      x: clamp01(midX),
+      y: clamp01(midY - headDist),
+      z: ((out[11].z ?? 0) + (out[12].z ?? 0)) * 0.5,
+      visibility: 0.65,
+      __inferred: true,
+    };
+  }
+
+  // 3. Controllo anti-jitter / anti-spike sui segmenti e smoothing temporale adattivo
+  const jointsToSmooth = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+  const maxStepPx = Math.max(18, Math.hypot(width, height) * 0.14);
+
+  for (const idx of jointsToSmooth) {
+    if (!out[idx]) continue;
+    const curr = out[idx];
+    const prev = prevSmoothed?.[idx];
+    if (prev) {
+      const distPx = segmentLength(curr, prev, width, height);
+      // Limita salti anomali improvvisi su un singolo frame (tipico dei buchi di rilevamento)
+      if (distPx > maxStepPx) {
+        const ratio = maxStepPx / distPx;
+        curr.x = clamp01(prev.x + (curr.x - prev.x) * ratio);
+        curr.y = clamp01(prev.y + (curr.y - prev.y) * ratio);
+        curr.__inferred = true;
+      }
+
+      // EMA adattivo: più fluido quando il movimento è piccolo, più reattivo sullo spostamento reale
+      const alpha = curr.__inferred ? 0.38 : distPx < 5 ? 0.42 : 0.68;
+      out[idx] = {
+        x: clamp01(prev.x + (curr.x - prev.x) * alpha),
+        y: clamp01(prev.y + (curr.y - prev.y) * alpha),
+        z: ((prev.z ?? 0) * (1 - alpha)) + ((curr.z ?? 0) * alpha),
+        visibility: Math.max(0.55, Math.min(0.98, ((prev.visibility ?? 0.8) * (1 - alpha)) + ((curr.visibility ?? 0.8) * alpha))),
+        __inferred: curr.__inferred,
+      };
+    }
+  }
+
+  // Assicura continuità su tutti i 33 landmark per eventuale lettura angolare
+  for (let i = 0; i < 33; i++) {
+    if (!out[i]) {
+      const anchor = out[23] || out[11] || { x: 0.5, y: 0.5, z: 0, visibility: 0.5 };
+      out[i] = {
+        x: anchor.x,
+        y: anchor.y,
+        z: anchor.z ?? 0,
+        visibility: 0.5,
+        __inferred: true,
+      };
+    }
+  }
+
+  // Evita che width/height non usati generino warning
+  void height;
+  return out;
+}
+
+function interpolateTimedFrames(frames: TimedLandmarkFrame[], targetTimeSec: number): any[] | null {
   if (!frames.length) return null;
+  if (frames.length === 1 || targetTimeSec <= frames[0].timeSec) {
+    return frames[0].landmarks;
+  }
+  const lastIdx = frames.length - 1;
+  if (targetTimeSec >= frames[lastIdx].timeSec) {
+    return frames[lastIdx].landmarks;
+  }
+
   let low = 0;
-  let high = frames.length - 1;
-  while (low < high) {
+  let high = lastIdx;
+  while (low < high - 1) {
     const mid = Math.floor((low + high) / 2);
-    if (frames[mid].timeSec < targetTimeSec) {
-      low = mid + 1;
+    if (frames[mid].timeSec <= targetTimeSec) {
+      low = mid;
     } else {
       high = mid;
     }
   }
-  if (low > 0) {
-    const prevDiff = Math.abs(frames[low - 1].timeSec - targetTimeSec);
-    const currDiff = Math.abs(frames[low].timeSec - targetTimeSec);
-    return prevDiff <= currDiff ? frames[low - 1].landmarks : frames[low].landmarks;
-  }
-  return frames[low].landmarks;
-}
 
-function formatTimeSec(sec: number): string {
-  if (!isFinite(sec) || sec < 0) return '0:00';
-  const totalSec = Math.floor(sec);
-  const mins = Math.floor(totalSec / 60);
-  const secs = totalSec % 60;
-  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  const f1 = frames[low];
+  const f2 = frames[high];
+  const span = f2.timeSec - f1.timeSec;
+  if (span <= 0.0001) return f1.landmarks;
+
+  const alpha = Math.max(0, Math.min(1, (targetTimeSec - f1.timeSec) / span));
+  const merged: any[] = new Array(33);
+  for (let i = 0; i < 33; i++) {
+    const l1 = f1.landmarks?.[i];
+    const l2 = f2.landmarks?.[i];
+    if (l1 && l2) {
+      merged[i] = lerpLm(l1, l2, alpha, Boolean(l1.__inferred || l2.__inferred));
+    } else {
+      merged[i] = cloneLandmark(l1 || l2);
+    }
+  }
+  return merged;
 }
 
 function calculateLiveAngle(a: any, b: any, c: any): number {
@@ -1090,7 +1386,7 @@ export function App() {
       if (canvas.width !== w) canvas.width = w;
       if (canvas.height !== h) canvas.height = h;
 
-      const nearestLandmarks = findNearestTimedFrame(timedLandmarksRef.current, video.currentTime);
+      const nearestLandmarks = interpolateTimedFrames(timedLandmarksRef.current, video.currentTime);
 
       if (stickOnlyMode) {
         if (nearestLandmarks) {
@@ -1516,6 +1812,7 @@ export function App() {
       let transitionStreak = 0;
       let hasStarted = false;
       let latestKnownLandmarks: any[] | null = null;
+      let prev2KnownLandmarks: any[] | null = null;
 
       let currentRepMaxPower = 0;
       let collectedRepPowers: number[] = [];
@@ -1594,13 +1891,24 @@ export function App() {
             if (frameCounter % FRAME_SKIP === 0) {
               try {
                 const result = landmarker.detectForVideo(video, now);
-                if (result.landmarks && result.landmarks.length > 0) {
-                  currentLandmarks = result.landmarks[0];
-                  latestKnownLandmarks = currentLandmarks;
-                  landmarksBufferRef.current.push(currentLandmarks);
+                const rawPose =
+                  result.landmarks && result.landmarks.length > 0 ? result.landmarks[0] : null;
+                const deducedLandmarks = deduceMissingBodyLandmarks(
+                  rawPose || latestKnownLandmarks || [],
+                  latestKnownLandmarks,
+                  prev2KnownLandmarks,
+                  targetWidth,
+                  targetHeight
+                );
+                prev2KnownLandmarks = latestKnownLandmarks;
+                latestKnownLandmarks = deducedLandmarks;
+                currentLandmarks = deducedLandmarks;
+
+                if (rawPose || latestKnownLandmarks) {
+                  landmarksBufferRef.current.push(deducedLandmarks);
                   timedLandmarksRef.current.push({
                     timeSec: video.currentTime,
-                    landmarks: currentLandmarks,
+                    landmarks: deducedLandmarks,
                   });
 
                   const rawAngle = extractExerciseAngle(selectedExercise, currentLandmarks);
