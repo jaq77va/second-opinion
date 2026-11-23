@@ -53,6 +53,11 @@ interface ExerciseConfig {
   romMaxAngle?: number;
 }
 
+interface TimedLandmarkFrame {
+  timeSec: number;
+  landmarks: any[];
+}
+
 const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 
 const EXERCISES: ExerciseConfig[] = [
@@ -325,6 +330,126 @@ const POSE_CONNECTIONS = [
   [23, 25], [25, 27],
   [24, 26], [26, 28],
 ];
+
+function drawStickmanOverlay(
+  ctx: CanvasRenderingContext2D,
+  landmarks: any[],
+  width: number,
+  height: number,
+  stickOnlyMode: boolean
+) {
+  if (stickOnlyMode) {
+    // Sfondo nero puro per modalità Solo Human Stick
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, width, height);
+
+    // Connessioni principali del corpo
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    POSE_CONNECTIONS.forEach(([i, j]) => {
+      const p1 = landmarks[i];
+      const p2 = landmarks[j];
+      if (p1 && p2 && (p1.visibility ?? 1) > 0.3 && (p2.visibility ?? 1) > 0.3) {
+        ctx.beginPath();
+        ctx.moveTo(p1.x * width, p1.y * height);
+        ctx.lineTo(p2.x * width, p2.y * height);
+        ctx.stroke();
+      }
+    });
+
+    // Testa stilizzata (landmark 0 = naso, 7/8 = orecchie)
+    const nose = landmarks[0];
+    const leftShoulder = landmarks[11];
+    const rightShoulder = landmarks[12];
+    if (nose && (nose.visibility ?? 1) > 0.3) {
+      let headRadius = Math.max(10, Math.round(width * 0.032));
+      if (
+        leftShoulder &&
+        rightShoulder &&
+        (leftShoulder.visibility ?? 1) > 0.3 &&
+        (rightShoulder.visibility ?? 1) > 0.3
+      ) {
+        const shoulderSpanPx = Math.hypot(
+          (leftShoulder.x - rightShoulder.x) * width,
+          (leftShoulder.y - rightShoulder.y) * height
+        );
+        if (shoulderSpanPx > 12) {
+          headRadius = Math.max(9, Math.min(26, Math.round(shoulderSpanPx * 0.28)));
+        }
+        const midShoulderX = ((leftShoulder.x + rightShoulder.x) / 2) * width;
+        const midShoulderY = ((leftShoulder.y + rightShoulder.y) / 2) * height;
+        ctx.beginPath();
+        ctx.moveTo(midShoulderX, midShoulderY);
+        ctx.lineTo(nose.x * width, nose.y * height);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(nose.x * width, nose.y * height, headRadius, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // Articolazioni evidenziate
+    const jointIndices = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+    ctx.fillStyle = '#f43f5e';
+    jointIndices.forEach((idx) => {
+      const lm = landmarks[idx];
+      if (lm && (lm.visibility ?? 1) > 0.3) {
+        ctx.beginPath();
+        ctx.arc(lm.x * width, lm.y * height, 4.5, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    });
+  } else {
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    POSE_CONNECTIONS.forEach(([i, j]) => {
+      const p1 = landmarks[i];
+      const p2 = landmarks[j];
+      if (p1 && p2 && (p1.visibility ?? 1) > 0.3 && (p2.visibility ?? 1) > 0.3) {
+        ctx.beginPath();
+        ctx.moveTo(p1.x * width, p1.y * height);
+        ctx.lineTo(p2.x * width, p2.y * height);
+        ctx.stroke();
+      }
+    });
+
+    ctx.fillStyle = '#ff0055';
+    landmarks.forEach((lm: any) => {
+      if (lm && (lm.visibility ?? 1) > 0.3) {
+        ctx.beginPath();
+        ctx.arc(lm.x * width, lm.y * height, 4, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    });
+  }
+}
+
+function findNearestTimedFrame(frames: TimedLandmarkFrame[], targetTimeSec: number): any[] | null {
+  if (!frames.length) return null;
+  let low = 0;
+  let high = frames.length - 1;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (frames[mid].timeSec < targetTimeSec) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  if (low > 0) {
+    const prevDiff = Math.abs(frames[low - 1].timeSec - targetTimeSec);
+    const currDiff = Math.abs(frames[low].timeSec - targetTimeSec);
+    return prevDiff <= currDiff ? frames[low - 1].landmarks : frames[low].landmarks;
+  }
+  return frames[low].landmarks;
+}
 
 function calculateLiveAngle(a: any, b: any, c: any): number {
   const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
@@ -741,6 +866,9 @@ export function App() {
   const [isAnalysisOpen, setIsAnalysisOpen] = useState<boolean>(false);
   const [lastUploadedFile, setLastUploadedFile] = useState<File | null>(null);
 
+  // --- MODALITÀ VISUALIZZAZIONE HUMAN STICK (LIVE E REPLAY) ---
+  const [stickOnlyMode, setStickOnlyMode] = useState<boolean>(false);
+
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [aiStatusCode, setAiStatusCode] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [aiStatusMessage, setAiStatusMessage] = useState<string>('In attesa di dati geometrici...');
@@ -749,11 +877,18 @@ export function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const landmarksBufferRef = useRef<any[][]>([]);
+  const timedLandmarksRef = useRef<TimedLandmarkFrame[]>([]);
+  const stickOnlyModeRef = useRef<boolean>(false);
   const carouselRef = useRef<HTMLDivElement | null>(null);
+  const scrollSyncTimeoutRef = useRef<number | null>(null);
   const lastGeomResultRef = useRef<AnalysisResult | null>(null);
   const loggedSessionKeyRef = useRef<string | null>(null);
   const analysisSessionIdRef = useRef<number>(0);
   const isProgrammaticScrollRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    stickOnlyModeRef.current = stickOnlyMode;
+  }, [stickOnlyMode]);
 
   const fetchPlanExercises = useCallback(async () => {
     try {
@@ -818,6 +953,7 @@ export function App() {
     setAiStatusMessage('In attesa di dati geometrici...');
 
     landmarksBufferRef.current = [];
+    timedLandmarksRef.current = [];
     lastGeomResultRef.current = null;
 
     if (fileInputRef.current) {
@@ -888,7 +1024,7 @@ export function App() {
     }
   }, [user?.id]);
 
-  // Allinea il carosello quando l'esercizio cambia (es. rientro dalla Guida o reset)
+  // Allinea il carosello quando l'esercizio cambia (es. rientro dalla Guida, click indice o reset)
   useEffect(() => {
     if (isGuidesOpen || !carouselRef.current) return;
     const idx = EXERCISES.findIndex((ex) => ex.id === selectedExercise);
@@ -913,6 +1049,62 @@ export function App() {
       }, 350);
     }
   }, [selectedExercise, isGuidesOpen]);
+
+  // Sincronizzazione replay in modalità Solo Human Stick dopo il completamento dell'analisi
+  useEffect(() => {
+    if (statusCode !== 'success' || !stickOnlyMode) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let rafId: number | null = null;
+
+    const renderStickReplayFrame = () => {
+      const w = canvas.width || 480;
+      const h = canvas.height || 360;
+      const nearestLandmarks = findNearestTimedFrame(timedLandmarksRef.current, video.currentTime);
+      if (nearestLandmarks) {
+        drawStickmanOverlay(ctx, nearestLandmarks, w, h, true);
+      } else {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, w, h);
+      }
+      if (!video.paused && !video.ended) {
+        rafId = requestAnimationFrame(renderStickReplayFrame);
+      }
+    };
+
+    const handlePlay = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(renderStickReplayFrame);
+    };
+
+    const handleSeekOrPause = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      renderStickReplayFrame();
+    };
+
+    // Disegna subito il frame corrente anche se il video è in pausa
+    renderStickReplayFrame();
+
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handleSeekOrPause);
+    video.addEventListener('seeked', handleSeekOrPause);
+    video.addEventListener('timeupdate', renderStickReplayFrame);
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handleSeekOrPause);
+      video.removeEventListener('seeked', handleSeekOrPause);
+      video.removeEventListener('timeupdate', renderStickReplayFrame);
+    };
+  }, [statusCode, stickOnlyMode]);
 
   // Carica abbonamento dell'utente da public.subscriptions e configurazione sblocchi da public.plan_exercises
   const fetchUserSubscription = async (userId: string) => {
@@ -1067,7 +1259,11 @@ export function App() {
     </>
   );
 
-  const selectedExerciseObj = EXERCISES.find((ex) => ex.id === selectedExercise) || EXERCISES[0];
+  const selectedExerciseIndex = Math.max(
+    0,
+    EXERCISES.findIndex((ex) => ex.id === selectedExercise)
+  );
+  const selectedExerciseObj = EXERCISES[selectedExerciseIndex] || EXERCISES[0];
   const currentHint = selectedExerciseObj.viewHint;
   const isExerciseLocked = !isExerciseUnlockedForPlan(
     currentPlan,
@@ -1102,6 +1298,33 @@ export function App() {
     const index = Math.round(newScrollLeft / itemWidth);
     const targetIndex = Math.max(0, Math.min(EXERCISES.length - 1, index));
     setSelectedExercise(EXERCISES[targetIndex].id);
+  };
+
+  const handleSelectExerciseByIndex = (targetIndex: number) => {
+    if (areExerciseAndWeightLocked) return;
+    const clampedIndex = Math.max(0, Math.min(EXERCISES.length - 1, targetIndex));
+    setSelectedExercise(EXERCISES[clampedIndex].id);
+  };
+
+  const handleCarouselScroll = () => {
+    if (isProgrammaticScrollRef.current || areExerciseAndWeightLocked || !carouselRef.current) {
+      return;
+    }
+    if (scrollSyncTimeoutRef.current !== null) {
+      window.clearTimeout(scrollSyncTimeoutRef.current);
+    }
+    scrollSyncTimeoutRef.current = window.setTimeout(() => {
+      if (!carouselRef.current || isProgrammaticScrollRef.current) return;
+      const container = carouselRef.current;
+      const itemWidth = container.clientWidth;
+      if (itemWidth <= 0) return;
+      const idx = Math.round(container.scrollLeft / itemWidth);
+      const clampedIdx = Math.max(0, Math.min(EXERCISES.length - 1, idx));
+      const targetExercise = EXERCISES[clampedIdx]?.id;
+      if (targetExercise && targetExercise !== selectedExercise) {
+        setSelectedExercise(targetExercise);
+      }
+    }, 90);
   };
 
   const handleWeightChange = (delta: number) => {
@@ -1234,6 +1457,7 @@ export function App() {
       let powerHistory: number[] = [];
       let transitionStreak = 0;
       let hasStarted = false;
+      let latestKnownLandmarks: any[] | null = null;
 
       let currentRepMaxPower = 0;
       let collectedRepPowers: number[] = [];
@@ -1314,7 +1538,12 @@ export function App() {
                 const result = landmarker.detectForVideo(video, now);
                 if (result.landmarks && result.landmarks.length > 0) {
                   currentLandmarks = result.landmarks[0];
+                  latestKnownLandmarks = currentLandmarks;
                   landmarksBufferRef.current.push(currentLandmarks);
+                  timedLandmarksRef.current.push({
+                    timeSec: video.currentTime,
+                    landmarks: currentLandmarks,
+                  });
 
                   const rawAngle = extractExerciseAngle(selectedExercise, currentLandmarks);
 
@@ -1445,31 +1674,22 @@ export function App() {
             }
 
             if (ctx) {
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
-              ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+              const isStickOnly = stickOnlyModeRef.current;
+              const landmarksToDraw = currentLandmarks || latestKnownLandmarks;
 
-              if (currentLandmarks) {
-                ctx.strokeStyle = '#00ffcc';
-                ctx.lineWidth = 3;
-                POSE_CONNECTIONS.forEach(([i, j]) => {
-                  const p1 = currentLandmarks[i];
-                  const p2 = currentLandmarks[j];
-                  if (p1 && p2 && p1.visibility && p1.visibility > 0.3 && p2.visibility && p2.visibility > 0.3) {
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x * targetWidth, p1.y * targetHeight);
-                    ctx.lineTo(p2.x * targetWidth, p2.y * targetHeight);
-                    ctx.stroke();
-                  }
-                });
-
-                ctx.fillStyle = '#ff0055';
-                currentLandmarks.forEach((lm: any) => {
-                  if (lm.visibility && lm.visibility > 0.3) {
-                    ctx.beginPath();
-                    ctx.arc(lm.x * targetWidth, lm.y * targetHeight, 4, 0, 2 * Math.PI);
-                    ctx.fill();
-                  }
-                });
+              if (isStickOnly) {
+                if (landmarksToDraw) {
+                  drawStickmanOverlay(ctx, landmarksToDraw, targetWidth, targetHeight, true);
+                } else {
+                  ctx.fillStyle = '#000000';
+                  ctx.fillRect(0, 0, targetWidth, targetHeight);
+                }
+              } else {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+                if (currentLandmarks) {
+                  drawStickmanOverlay(ctx, currentLandmarks, targetWidth, targetHeight, false);
+                }
               }
             }
 
@@ -1640,6 +1860,7 @@ export function App() {
         <AppBrandHeader />
         <CameraGuidesView
           initialExerciseId={guideInitialExercise}
+          readOnlySelection={areExerciseAndWeightLocked}
           onSelectExercise={(exId) => {
             const matched = EXERCISES.find((ex) => ex.id === exId);
             if (matched && !areExerciseAndWeightLocked) {
@@ -1648,10 +1869,12 @@ export function App() {
           }}
           onClose={(chosenExerciseId) => {
             setIsGuidesOpen(false);
-            const targetId = chosenExerciseId || guideInitialExercise;
-            const matched = EXERCISES.find((ex) => ex.id === targetId);
-            if (matched && !areExerciseAndWeightLocked) {
-              setSelectedExercise(matched.id);
+            if (!areExerciseAndWeightLocked) {
+              const targetId = chosenExerciseId || guideInitialExercise;
+              const matched = EXERCISES.find((ex) => ex.id === targetId);
+              if (matched) {
+                setSelectedExercise(matched.id);
+              }
             }
           }}
         />
@@ -1673,9 +1896,9 @@ export function App() {
         currentPlan={currentPlan}
         daysRemaining={daysRemaining}
         userDisplayName={loggedUserLabel}
-        areGuidesDisabled={areExerciseAndWeightLocked}
+        areGuidesDisabled={isProcessing}
         onOpenGuides={() => {
-          setGuideInitialExercise(selectedExercise);
+          setGuideInitialExercise(undefined);
           setIsGuidesOpen(true);
         }}
         onLogout={handleLogout}
@@ -1688,9 +1911,60 @@ export function App() {
       }}>
         <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
 
-          <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
-            1. Seleziona l'esercizio
-          </label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
+              1. Seleziona l'esercizio
+            </label>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
+              {selectedExerciseIndex + 1} / {EXERCISES.length}
+            </span>
+          </div>
+
+          {/* Indice pallini / trattini sopra il carosello */}
+          <div
+            role="tablist"
+            aria-label="Indice esercizi"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+              gap: 5,
+              marginBottom: 10,
+              padding: '6px 8px',
+              borderRadius: 10,
+              background: 'rgba(15, 23, 42, 0.75)',
+              border: '1px solid #334155',
+              opacity: areExerciseAndWeightLocked ? 0.65 : 1,
+            }}
+          >
+            {EXERCISES.map((ex, idx) => {
+              const isCurrent = idx === selectedExerciseIndex;
+              return (
+                <button
+                  key={ex.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isCurrent}
+                  aria-label={`${idx + 1}. ${ex.label}`}
+                  title={ex.label}
+                  disabled={areExerciseAndWeightLocked}
+                  onClick={() => handleSelectExerciseByIndex(idx)}
+                  style={{
+                    width: isCurrent ? 18 : 7,
+                    height: 7,
+                    padding: 0,
+                    borderRadius: 999,
+                    border: 'none',
+                    background: isCurrent ? '#38bdf8' : '#475569',
+                    cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    flexShrink: 0,
+                  }}
+                />
+              );
+            })}
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: areExerciseAndWeightLocked ? 0.65 : 1 }}>
             <button
@@ -1720,6 +1994,7 @@ export function App() {
 
             <div
               ref={carouselRef}
+              onScroll={handleCarouselScroll}
               style={{
                 flex: 1,
                 display: 'flex',
@@ -1806,32 +2081,29 @@ export function App() {
                 {currentHint}
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <button
-                type="button"
-                disabled={areExerciseAndWeightLocked}
-                onClick={() => {
-                  setGuideInitialExercise(selectedExercise);
-                  setIsGuidesOpen(true);
-                }}
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: '#38bdf8',
-                  background: 'rgba(56,189,248,0.1)',
-                  border: '1px solid rgba(56,189,248,0.35)',
-                  padding: '5px 9px',
-                  borderRadius: 8,
-                  cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer',
-                  opacity: areExerciseAndWeightLocked ? 0.5 : 1,
-                }}
-              >
-                📷 Guida
-              </button>
-              <span style={{ fontSize: 14, fontWeight: 800, color: '#38bdf8', background: 'rgba(56,189,248,0.1)', padding: '4px 10px', borderRadius: 8 }}>
-                {selectedExerciseObj.label}
-              </span>
-            </div>
+            <button
+              type="button"
+              disabled={isProcessing}
+              onClick={() => {
+                setGuideInitialExercise(selectedExercise);
+                setIsGuidesOpen(true);
+              }}
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#38bdf8',
+                background: 'rgba(56,189,248,0.12)',
+                border: '1px solid rgba(56,189,248,0.4)',
+                padding: '7px 11px',
+                borderRadius: 8,
+                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                opacity: isProcessing ? 0.5 : 1,
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              📷 Guida ripresa
+            </button>
           </div>
 
           <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: areExerciseAndWeightLocked ? 0.65 : 1 }}>
@@ -2176,18 +2448,92 @@ export function App() {
             />
           )}
 
-          <div style={{ position: 'relative', marginTop: 18, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+          {/* Switch Visualizzazione: Video + Scheletro vs Solo Human Stick */}
+          <div
+            style={{
+              marginTop: 18,
+              padding: '10px 12px',
+              background: '#1e293b',
+              borderRadius: 10,
+              border: '1px solid #334155',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>
+              Vista player:
+            </span>
+            <div
+              style={{
+                display: 'inline-flex',
+                background: '#0f172a',
+                borderRadius: 8,
+                padding: 3,
+                border: '1px solid #334155',
+                gap: 4,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setStickOnlyMode(false)}
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: !stickOnlyMode ? '#38bdf8' : 'transparent',
+                  color: !stickOnlyMode ? '#0f172a' : '#94a3b8',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                🎥 Video + Scheletro
+              </button>
+              <button
+                type="button"
+                onClick={() => setStickOnlyMode(true)}
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: stickOnlyMode ? '#38bdf8' : 'transparent',
+                  color: stickOnlyMode ? '#0f172a' : '#94a3b8',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                🦴 Solo Human Stick
+              </button>
+            </div>
+          </div>
+
+          <div style={{ position: 'relative', marginTop: 10, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+            <canvas
+              ref={canvasRef}
+              style={{
+                display: statusCode === 'success' && !stickOnlyMode ? 'none' : 'block',
+                width: '100%',
+                height: 'auto',
+                background: '#000',
+              }}
+            />
             <video
               ref={videoRef}
               controls={statusCode === 'success'}
-              style={{ display: statusCode === 'success' ? 'block' : 'none', width: '100%', height: 'auto' }}
+              style={{
+                display: statusCode === 'success' ? 'block' : 'none',
+                width: '100%',
+                height: statusCode === 'success' && stickOnlyMode ? 48 : 'auto',
+                background: '#000',
+              }}
               muted={statusCode !== 'success'}
               playsInline
               preload="auto"
-            />
-            <canvas
-              ref={canvasRef}
-              style={{ display: statusCode === 'success' ? 'none' : 'block', width: '100%', height: 'auto' }}
             />
           </div>
 

@@ -387,12 +387,14 @@ function StickmanAngleIllustration({ guide }: { guide: ExerciseGuideItem }) {
 
 interface CameraGuidesViewProps {
   initialExerciseId?: string;
+  readOnlySelection?: boolean;
   onSelectExercise?: (exerciseId: string) => void;
   onClose: (selectedExerciseId?: string) => void;
 }
 
 export function CameraGuidesView({
   initialExerciseId,
+  readOnlySelection = false,
   onSelectExercise,
   onClose,
 }: CameraGuidesViewProps) {
@@ -416,6 +418,7 @@ export function CameraGuidesView({
   });
 
   const handleChooseGuide = (exerciseId: string) => {
+    if (readOnlySelection) return;
     setSelectedExerciseId(exerciseId);
     onSelectExercise?.(exerciseId);
   };
@@ -435,7 +438,7 @@ export function CameraGuidesView({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <button
             type="button"
-            onClick={() => onClose(selectedExerciseId)}
+            onClick={() => onClose(readOnlySelection ? undefined : selectedExerciseId)}
             style={{
               padding: '8px 12px',
               borderRadius: 8,
@@ -533,7 +536,7 @@ export function CameraGuidesView({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {filteredGuides.map((guide) => {
             const hasImageError = Boolean(fallbackIds[guide.id]);
-            const isChosen = selectedExerciseId === guide.id;
+            const isChosen = !readOnlySelection && selectedExerciseId === guide.id;
             return (
               <div
                 key={guide.id}
@@ -544,7 +547,7 @@ export function CameraGuidesView({
                   borderRadius: 14,
                   overflow: 'hidden',
                   boxShadow: '0 8px 16px -4px rgba(0,0,0,0.3)',
-                  cursor: 'pointer',
+                  cursor: readOnlySelection ? 'default' : 'pointer',
                 }}
               >
                 {/* TOP CARD HEADER */}
@@ -662,28 +665,30 @@ export function CameraGuidesView({
                     </div>
                   </div>
 
-                  <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleChooseGuide(guide.id);
-                        onClose(guide.id);
-                      }}
-                      style={{
-                        padding: '7px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #38bdf8',
-                        background: isChosen ? '#38bdf8' : 'rgba(56,189,248,0.12)',
-                        color: isChosen ? '#0f172a' : '#38bdf8',
-                        fontSize: 12,
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {isChosen ? '✓ Selezionato per l’analisi' : 'Usa questo esercizio'}
-                    </button>
-                  </div>
+                  {!readOnlySelection && (
+                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleChooseGuide(guide.id);
+                          onClose(guide.id);
+                        }}
+                        style={{
+                          padding: '7px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #38bdf8',
+                          background: isChosen ? '#38bdf8' : 'rgba(56,189,248,0.12)',
+                          color: isChosen ? '#0f172a' : '#38bdf8',
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isChosen ? '✓ Selezionato per l’analisi' : 'Usa questo esercizio'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
