@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import { AuthScreen } from './components/AuthScreen';
 import { CameraGuidesView } from './components/CameraGuidesView';
+import { ExerciseAnglesGuideView, type GuideExerciseId } from './components/ExerciseAnglesGuideView';
 import { CookieBanner, type CookieConsentState } from './components/CookieBanner';
 import { LegalDocsModal, type LegalDocTab } from './components/LegalDocsModal';
 import { TesterFeedbackPanel } from './components/TesterFeedbackPanel';
@@ -1569,6 +1570,7 @@ export function App() {
   const [unlockedByPlan, setUnlockedByPlan] = useState<Record<string, boolean>>({});
 
   const [isGuidesOpen, setIsGuidesOpen] = useState<boolean>(false);
+  const [isAnglesGuideOpen, setIsAnglesGuideOpen] = useState<boolean>(false);
   const [guideInitialExercise, setGuideInitialExercise] = useState<string | undefined>(undefined);
 
   const [legalTab, setLegalTab] = useState<LegalDocTab | null>(null);
@@ -1838,7 +1840,7 @@ export function App() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (isGuidesOpen || !carouselRef.current) return;
+    if (isGuidesOpen || isAnglesGuideOpen || !carouselRef.current) return;
     const idx = EXERCISES.findIndex((ex) => ex.id === selectedExercise);
     if (idx < 0) return;
 
@@ -1860,7 +1862,7 @@ export function App() {
         isProgrammaticScrollRef.current = false;
       }, 350);
     }
-  }, [selectedExercise, isGuidesOpen]);
+  }, [selectedExercise, isGuidesOpen, isAnglesGuideOpen]);
 
   useEffect(() => {
     if (statusCode !== 'success') return;
@@ -2064,6 +2066,7 @@ export function App() {
   const handleLogout = async () => {
     analysisSessionIdRef.current += 1;
     setIsGuidesOpen(false);
+    setIsAnglesGuideOpen(false);
     setGuideInitialExercise(undefined);
     setLegalTab(null);
     setIsTester(false);
@@ -2825,6 +2828,34 @@ export function App() {
     );
   }
 
+  if (isAnglesGuideOpen) {
+    return (
+      <>
+        <AppBrandHeader />
+        <ExerciseAnglesGuideView
+          initialExerciseId={selectedExercise}
+          readOnlySelection={areExerciseAndWeightLocked}
+          onSelectExercise={(exId: GuideExerciseId) => {
+            const matched = EXERCISES.find((ex) => ex.id === exId);
+            if (matched && !areExerciseAndWeightLocked) {
+              setSelectedExercise(matched.id);
+            }
+          }}
+          onClose={(chosenExerciseId) => {
+            setIsAnglesGuideOpen(false);
+            if (!areExerciseAndWeightLocked && chosenExerciseId) {
+              const matched = EXERCISES.find((ex) => ex.id === chosenExerciseId);
+              if (matched) {
+                setSelectedExercise(matched.id);
+              }
+            }
+          }}
+        />
+        {renderLegalOverlays()}
+      </>
+    );
+  }
+
   const loggedUserLabel =
     (user.user_metadata?.username as string | undefined) ||
     (user.user_metadata?.full_name as string | undefined) ||
@@ -3039,8 +3070,31 @@ export function App() {
               display: 'flex',
               justifyContent: 'flex-end',
               alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
             }}
           >
+            <button
+              type="button"
+              disabled={isProcessing}
+              onClick={() => setIsAnglesGuideOpen(true)}
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#fde047',
+                background: 'rgba(250, 204, 21, 0.12)',
+                border: '1px solid rgba(250, 204, 21, 0.45)',
+                padding: '7px 11px',
+                borderRadius: 8,
+                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                opacity: isProcessing ? 0.5 : 1,
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              📐 Angoli esercizi
+            </button>
+
             <button
               type="button"
               disabled={isProcessing}
