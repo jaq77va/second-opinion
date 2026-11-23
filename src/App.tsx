@@ -439,6 +439,14 @@ function drawStickmanOverlay(
   }
 }
 
+function formatTimeSec(seconds: number): string {
+  if (!isFinite(seconds) || seconds < 0) return '00:00';
+  const totalSec = Math.floor(seconds);
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
 function clamp01(v: number): number {
   if (!isFinite(v)) return 0.5;
   return Math.max(0, Math.min(1, v));
