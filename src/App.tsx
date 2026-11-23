@@ -37,6 +37,8 @@ type PlanType = 'none' | 'trial' | 'quarterly' | 'semiannual' | 'annual';
 
 type AngleMode = 'extension_flexion' | 'abduction_up';
 
+type PlaybackSpeed = 1 | 0.5 | 0.25;
+
 interface ExerciseConfig {
   id: Exercise;
   label: string;
@@ -58,7 +60,21 @@ interface TimedLandmarkFrame {
   landmarks: any[];
 }
 
+interface TimedTelemetryPoint {
+  timeSec: number;
+  angleDeg: number | null;
+  romQuality: number;
+  powerScore: number;
+  angularSpeedDegSec: number;
+  leftAngleDeg: number | null;
+  rightAngleDeg: number | null;
+  symmetryDiffDeg: number | null;
+  torsoTiltDeg: number | null;
+}
+
 const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+
+const REPLAY_SPEEDS: PlaybackSpeed[] = [1, 0.5, 0.25];
 
 const EXERCISES: ExerciseConfig[] = [
   {
@@ -537,6 +553,11 @@ function constrainSegmentLength(
   };
 }
 
+/**
+ * Ricostruisce e stabilizza lo scheletro gestendo anche occlusioni parziali
+ * da inquadrature oblique/posteriori (es. braccio controlaterale coperto
+ * in front squat / rack position o scorcio prospettico).
+ */
 function deduceMissingBodyLandmarks(
   rawLandmarks: any[],
   prevSmoothed: any[] | null,
@@ -545,7 +566,7 @@ function deduceMissingBodyLandmarks(
   height = 360
 ): any[] {
   const out: any[] = new Array(33);
-  const MIN_DIRECT_VIS = 0.45;
+  const MIN_DIRECT_VIS = 0.48;
   const maxFrameJumpPx = Math.max(14, Math.hypot(width, height) * 0.085);
 
   for (let i = 0; i < 33; i++) {
@@ -572,13 +593,13 @@ function deduceMissingBodyLandmarks(
         x: clamp01(prevSmoothed[i].x + vx),
         y: clamp01(prevSmoothed[i].y + vy),
         z: (prevSmoothed[i].z ?? 0) + vz,
-        visibility: Math.max(0.55, (prevSmoothed[i].visibility ?? 0.75) * 0.9),
+        visibility: Math.max(0.5, (prevSmoothed[i].visibility ?? 0.72) * 0.88),
         __inferred: true,
       };
     } else if (prevSmoothed?.[i]) {
       out[i] = cloneLandmark({
         ...prevSmoothed[i],
-        visibility: Math.max(0.55, (prevSmoothed[i].visibility ?? 0.75) * 0.88),
+        visibility: Math.max(0.5, (prevSmoothed[i].visibility ?? 0.72) * 0.86),
         __inferred: true,
       });
     }
@@ -589,7 +610,7 @@ function deduceMissingBodyLandmarks(
       x: clamp01(out[12].x - 0.08),
       y: clamp01(out[12].y),
       z: out[12].z ?? 0,
-      visibility: 0.62,
+      visibility: 0.56,
       __inferred: true,
     };
   } else if (!out[12] && out[11]) {
@@ -597,7 +618,7 @@ function deduceMissingBodyLandmarks(
       x: clamp01(out[11].x + 0.08),
       y: clamp01(out[11].y),
       z: out[11].z ?? 0,
-      visibility: 0.62,
+      visibility: 0.56,
       __inferred: true,
     };
   }
@@ -607,7 +628,7 @@ function deduceMissingBodyLandmarks(
       x: clamp01(out[24].x - 0.07),
       y: clamp01(out[24].y),
       z: out[24].z ?? 0,
-      visibility: 0.62,
+      visibility: 0.56,
       __inferred: true,
     };
   } else if (!out[24] && out[23]) {
@@ -615,7 +636,7 @@ function deduceMissingBodyLandmarks(
       x: clamp01(out[23].x + 0.07),
       y: clamp01(out[23].y),
       z: out[23].z ?? 0,
-      visibility: 0.62,
+      visibility: 0.56,
       __inferred: true,
     };
   }
@@ -630,8 +651,8 @@ function deduceMissingBodyLandmarks(
         ? Math.hypot(prevSmoothed[23].x - prevSmoothed[11].x, prevSmoothed[23].y - prevSmoothed[11].y)
         : 0.22;
     const estTorso = Math.max(0.14, Math.min(0.32, prevTopLen));
-    out[11] = { x: clamp01(midHipX - 0.07), y: clamp01(midHipY - estTorso), z: 0, visibility: 0.6, __inferred: true };
-    out[12] = { x: clamp01(midHipX + 0.07), y: clamp01(midHipY - estTorso), z: 0, visibility: 0.6, __inferred: true };
+    out[11] = { x: clamp01(midHipX - 0.07), y: clamp01(midHipY - estTorso), z: 0, visibility: 0.55, __inferred: true };
+    out[12] = { x: clamp01(midHipX + 0.07), y: clamp01(midHipY - estTorso), z: 0, visibility: 0.55, __inferred: true };
   } else if (hasTop && !hasHip) {
     const midShX = (out[11].x + out[12].x) * 0.5;
     const midShY = (out[11].y + out[12].y) * 0.5;
@@ -640,8 +661,8 @@ function deduceMissingBodyLandmarks(
         ? Math.hypot(prevSmoothed[23].x - prevSmoothed[11].x, prevSmoothed[23].y - prevSmoothed[11].y)
         : 0.22;
     const estTorso = Math.max(0.14, Math.min(0.32, prevTopLen));
-    out[23] = { x: clamp01(midShX - 0.06), y: clamp01(midShY + estTorso), z: 0, visibility: 0.6, __inferred: true };
-    out[24] = { x: clamp01(midShX + 0.06), y: clamp01(midShY + estTorso), z: 0, visibility: 0.6, __inferred: true };
+    out[23] = { x: clamp01(midShX - 0.06), y: clamp01(midShY + estTorso), z: 0, visibility: 0.55, __inferred: true };
+    out[24] = { x: clamp01(midShX + 0.06), y: clamp01(midShY + estTorso), z: 0, visibility: 0.55, __inferred: true };
   }
 
   const midShX = out[11] && out[12] ? (out[11].x + out[12].x) * 0.5 : 0.5;
@@ -660,11 +681,97 @@ function deduceMissingBodyLandmarks(
   const legSegMin = torsoLen * 0.55;
   const legSegMax = torsoLen * 1.15;
 
+  // Correzione posturale per arto superiore coperto/scorciato in ripresa obliqua:
+  // se un braccio è chiaramente alto/flesso (es. presa bilanciere) e l'altro ha
+  // visibilità bassa o cade verso il basso per occlusione prospettica, lo si
+  // ricostruisce specularmente rispetto alla linea delle spalle invece di farlo
+  // penzolare verso l'anca.
+  const applyContralateralArmGuidance = (
+    visSh: any,
+    visEl: any,
+    visWr: any,
+    occSh: any,
+    occEl: any,
+    occWr: any,
+    rawOccEl: any,
+    rawOccWr: any
+  ) => {
+    if (!visSh || !visEl || !visWr || !occSh) return null;
+    const visReliability = Math.min(visEl.visibility ?? 0, visWr.visibility ?? 0);
+    const rawOccReliability = Math.min(rawOccEl?.visibility ?? 0, rawOccWr?.visibility ?? 0);
+
+    const visElbowElevated = visEl.y <= visSh.y + torsoLen * 0.22;
+    const occElbowDropped = occEl ? occEl.y > occSh.y + torsoLen * 0.36 : true;
+
+    if (
+      visReliability >= 0.62 &&
+      !visEl.__inferred &&
+      visElbowElevated &&
+      (rawOccReliability < 0.56 || occElbowDropped)
+    ) {
+      const shSpanX = occSh.x - visSh.x;
+      const shSpanY = occSh.y - visSh.y;
+      const relElX = visEl.x - visSh.x;
+      const relElY = visEl.y - visSh.y;
+      const relWrX = visWr.x - visSh.x;
+      const relWrY = visWr.y - visSh.y;
+
+      const mirrorSignX = shSpanX !== 0 ? -Math.sign(relElX) * Math.sign(shSpanX) : -1;
+      const mirroredElX = occSh.x + (mirrorSignX !== 0 ? mirrorSignX * Math.abs(relElX) * 0.65 : -relElX * 0.65);
+      const mirroredElY = occSh.y + relElY + shSpanY * 0.15;
+
+      const mirroredWrX = occSh.x + (mirrorSignX !== 0 ? mirrorSignX * Math.abs(relWrX) * 0.55 : -relWrX * 0.55);
+      const mirroredWrY = occSh.y + relWrY + shSpanY * 0.15;
+
+      const blend = rawOccReliability < 0.42 ? 0.85 : 0.65;
+      const nextEl = occEl
+        ? lerpLm(occEl, { x: mirroredElX, y: mirroredElY, z: visEl.z ?? 0, visibility: 0.52 }, blend, true)
+        : { x: clamp01(mirroredElX), y: clamp01(mirroredElY), z: visEl.z ?? 0, visibility: 0.52, __inferred: true };
+
+      const nextWr = occWr
+        ? lerpLm(occWr, { x: mirroredWrX, y: mirroredWrY, z: visWr.z ?? 0, visibility: 0.52 }, blend, true)
+        : { x: clamp01(mirroredWrX), y: clamp01(mirroredWrY), z: visWr.z ?? 0, visibility: 0.52, __inferred: true };
+
+      return { elbow: nextEl, wrist: nextWr };
+    }
+    return null;
+  };
+
   out[13] = constrainSegmentLength(out[11], out[13], armSegMin, armSegMax, downAngle, Boolean(out[13]?.__inferred));
   out[15] = constrainSegmentLength(out[13], out[15], armSegMin * 0.9, armSegMax * 0.95, downAngle, Boolean(out[15]?.__inferred));
 
   out[14] = constrainSegmentLength(out[12], out[14], armSegMin, armSegMax, downAngle, Boolean(out[14]?.__inferred));
   out[16] = constrainSegmentLength(out[14], out[16], armSegMin * 0.9, armSegMax * 0.95, downAngle, Boolean(out[16]?.__inferred));
+
+  const rightGuidedByLeft = applyContralateralArmGuidance(
+    out[11],
+    out[13],
+    out[15],
+    out[12],
+    out[14],
+    out[16],
+    rawLandmarks?.[14],
+    rawLandmarks?.[16]
+  );
+  if (rightGuidedByLeft) {
+    out[14] = constrainSegmentLength(out[12], rightGuidedByLeft.elbow, armSegMin * 0.8, armSegMax, downAngle, true);
+    out[16] = constrainSegmentLength(out[14], rightGuidedByLeft.wrist, armSegMin * 0.75, armSegMax * 0.95, downAngle, true);
+  } else {
+    const leftGuidedByRight = applyContralateralArmGuidance(
+      out[12],
+      out[14],
+      out[16],
+      out[11],
+      out[13],
+      out[15],
+      rawLandmarks?.[13],
+      rawLandmarks?.[15]
+    );
+    if (leftGuidedByRight) {
+      out[13] = constrainSegmentLength(out[11], leftGuidedByRight.elbow, armSegMin * 0.8, armSegMax, downAngle, true);
+      out[15] = constrainSegmentLength(out[13], leftGuidedByRight.wrist, armSegMin * 0.75, armSegMax * 0.95, downAngle, true);
+    }
+  }
 
   out[25] = constrainSegmentLength(out[23], out[25], legSegMin, legSegMax, downAngle, Boolean(out[25]?.__inferred));
   out[27] = constrainSegmentLength(out[25], out[27], legSegMin * 0.9, legSegMax, downAngle, Boolean(out[27]?.__inferred));
@@ -708,10 +815,12 @@ function deduceMissingBodyLandmarks(
         x: clamp01(prev.x + (curr.x - prev.x) * alpha),
         y: clamp01(prev.y + (curr.y - prev.y) * alpha),
         z: (prev.z ?? 0) * (1 - alpha) + (curr.z ?? 0) * alpha,
-        visibility: Math.max(
-          0.6,
-          Math.min(0.98, (prev.visibility ?? 0.8) * (1 - alpha) + (curr.visibility ?? 0.8) * alpha)
-        ),
+        visibility: curr.__inferred
+          ? Math.min(0.54, curr.visibility ?? 0.52)
+          : Math.max(
+              0.6,
+              Math.min(0.98, (prev.visibility ?? 0.8) * (1 - alpha) + (curr.visibility ?? 0.8) * alpha)
+            ),
         __inferred: curr.__inferred,
       };
     }
@@ -723,7 +832,7 @@ function deduceMissingBodyLandmarks(
         x: midHipX,
         y: midHipY,
         z: 0,
-        visibility: 0.55,
+        visibility: 0.5,
         __inferred: true,
       };
     }
@@ -774,6 +883,56 @@ function interpolateTimedFrames(frames: TimedLandmarkFrame[], targetTimeSec: num
   return merged;
 }
 
+function interpolateTimedTelemetry(
+  samples: TimedTelemetryPoint[],
+  targetTimeSec: number
+): TimedTelemetryPoint | null {
+  if (!samples.length) return null;
+  if (samples.length === 1 || targetTimeSec <= samples[0].timeSec) {
+    return samples[0];
+  }
+  const lastIdx = samples.length - 1;
+  if (targetTimeSec >= samples[lastIdx].timeSec) {
+    return samples[lastIdx];
+  }
+
+  let low = 0;
+  let high = lastIdx;
+  while (low < high - 1) {
+    const mid = Math.floor((low + high) / 2);
+    if (samples[mid].timeSec <= targetTimeSec) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  const s1 = samples[low];
+  const s2 = samples[high];
+  const span = s2.timeSec - s1.timeSec;
+  if (span <= 0.0001) return s1;
+
+  const t = Math.max(0, Math.min(1, (targetTimeSec - s1.timeSec) / span));
+  const lerpOpt = (a: number | null, b: number | null): number | null => {
+    if (a !== null && b !== null) return Math.round(a + (b - a) * t);
+    return t < 0.5 ? a : b;
+  };
+
+  return {
+    timeSec: targetTimeSec,
+    angleDeg: lerpOpt(s1.angleDeg, s2.angleDeg),
+    romQuality: Math.round(s1.romQuality + (s2.romQuality - s1.romQuality) * t),
+    powerScore: Math.round(s1.powerScore + (s2.powerScore - s1.powerScore) * t),
+    angularSpeedDegSec: Math.round(
+      s1.angularSpeedDegSec + (s2.angularSpeedDegSec - s1.angularSpeedDegSec) * t
+    ),
+    leftAngleDeg: lerpOpt(s1.leftAngleDeg, s2.leftAngleDeg),
+    rightAngleDeg: lerpOpt(s1.rightAngleDeg, s2.rightAngleDeg),
+    symmetryDiffDeg: lerpOpt(s1.symmetryDiffDeg, s2.symmetryDiffDeg),
+    torsoTiltDeg: lerpOpt(s1.torsoTiltDeg, s2.torsoTiltDeg),
+  };
+}
+
 function calculateLiveAngle(a: any, b: any, c: any): number {
   const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
   let angle = Math.abs((radians * 180.0) / Math.PI);
@@ -781,10 +940,18 @@ function calculateLiveAngle(a: any, b: any, c: any): number {
   return Math.round(angle);
 }
 
-function areLandmarksVisible(landmarks: any[], indices: number[], minVis = 0.45): boolean {
-  return indices.every(
-    (idx) => landmarks[idx] && (landmarks[idx].visibility ?? 1) >= minVis
-  );
+function areLandmarksVisible(
+  landmarks: any[],
+  indices: number[],
+  minVis = 0.45,
+  rejectInferred = false
+): boolean {
+  return indices.every((idx) => {
+    const lm = landmarks[idx];
+    if (!lm) return false;
+    if (rejectInferred && lm.__inferred) return false;
+    return (lm.visibility ?? 1) >= minVis;
+  });
 }
 
 function getBilateralOrSingleAngle(
@@ -905,18 +1072,38 @@ function getLeftRightAngles(
     rightTriplet = [12, 14, 16];
   }
 
-  const leftOk = areLandmarksVisible(landmarks, leftTriplet, 0.45);
-  const rightOk = areLandmarksVisible(landmarks, rightTriplet, 0.45);
+  // Per visualizzare il singolo lato accettiamo visibilità >= 0.48,
+  // mentre per calcolare il delta di simmetria pretendiamo entrambi i lati
+  // realmente visibili (non dedotti e con confidenza >= 0.58) evitando falsi spike
+  // dovuti a lati coperti in riprese a 45° o laterali.
+  const leftReadable = areLandmarksVisible(landmarks, leftTriplet, 0.48, false);
+  const rightReadable = areLandmarksVisible(landmarks, rightTriplet, 0.48, false);
 
-  const left = leftOk
+  const leftStrong = areLandmarksVisible(landmarks, leftTriplet, 0.58, true);
+  const rightStrong = areLandmarksVisible(landmarks, rightTriplet, 0.58, true);
+
+  const left = leftReadable
     ? calculateLiveAngle(landmarks[leftTriplet[0]], landmarks[leftTriplet[1]], landmarks[leftTriplet[2]])
     : null;
-  const right = rightOk
+  const right = rightReadable
     ? calculateLiveAngle(landmarks[rightTriplet[0]], landmarks[rightTriplet[1]], landmarks[rightTriplet[2]])
     : null;
 
-  const diff = left !== null && right !== null ? Math.abs(left - right) : null;
+  const diff =
+    left !== null && right !== null && leftStrong && rightStrong
+      ? Math.abs(left - right)
+      : null;
+
   return { left, right, diff };
+}
+
+function medianOfNumbers(values: number[]): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+    : sorted[mid];
 }
 
 function angleToRomPercent(
@@ -1313,6 +1500,7 @@ export function App() {
   const [isReplayPlaying, setIsReplayPlaying] = useState<boolean>(false);
   const [replayCurrentTime, setReplayCurrentTime] = useState<number>(0);
   const [replayDuration, setReplayDuration] = useState<number>(0);
+  const [replaySpeed, setReplaySpeed] = useState<PlaybackSpeed>(1);
 
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [aiStatusCode, setAiStatusCode] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
@@ -1323,6 +1511,7 @@ export function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const landmarksBufferRef = useRef<any[][]>([]);
   const timedLandmarksRef = useRef<TimedLandmarkFrame[]>([]);
+  const timedTelemetryRef = useRef<TimedTelemetryPoint[]>([]);
   const stickOnlyModeRef = useRef<boolean>(false);
   const carouselRef = useRef<HTMLDivElement | null>(null);
   const scrollSyncTimeoutRef = useRef<number | null>(null);
@@ -1351,6 +1540,12 @@ export function App() {
   useEffect(() => {
     stickOnlyModeRef.current = stickOnlyMode;
   }, [stickOnlyMode]);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = statusCode === 'success' ? replaySpeed : 1;
+    }
+  }, [replaySpeed, statusCode]);
 
   useEffect(() => {
     return () => {
@@ -1447,12 +1642,14 @@ export function App() {
     setIsReplayPlaying(false);
     setReplayCurrentTime(0);
     setReplayDuration(0);
+    setReplaySpeed(1);
     setAiFeedback('');
     setAiStatusCode('idle');
     setAiStatusMessage('In attesa di dati geometrici...');
 
     landmarksBufferRef.current = [];
     timedLandmarksRef.current = [];
+    timedTelemetryRef.current = [];
     lastGeomResultRef.current = null;
     telemetrySamplesRef.current = {
       angles: [],
@@ -1469,6 +1666,7 @@ export function App() {
 
     if (videoRef.current) {
       videoRef.current.pause();
+      videoRef.current.playbackRate = 1;
       videoRef.current.removeAttribute('src');
       videoRef.current.load();
     }
@@ -1560,6 +1758,7 @@ export function App() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    video.playbackRate = replaySpeed;
     let rafId: number | null = null;
 
     const syncDuration = () => {
@@ -1569,13 +1768,27 @@ export function App() {
       setReplayCurrentTime(video.currentTime || 0);
     };
 
+    const syncTelemetryAtTime = (timeSec: number) => {
+      const point = interpolateTimedTelemetry(timedTelemetryRef.current, timeSec);
+      if (!point) return;
+      setLiveAngleDeg(point.angleDeg);
+      setRomQuality(point.romQuality);
+      setPowerScore(point.powerScore);
+      setAngularSpeedDegSec(point.angularSpeedDegSec);
+      setLeftAngleDeg(point.leftAngleDeg);
+      setRightAngleDeg(point.rightAngleDeg);
+      setSymmetryDiffDeg(point.symmetryDiffDeg);
+      setTorsoTiltDeg(point.torsoTiltDeg);
+    };
+
     const renderReplayFrame = () => {
       const w = canvas.width || video.videoWidth || 480;
       const h = canvas.height || video.videoHeight || 360;
       if (canvas.width !== w) canvas.width = w;
       if (canvas.height !== h) canvas.height = h;
 
-      const nearestLandmarks = interpolateTimedFrames(timedLandmarksRef.current, video.currentTime);
+      const currentVideoTime = video.currentTime || 0;
+      const nearestLandmarks = interpolateTimedFrames(timedLandmarksRef.current, currentVideoTime);
 
       if (stickOnlyMode) {
         if (nearestLandmarks) {
@@ -1594,7 +1807,8 @@ export function App() {
         }
       }
 
-      setReplayCurrentTime(video.currentTime || 0);
+      setReplayCurrentTime(currentVideoTime);
+      syncTelemetryAtTime(currentVideoTime);
 
       if (!video.paused && !video.ended) {
         rafId = requestAnimationFrame(renderReplayFrame);
@@ -1604,6 +1818,7 @@ export function App() {
     };
 
     const handlePlay = () => {
+      video.playbackRate = replaySpeed;
       setIsReplayPlaying(true);
       syncDuration();
       if (rafId !== null) cancelAnimationFrame(rafId);
@@ -1648,7 +1863,7 @@ export function App() {
       video.removeEventListener('seeked', handleSeeked);
       video.removeEventListener('timeupdate', renderReplayFrame);
     };
-  }, [statusCode, stickOnlyMode]);
+  }, [statusCode, stickOnlyMode, replaySpeed]);
 
   const fetchUserSubscription = async (userId: string) => {
     setSubLoading(true);
@@ -1992,6 +2207,7 @@ export function App() {
 
       video.muted = true;
       video.playsInline = true;
+      video.playbackRate = 1;
       video.src = localVideoUrl;
       video.load();
 
@@ -2006,6 +2222,7 @@ export function App() {
       let angleHistory: number[] = [];
       let powerHistory: number[] = [];
       let speedHistory: number[] = [];
+      let asymHistory: number[] = [];
       let hasStarted = false;
       let latestKnownLandmarks: any[] | null = null;
       let prev2KnownLandmarks: any[] | null = null;
@@ -2152,7 +2369,7 @@ export function App() {
                   });
 
                   const rawAngle = extractExerciseAngle(sessionExerciseId, currentLandmarks);
-                  const { left, right, diff: asymDiff } = getLeftRightAngles(
+                  const { left, right, diff: rawAsymDiff } = getLeftRightAngles(
                     sessionExerciseId,
                     currentLandmarks
                   );
@@ -2160,14 +2377,27 @@ export function App() {
 
                   setLeftAngleDeg(left);
                   setRightAngleDeg(right);
-                  if (asymDiff !== null) {
-                    setSymmetryDiffDeg(asymDiff);
-                    telemetrySamplesRef.current.asymmetries.push(asymDiff);
+
+                  let filteredAsymDiff: number | null = null;
+                  if (rawAsymDiff !== null) {
+                    asymHistory.push(rawAsymDiff);
+                    if (asymHistory.length > 5) asymHistory.shift();
+                    filteredAsymDiff = medianOfNumbers(asymHistory);
+                    setSymmetryDiffDeg(filteredAsymDiff);
+                    telemetrySamplesRef.current.asymmetries.push(filteredAsymDiff);
+                  } else {
+                    setSymmetryDiffDeg(null);
                   }
+
                   if (torsoTilt !== null) {
                     setTorsoTiltDeg(torsoTilt);
                     telemetrySamplesRef.current.torsos.push(torsoTilt);
                   }
+
+                  let frameSmoothAngle: number | null = null;
+                  let frameRom = 0;
+                  let framePower = 0;
+                  let frameSpeed = 0;
 
                   if (rawAngle !== null) {
                     const prevSmoothAngle =
@@ -2178,6 +2408,7 @@ export function App() {
                     const smoothAngle = Math.round(
                       angleHistory.reduce((acc, v) => acc + v, 0) / angleHistory.length
                     );
+                    frameSmoothAngle = smoothAngle;
                     setLiveAngleDeg(smoothAngle);
                     telemetrySamplesRef.current.angles.push(smoothAngle);
 
@@ -2201,10 +2432,12 @@ export function App() {
                     const smoothAngularSpeed = speedHistory.length
                       ? Math.round(speedHistory.reduce((acc, v) => acc + v, 0) / speedHistory.length)
                       : 0;
+                    frameSpeed = smoothAngularSpeed;
                     setAngularSpeedDegSec(smoothAngularSpeed);
                     telemetrySamplesRef.current.speeds.push(smoothAngularSpeed);
 
                     const rom = angleToRomPercent(sessionExerciseId, sessionExerciseConfig, smoothAngle) ?? 0;
+                    frameRom = rom;
                     setRomQuality(rom);
                     telemetrySamplesRef.current.roms.push(rom);
 
@@ -2225,6 +2458,7 @@ export function App() {
                     const smoothedPower = Math.round(
                       powerHistory.reduce((acc, v) => acc + v, 0) / powerHistory.length
                     );
+                    framePower = smoothedPower;
 
                     setPowerScore(smoothedPower);
                     telemetrySamplesRef.current.powers.push(smoothedPower);
@@ -2233,6 +2467,18 @@ export function App() {
                       setPeakPowerScore(sessionPeakPower);
                     }
                   }
+
+                  timedTelemetryRef.current.push({
+                    timeSec: video.currentTime,
+                    angleDeg: frameSmoothAngle,
+                    romQuality: frameRom,
+                    powerScore: framePower,
+                    angularSpeedDegSec: frameSpeed,
+                    leftAngleDeg: left,
+                    rightAngleDeg: right,
+                    symmetryDiffDeg: filteredAsymDiff,
+                    torsoTiltDeg: torsoTilt,
+                  });
                 }
               } catch {
                 // Ignora frame non decodificabili e prosegue
@@ -2874,7 +3120,7 @@ export function App() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
                   <span style={{ color: '#94a3b8' }}>Simmetria SX / DX (ROM)</span>
                   <span style={{ color: asymColor }}>
-                    {symmetryDiffDeg !== null ? `Asimmetria Δ ${symmetryDiffDeg}°` : 'N/D'}
+                    {symmetryDiffDeg !== null ? `Asimmetria Δ ${symmetryDiffDeg}°` : 'Lato coperto / N/D'}
                   </span>
                 </div>
 
@@ -3365,78 +3611,143 @@ export function App() {
                   background: '#1e293b',
                   borderTop: '1px solid #334155',
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
+                  flexDirection: 'column',
+                  gap: 8,
                 }}
               >
-                <button
-                  type="button"
-                  aria-label={isReplayPlaying ? 'Metti in pausa' : 'Riproduci video'}
-                  onClick={() => {
-                    const vid = videoRef.current;
-                    if (!vid) return;
-                    if (vid.paused || vid.ended) {
-                      if (vid.ended) {
-                        vid.currentTime = 0;
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}
+                >
+                  <button
+                    type="button"
+                    aria-label={isReplayPlaying ? 'Metti in pausa' : 'Riproduci video'}
+                    onClick={() => {
+                      const vid = videoRef.current;
+                      if (!vid) return;
+                      if (vid.paused || vid.ended) {
+                        if (vid.ended) {
+                          vid.currentTime = 0;
+                        }
+                        vid.playbackRate = replaySpeed;
+                        vid.muted = false;
+                        void vid.play();
+                      } else {
+                        vid.pause();
                       }
-                      vid.muted = false;
-                      void vid.play();
-                    } else {
-                      vid.pause();
-                    }
-                  }}
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #38bdf8',
+                      background: 'rgba(56, 189, 248, 0.16)',
+                      color: '#38bdf8',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      touchAction: 'manipulation',
+                    }}
+                  >
+                    {isReplayPlaying ? '⏸ Pausa' : '▶ Play'}
+                  </button>
+
+                  <input
+                    type="range"
+                    min={0}
+                    max={replayDuration > 0 ? replayDuration : 100}
+                    step={0.05}
+                    value={Math.min(replayCurrentTime, replayDuration > 0 ? replayDuration : 100)}
+                    aria-label="Posizione riproduzione video"
+                    onChange={(e) => {
+                      const vid = videoRef.current;
+                      if (!vid) return;
+                      const nextTime = parseFloat(e.target.value);
+                      if (!isNaN(nextTime)) {
+                        vid.currentTime = nextTime;
+                        setReplayCurrentTime(nextTime);
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      accentColor: '#38bdf8',
+                      cursor: 'pointer',
+                      minWidth: 0,
+                    }}
+                  />
+
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#cbd5e1',
+                      fontVariantNumeric: 'tabular-nums',
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {formatTimeSec(replayCurrentTime)} / {formatTimeSec(replayDuration)}
+                  </span>
+                </div>
+
+                <div
                   style={{
-                    padding: '6px 12px',
-                    borderRadius: 8,
-                    border: '1px solid #38bdf8',
-                    background: 'rgba(56, 189, 248, 0.16)',
-                    color: '#38bdf8',
-                    fontSize: 12,
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                    touchAction: 'manipulation',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    paddingTop: 6,
+                    borderTop: '1px solid rgba(51, 65, 85, 0.7)',
                   }}
                 >
-                  {isReplayPlaying ? '⏸ Pausa' : '▶ Play'}
-                </button>
-
-                <input
-                  type="range"
-                  min={0}
-                  max={replayDuration > 0 ? replayDuration : 100}
-                  step={0.05}
-                  value={Math.min(replayCurrentTime, replayDuration > 0 ? replayDuration : 100)}
-                  aria-label="Posizione riproduzione video"
-                  onChange={(e) => {
-                    const vid = videoRef.current;
-                    if (!vid) return;
-                    const nextTime = parseFloat(e.target.value);
-                    if (!isNaN(nextTime)) {
-                      vid.currentTime = nextTime;
-                      setReplayCurrentTime(nextTime);
-                    }
-                  }}
-                  style={{
-                    flex: 1,
-                    accentColor: '#38bdf8',
-                    cursor: 'pointer',
-                    minWidth: 0,
-                  }}
-                />
-
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: '#cbd5e1',
-                    fontVariantNumeric: 'tabular-nums',
-                    flexShrink: 0,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {formatTimeSec(replayCurrentTime)} / {formatTimeSec(replayDuration)}
-                </span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
+                    Velocità replay (sincronizzata con i dati):
+                  </span>
+                  <div
+                    role="group"
+                    aria-label="Velocità di riproduzione replay"
+                    style={{
+                      display: 'inline-flex',
+                      background: '#0f172a',
+                      borderRadius: 7,
+                      padding: 2,
+                      border: '1px solid #334155',
+                      gap: 3,
+                    }}
+                  >
+                    {REPLAY_SPEEDS.map((spd) => {
+                      const active = replaySpeed === spd;
+                      return (
+                        <button
+                          key={spd}
+                          type="button"
+                          onClick={() => {
+                            setReplaySpeed(spd);
+                            if (videoRef.current) {
+                              videoRef.current.playbackRate = spd;
+                            }
+                          }}
+                          style={{
+                            padding: '4px 9px',
+                            borderRadius: 5,
+                            border: 'none',
+                            background: active ? '#38bdf8' : 'transparent',
+                            color: active ? '#0f172a' : '#94a3b8',
+                            fontSize: 11,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {spd === 1 ? '1x' : `${spd}x`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
           </div>
