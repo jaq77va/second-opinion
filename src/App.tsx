@@ -894,6 +894,93 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
   }
 }
 
+function getLeftRightAngleDiff(exercise: Exercise, landmarks: any[]): number | null {
+  if (!landmarks || !landmarks.length) return null;
+  let leftTriplet: [number, number, number] | null = null;
+  let rightTriplet: [number, number, number] | null = null;
+
+  if (exercise === 'squat' || exercise === 'leg_extension' || exercise === 'leg_curl') {
+    leftTriplet = [23, 25, 27];
+    rightTriplet = [24, 26, 28];
+  } else if (exercise === 'stacco' || exercise === 'stacco_rumeno') {
+    leftTriplet = [11, 23, 25];
+    rightTriplet = [12, 24, 26];
+  } else if (exercise === 'alzate_laterali') {
+    leftTriplet = [23, 11, 13];
+    rightTriplet = [24, 12, 14];
+  } else {
+    leftTriplet = [11, 13, 15];
+    rightTriplet = [12, 14, 16];
+  }
+
+  if (!leftTriplet || !rightTriplet) return null;
+  const leftOk = areLandmarksVisible(landmarks, leftTriplet, 0.45);
+  const rightOk = areLandmarksVisible(landmarks, rightTriplet, 0.45);
+  if (!leftOk || !rightOk) return null;
+
+  const lAng = calculateLiveAngle(landmarks[leftTriplet[0]], landmarks[leftTriplet[1]], landmarks[leftTriplet[2]]);
+  const rAng = calculateLiveAngle(landmarks[rightTriplet[0]], landmarks[rightTriplet[1]], landmarks[rightTriplet[2]]);
+  return Math.abs(lAng - rAng);
+}
+
+function calculateTorsoInclinationDeg(landmarks: any[]): number | null {
+  if (!landmarks || !landmarks.length) return null;
+  const hasLeft = areLandmarksVisible(landmarks, [11, 23], 0.45);
+  const hasRight = areLandmarksVisible(landmarks, [12, 24], 0.45);
+  if (!hasLeft && !hasRight) return null;
+
+  let shX = 0;
+  let shY = 0;
+  let hpX = 0;
+  let hpY = 0;
+  let count = 0;
+
+  if (hasLeft) {
+    shX += landmarks[11].x;
+    shY += landmarks[11].y;
+    hpX += landmarks[23].x;
+    hpY += landmarks[23].y;
+    count++;
+  }
+  if (hasRight) {
+    shX += landmarks[12].x;
+    shY += landmarks[12].y;
+    hpX += landmarks[24].x;
+    hpY += landmarks[24].y;
+    count++;
+  }
+  if (count === 0) return null;
+
+  shX /= count;
+  shY /= count;
+  hpX /= count;
+  hpY /= count;
+
+  const dx = shX - hpX;
+  const dy = shY - hpY;
+  // Angolo rispetto alla verticale (0° = busto verticale, 90° = busto orizzontale)
+  const degFromVertical = (Math.abs(Math.atan2(Math.abs(dx), Math.abs(dy))) * 180) / Math.PI;
+  return Math.max(0, Math.min(90, Math.round(degFromVertical)));
+}
+
+interface SessionBiomechanicsSummary {
+  minAngle: number | null;
+  maxAngle: number | null;
+  romSpanDeg: number | null;
+  peakRomPercent: number;
+  avgRomPercent: number;
+  peakPowerW: number;
+  avgPowerW: number;
+  peakAngularSpeedDegSec: number;
+  avgAngularSpeedDegSec: number;
+  maxAsymmetryDeg: number | null;
+  avgAsymmetryDeg: number | null;
+  minTorsoDeg: number | null;
+  maxTorsoDeg: number | null;
+  torsoOscillationDeg: number | null;
+  sampleCount: number;
+}
+
 async function createLandmarkerWithFallback(vision: any): Promise<PoseLandmarker> {
   try {
     return await PoseLandmarker.createFromOptions(vision, {
@@ -1197,13 +1284,16 @@ export function App() {
   const [statusCode, setStatusCode] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progressPercent, setProgressPercent] = useState<number>(0);
-  const [repCount, setRepCount] = useState<number>(0);
-
+  const [liveAngleDeg, setLiveAngleDeg] = useState<number | null>(null);
   const [romQuality, setRomQuality] = useState<number>(0);
   const [powerScore, setPowerScore] = useState<number>(0);
+  const [peakPowerScore, setPeakPowerScore] = useState<number>(0);
+  const [angularSpeedDegSec, setAngularSpeedDegSec] = useState<number>(0);
+  const [symmetryDiffDeg, setSymmetryDiffDeg] = useState<number | null>(null);
+  const [torsoTiltDeg, setTorsoTiltDeg] = useState<number | null>(null);
 
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [repPeakPowers, setRepPeakPowers] = useState<number[]>([]);
+  const [biomechSummary, setBiomechSummary] = useState<SessionBiomechanicsSummary | null>(null);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState<boolean>(false);
   const [lastUploadedFile, setLastUploadedFile] = useState<File | null>(null);
 
@@ -1228,6 +1318,21 @@ export function App() {
   const carouselRef = useRef<HTMLDivElement | null>(null);
   const scrollSyncTimeoutRef = useRef<number | null>(null);
   const lastGeomResultRef = useRef<AnalysisResult | null>(null);
+  const telemetrySamplesRef = useRef<{
+    angles: number[];
+    roms: number[];
+    powers: number[];
+    speeds: number[];
+    asymmetries: number[];
+    torsos: number[];
+  }>({
+    angles: [],
+    roms: [],
+    powers: [],
+    speeds: [],
+    asymmetries: [],
+    torsos: [],
+  });
   const loggedSessionKeyRef = useRef<string | null>(null);
   const analysisSessionIdRef = useRef<number>(0);
   const isProgrammaticScrollRef = useRef<boolean>(false);
@@ -1287,11 +1392,15 @@ export function App() {
     setStatusCode('idle');
     setIsProcessing(false);
     setProgressPercent(0);
-    setRepCount(0);
+    setLiveAngleDeg(null);
     setRomQuality(0);
     setPowerScore(0);
+    setPeakPowerScore(0);
+    setAngularSpeedDegSec(0);
+    setSymmetryDiffDeg(null);
+    setTorsoTiltDeg(null);
     setAnalysisResult(null);
-    setRepPeakPowers([]);
+    setBiomechSummary(null);
     setIsAnalysisOpen(false);
     setLastUploadedFile(null);
     setIsReplayPlaying(false);
@@ -1304,6 +1413,14 @@ export function App() {
     landmarksBufferRef.current = [];
     timedLandmarksRef.current = [];
     lastGeomResultRef.current = null;
+    telemetrySamplesRef.current = {
+      angles: [],
+      roms: [],
+      powers: [],
+      speeds: [],
+      asymmetries: [],
+      torsos: [],
+    };
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -1841,18 +1958,15 @@ export function App() {
       let targetWidth = 640;
       let targetHeight = 480;
 
-      let repPhase: 'START' | 'ACTIVE' = 'START';
-      let hasReachedInitialPosition = false;
-      let localReps = 0;
       let angleHistory: number[] = [];
       let powerHistory: number[] = [];
-      let transitionStreak = 0;
+      let speedHistory: number[] = [];
       let hasStarted = false;
       let latestKnownLandmarks: any[] | null = null;
       let prev2KnownLandmarks: any[] | null = null;
-
-      let currentRepMaxPower = 0;
-      let collectedRepPowers: number[] = [];
+      let prevSampleAngle: number | null = null;
+      let prevSampleTimeSec: number | null = null;
+      let sessionPeakPower = 0;
 
       const effectiveMass = selectedExerciseObj.isDumbbell ? weightKg * 2 : weightKg;
 
@@ -1905,15 +2019,47 @@ export function App() {
               if (video.ended) {
                 setIsProcessing(false);
                 setProgressPercent(100);
-                setRomQuality(0);
                 setPowerScore(0);
+                setAngularSpeedDegSec(0);
                 setStatus('Analisi completata con successo');
                 setStatusCode('success');
 
                 const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
                 setAnalysisResult(geomResult);
-                setRepPeakPowers(collectedRepPowers);
                 lastGeomResultRef.current = geomResult;
+
+                const samples = telemetrySamplesRef.current;
+                const avgOf = (arr: number[]) =>
+                  arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : null;
+                const maxOf = (arr: number[]) => (arr.length ? Math.max(...arr) : null);
+                const minOf = (arr: number[]) => (arr.length ? Math.min(...arr) : null);
+
+                const minAng = samples.angles.length ? minOf(samples.angles)! : (geomResult?.minAngle ?? null);
+                const maxAng = samples.angles.length ? maxOf(samples.angles)! : (geomResult?.maxAngle ?? null);
+                const spanDeg = minAng !== null && maxAng !== null ? Math.abs(maxAng - minAng) : null;
+
+                const minTorso = minOf(samples.torsos);
+                const maxTorso = maxOf(samples.torsos);
+                const torsoOsc =
+                  minTorso !== null && maxTorso !== null ? Math.abs(maxTorso - minTorso) : null;
+
+                setBiomechSummary({
+                  minAngle: minAng,
+                  maxAngle: maxAng,
+                  romSpanDeg: spanDeg,
+                  peakRomPercent: maxOf(samples.roms) ?? 0,
+                  avgRomPercent: avgOf(samples.roms) ?? 0,
+                  peakPowerW: Math.max(sessionPeakPower, maxOf(samples.powers) ?? 0),
+                  avgPowerW: avgOf(samples.powers) ?? 0,
+                  peakAngularSpeedDegSec: maxOf(samples.speeds) ?? 0,
+                  avgAngularSpeedDegSec: avgOf(samples.speeds) ?? 0,
+                  maxAsymmetryDeg: maxOf(samples.asymmetries),
+                  avgAsymmetryDeg: avgOf(samples.asymmetries),
+                  minTorsoDeg: minTorso,
+                  maxTorsoDeg: maxTorso,
+                  torsoOscillationDeg: torsoOsc,
+                  sampleCount: samples.angles.length,
+                });
 
                 triggerAiCoach(geomResult, currentSessionId);
 
@@ -1949,6 +2095,17 @@ export function App() {
                   });
 
                   const rawAngle = extractExerciseAngle(selectedExercise, currentLandmarks);
+                  const asymDiff = getLeftRightAngleDiff(selectedExercise, currentLandmarks);
+                  const torsoTilt = calculateTorsoInclinationDeg(currentLandmarks);
+
+                  if (asymDiff !== null) {
+                    setSymmetryDiffDeg(asymDiff);
+                    telemetrySamplesRef.current.asymmetries.push(asymDiff);
+                  }
+                  if (torsoTilt !== null) {
+                    setTorsoTiltDeg(torsoTilt);
+                    telemetrySamplesRef.current.torsos.push(torsoTilt);
+                  }
 
                   if (rawAngle !== null) {
                     angleHistory.push(rawAngle);
@@ -1956,80 +2113,28 @@ export function App() {
                     const smoothAngle = Math.round(
                       angleHistory.reduce((acc, v) => acc + v, 0) / angleHistory.length
                     );
+                    setLiveAngleDeg(smoothAngle);
+                    telemetrySamplesRef.current.angles.push(smoothAngle);
 
-                    if (selectedExerciseObj.mode === 'abduction_up') {
-                      const REST_MAX = selectedExerciseObj.restMax ?? 55;
-                      const APEX_MIN = selectedExerciseObj.apexMin ?? 88;
-
-                      if (!hasReachedInitialPosition) {
-                        if (smoothAngle <= REST_MAX) {
-                          hasReachedInitialPosition = true;
-                        }
-                      } else if (repPhase === 'START') {
-                        if (smoothAngle >= APEX_MIN) {
-                          transitionStreak++;
-                          if (transitionStreak >= 1) {
-                            repPhase = 'ACTIVE';
-                            transitionStreak = 0;
-                            currentRepMaxPower = 0;
-                          }
-                        } else {
-                          transitionStreak = 0;
-                        }
-                      } else if (repPhase === 'ACTIVE') {
-                        if (smoothAngle <= REST_MAX) {
-                          transitionStreak++;
-                          if (transitionStreak >= 1) {
-                            repPhase = 'START';
-                            transitionStreak = 0;
-                            localReps++;
-                            setRepCount(localReps);
-                            collectedRepPowers.push(Math.round(currentRepMaxPower));
-                          }
-                        } else {
-                          transitionStreak = 0;
-                        }
-                      }
-                    } else {
-                      const TOP_MIN = selectedExerciseObj.topMin ?? 150;
-                      const BOTTOM_MAX = selectedExerciseObj.bottomMax ?? 100;
-
-                      if (!hasReachedInitialPosition) {
-                        if (smoothAngle >= TOP_MIN) {
-                          transitionStreak++;
-                          if (transitionStreak >= 1) {
-                            hasReachedInitialPosition = true;
-                            transitionStreak = 0;
-                          }
-                        } else {
-                          transitionStreak = 0;
-                        }
-                      } else if (repPhase === 'START') {
-                        if (smoothAngle <= BOTTOM_MAX) {
-                          transitionStreak++;
-                          if (transitionStreak >= 1) {
-                            repPhase = 'ACTIVE';
-                            transitionStreak = 0;
-                            currentRepMaxPower = 0;
-                          }
-                        } else {
-                          transitionStreak = 0;
-                        }
-                      } else if (repPhase === 'ACTIVE') {
-                        if (smoothAngle >= TOP_MIN) {
-                          transitionStreak++;
-                          if (transitionStreak >= 1) {
-                            repPhase = 'START';
-                            transitionStreak = 0;
-                            localReps++;
-                            setRepCount(localReps);
-                            collectedRepPowers.push(Math.round(currentRepMaxPower));
-                          }
-                        } else {
-                          transitionStreak = 0;
-                        }
+                    const currentTimeSec = video.currentTime;
+                    let rawAngularSpeed = 0;
+                    if (prevSampleAngle !== null && prevSampleTimeSec !== null) {
+                      const dtSec = currentTimeSec - prevSampleTimeSec;
+                      if (dtSec > 0.008 && dtSec < 1.5) {
+                        rawAngularSpeed = Math.abs(smoothAngle - prevSampleAngle) / dtSec;
+                        rawAngularSpeed = Math.min(rawAngularSpeed, 420);
                       }
                     }
+                    prevSampleAngle = smoothAngle;
+                    prevSampleTimeSec = currentTimeSec;
+
+                    speedHistory.push(rawAngularSpeed);
+                    if (speedHistory.length > 5) speedHistory.shift();
+                    const smoothAngularSpeed = Math.round(
+                      speedHistory.reduce((acc, v) => acc + v, 0) / speedHistory.length
+                    );
+                    setAngularSpeedDegSec(smoothAngularSpeed);
+                    telemetrySamplesRef.current.speeds.push(smoothAngularSpeed);
 
                     let rom = 0;
                     if (selectedExercise === 'alzate_laterali') {
@@ -2043,20 +2148,19 @@ export function App() {
                     }
                     rom = Math.max(0, Math.min(100, Math.round(rom)));
                     setRomQuality(rom);
+                    telemetrySamplesRef.current.roms.push(rom);
 
                     let instantPower = 0;
-                    if (repPhase === 'ACTIVE') {
-                      const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
-                      const MOVEMENT_DEADZONE = 2.0;
+                    const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
+                    const MOVEMENT_DEADZONE = 1.5;
 
-                      if (angleDelta >= MOVEMENT_DEADZONE) {
-                        const safeDt = Math.max(deltaTime, 0.012);
-                        const safeDeltaAngle = Math.min(angleDelta, 4.0);
+                    if (angleDelta >= MOVEMENT_DEADZONE) {
+                      const safeDt = Math.max(deltaTime, 0.012);
+                      const safeDeltaAngle = Math.min(angleDelta, 4.0);
 
-                        const velocityFactor = safeDeltaAngle / (safeDt * 10);
-                        instantPower = effectiveMass * velocityFactor * 1.2;
-                        instantPower = Math.min(instantPower, 850);
-                      }
+                      const velocityFactor = safeDeltaAngle / (safeDt * 10);
+                      instantPower = effectiveMass * velocityFactor * 1.2;
+                      instantPower = Math.min(instantPower, 850);
                     }
 
                     powerHistory.push(instantPower);
@@ -2067,9 +2171,10 @@ export function App() {
                     );
 
                     setPowerScore(smoothedPower);
-
-                    if (repPhase === 'ACTIVE' && smoothedPower > currentRepMaxPower) {
-                      currentRepMaxPower = smoothedPower;
+                    telemetrySamplesRef.current.powers.push(smoothedPower);
+                    if (smoothedPower > sessionPeakPower) {
+                      sessionPeakPower = smoothedPower;
+                      setPeakPowerScore(sessionPeakPower);
                     }
                   }
                 }
@@ -2616,24 +2721,37 @@ export function App() {
             </div>
           )}
 
+          {/* Pannello Telemetria Biomeccanica Dinamica */}
           <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
               <div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Ripetizioni</span>
-                <span style={{ fontSize: 34, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>{repCount}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
+                  Angolo Articolare
+                </span>
+                <span style={{ fontSize: 32, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>
+                  {liveAngleDeg !== null ? `${liveAngleDeg}°` : '—'}
+                </span>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Potenza (Watt)</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
+                  Potenza Istantanea
+                </span>
                 <span style={{ fontSize: 24, fontWeight: 900, color: '#f43f5e', lineHeight: 1.1 }}>
                   {powerScore} W
+                </span>
+                <span style={{ fontSize: 11, color: '#cbd5e1', display: 'block', marginTop: 2 }}>
+                  Picco: <strong style={{ color: '#fda4af' }}>{peakPowerScore} W</strong>
                 </span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid #334155', paddingTop: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid #334155', paddingTop: 12 }}>
+              {/* ROM (%) */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                  <span style={{ color: '#94a3b8' }}>ROM</span>
+                  <span style={{ color: '#94a3b8' }}>
+                    ROM {liveAngleDeg !== null ? `(${liveAngleDeg}°)` : ''}
+                  </span>
                   <span style={{ color: getRomColor(romQuality) }}>{romQuality}%</span>
                 </div>
                 <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
@@ -2642,7 +2760,121 @@ export function App() {
                       width: `${romQuality}%`,
                       height: '100%',
                       background: getRomColor(romQuality),
-                      transition: 'width 0.1s ease, background 0.2s ease'
+                      transition: 'width 0.1s ease, background 0.2s ease',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Potenza istantanea rispetto a picco/scala 850W */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                  <span style={{ color: '#94a3b8' }}>Andamento Potenza</span>
+                  <span style={{ color: '#f43f5e' }}>{powerScore} W / {Math.max(peakPowerScore, 100)} W</span>
+                </div>
+                <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                  <div
+                    style={{
+                      width: `${Math.max(0, Math.min(100, Math.round((powerScore / Math.max(peakPowerScore, 150)) * 100)))}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #fb7185, #f43f5e)',
+                      transition: 'width 0.1s ease',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Velocità angolare (°/s) */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                  <span style={{ color: '#94a3b8' }}>Velocità Angolare / Ritmo</span>
+                  <span style={{ color: angularSpeedDegSec > 240 ? '#eab308' : '#38bdf8' }}>
+                    {angularSpeedDegSec} °/s
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                  <div
+                    style={{
+                      width: `${Math.max(0, Math.min(100, Math.round((angularSpeedDegSec / 300) * 100)))}%`,
+                      height: '100%',
+                      background: angularSpeedDegSec > 240 ? '#eab308' : '#38bdf8',
+                      transition: 'width 0.1s ease, background 0.2s ease',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Simmetria Sinistra / Destra */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                  <span style={{ color: '#94a3b8' }}>Simmetria SX / DX</span>
+                  <span
+                    style={{
+                      color:
+                        symmetryDiffDeg === null
+                          ? '#64748b'
+                          : symmetryDiffDeg <= 8
+                          ? '#22c55e'
+                          : symmetryDiffDeg <= 16
+                          ? '#eab308'
+                          : '#ef4444',
+                    }}
+                  >
+                    {symmetryDiffDeg !== null ? `Δ ${symmetryDiffDeg}°` : 'N/D'}
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                  <div
+                    style={{
+                      width: `${symmetryDiffDeg !== null ? Math.max(4, Math.min(100, Math.round((symmetryDiffDeg / 25) * 100))) : 0}%`,
+                      height: '100%',
+                      background:
+                        symmetryDiffDeg === null
+                          ? '#475569'
+                          : symmetryDiffDeg <= 8
+                          ? '#22c55e'
+                          : symmetryDiffDeg <= 16
+                          ? '#eab308'
+                          : '#ef4444',
+                      transition: 'width 0.1s ease, background 0.2s ease',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Stabilità / Inclinazione busto */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                  <span style={{ color: '#94a3b8' }}>Inclinazione Busto (vs verticale)</span>
+                  <span
+                    style={{
+                      color:
+                        torsoTiltDeg === null
+                          ? '#64748b'
+                          : torsoTiltDeg <= 35
+                          ? '#22c55e'
+                          : torsoTiltDeg <= 55
+                          ? '#eab308'
+                          : '#f97316',
+                    }}
+                  >
+                    {torsoTiltDeg !== null ? `${torsoTiltDeg}°` : 'N/D'}
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                  <div
+                    style={{
+                      width: `${torsoTiltDeg !== null ? Math.max(4, Math.min(100, Math.round((torsoTiltDeg / 90) * 100))) : 0}%`,
+                      height: '100%',
+                      background:
+                        torsoTiltDeg === null
+                          ? '#475569'
+                          : torsoTiltDeg <= 35
+                          ? '#22c55e'
+                          : torsoTiltDeg <= 55
+                          ? '#eab308'
+                          : '#f97316',
+                      transition: 'width 0.1s ease, background 0.2s ease',
                     }}
                   />
                 </div>
@@ -2689,53 +2921,138 @@ export function App() {
           )}
 
           {analysisResult && (
-            <>
-              <div style={{ marginTop: 20, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-                <div
-                  onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
-                  style={{
-                    padding: '16px 18px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    background: '#1e293b',
-                    userSelect: 'none'
-                  }}
-                >
-                  <h3 style={{ margin: 0, color: '#38bdf8', fontSize: 16, fontWeight: 800 }}>
-                    📊 Analisi Geometrica Locale {repCount > 0 ? `(${repCount} Reps)` : ''}
-                  </h3>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
-                    {isAnalysisOpen ? '▲ Chiudi' : '▼ Espandi'}
-                  </span>
-                </div>
-
-                {isAnalysisOpen && (
-                  <div style={{ padding: '0 18px 18px 18px', borderTop: '1px solid #334155' }}>
-                    <p style={{ margin: '12px 0 6px 0', fontSize: 14 }}><strong>Ripetizioni valide:</strong> {repCount}</p>
-                    <p style={{ margin: '6px 0', fontSize: 14 }}><strong>Range Angolare (Min / Max):</strong> {analysisResult.minAngle}° / {analysisResult.maxAngle}°</p>
-                    <p style={{ margin: '6px 0 12px 0', fontSize: 13, color: '#94a3b8' }}>{analysisResult.trendSummary}</p>
-
-                    {repPeakPowers.length > 0 && (
-                      <div style={{ marginTop: 12, padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
-                          Potenza Massima per Ripetizione
-                        </span>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {repPeakPowers.map((pwr, idx) => (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                              <span style={{ color: '#cbd5e1' }}>Ripetizione #{idx + 1}</span>
-                              <span style={{ fontWeight: 800, color: '#f43f5e' }}>{pwr} W</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+            <div style={{ marginTop: 20, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+              <div
+                onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
+                style={{
+                  padding: '16px 18px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  background: '#1e293b',
+                  userSelect: 'none'
+                }}
+              >
+                <h3 style={{ margin: 0, color: '#38bdf8', fontSize: 16, fontWeight: 800 }}>
+                  📊 Riepilogo Biomeccanico di Sessione
+                </h3>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
+                  {isAnalysisOpen ? '▲ Chiudi' : '▼ Espandi'}
+                </span>
               </div>
-            </>
+
+              {isAnalysisOpen && (
+                <div style={{ padding: '0 18px 18px 18px', borderTop: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <p style={{ margin: '12px 0 0 0', fontSize: 13, color: '#cbd5e1', lineHeight: 1.45 }}>
+                    {analysisResult.trendSummary}
+                  </p>
+
+                  {/* 1. Angolo & ROM (%) e ° */}
+                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Escursione Angolare & ROM</span>
+                      <span style={{ color: getRomColor(biomechSummary?.peakRomPercent ?? 0) }}>
+                        ROM Max {biomechSummary?.peakRomPercent ?? 0}% · Media {biomechSummary?.avgRomPercent ?? 0}%
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden', marginBottom: 8 }}>
+                      <div
+                        style={{
+                          width: `${biomechSummary?.peakRomPercent ?? 0}%`,
+                          height: '100%',
+                          background: getRomColor(biomechSummary?.peakRomPercent ?? 0),
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, fontSize: 12, color: '#cbd5e1' }}>
+                      <span>Min / Max: <strong>{biomechSummary?.minAngle ?? analysisResult.minAngle}° / {biomechSummary?.maxAngle ?? analysisResult.maxAngle}°</strong></span>
+                      <span>Ampiezza (°): <strong>{biomechSummary?.romSpanDeg ?? Math.abs(analysisResult.maxAngle - analysisResult.minAngle)}°</strong></span>
+                    </div>
+                  </div>
+
+                  {/* 2. Potenza Istantanea (W) & Picco */}
+                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Potenza di Sessione</span>
+                      <span style={{ color: '#f43f5e' }}>
+                        Picco {biomechSummary?.peakPowerW ?? 0} W · Media {biomechSummary?.avgPowerW ?? 0} W
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${Math.max(4, Math.min(100, Math.round(((biomechSummary?.peakPowerW ?? 0) / 850) * 100)))}%`,
+                          height: '100%',
+                          background: '#f43f5e',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 3. Velocità Angolare / Ritmo (°/s) */}
+                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Ritmo & Velocità Angolare</span>
+                      <span style={{ color: '#38bdf8' }}>
+                        Picco {biomechSummary?.peakAngularSpeedDegSec ?? 0} °/s · Media {biomechSummary?.avgAngularSpeedDegSec ?? 0} °/s
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${Math.max(4, Math.min(100, Math.round(((biomechSummary?.peakAngularSpeedDegSec ?? 0) / 300) * 100)))}%`,
+                          height: '100%',
+                          background: '#38bdf8',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 4. Simmetria SX / DX */}
+                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Simmetria Sinistra / Destra</span>
+                      <span style={{ color: '#22c55e' }}>
+                        {biomechSummary?.maxAsymmetryDeg !== null && biomechSummary?.maxAsymmetryDeg !== undefined
+                          ? `Max Δ ${biomechSummary.maxAsymmetryDeg}° · Media Δ ${biomechSummary.avgAsymmetryDeg}°`
+                          : 'Lati non simultanei'}
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${biomechSummary?.maxAsymmetryDeg !== null && biomechSummary?.maxAsymmetryDeg !== undefined ? Math.max(4, Math.min(100, Math.round((biomechSummary.maxAsymmetryDeg / 25) * 100))) : 0}%`,
+                          height: '100%',
+                          background: '#22c55e',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 5. Stabilità / Inclinazione Busto */}
+                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Stabilità & Inclinazione Busto</span>
+                      <span style={{ color: '#eab308' }}>
+                        {biomechSummary?.minTorsoDeg !== null && biomechSummary?.minTorsoDeg !== undefined
+                          ? `Range ${biomechSummary.minTorsoDeg}°–${biomechSummary.maxTorsoDeg}° (Oscillazione Δ ${biomechSummary.torsoOscillationDeg}°)`
+                          : 'Busto non rilevato'}
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${biomechSummary?.torsoOscillationDeg !== null && biomechSummary?.torsoOscillationDeg !== undefined ? Math.max(4, Math.min(100, Math.round((biomechSummary.torsoOscillationDeg / 45) * 100))) : 0}%`,
+                          height: '100%',
+                          background: '#eab308',
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           <div style={{ marginTop: 16, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
@@ -2846,7 +3163,10 @@ export function App() {
                 exerciseId: selectedExercise,
                 exerciseLabel: selectedExerciseObj.label,
                 weightKg,
-                repCount,
+                liveAngleDeg,
+                angularSpeedDegSec,
+                symmetryDiffDeg,
+                torsoTiltDeg,
                 romQuality,
                 powerScore,
                 minAngle: analysisResult?.minAngle,
