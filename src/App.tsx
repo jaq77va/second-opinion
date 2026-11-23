@@ -340,14 +340,6 @@ const EXERCISES: ExerciseConfig[] = [
   },
 ];
 
-const POSE_CONNECTIONS = [
-  [11, 12], [11, 13], [13, 15],
-  [12, 14], [14, 16],
-  [11, 23], [12, 24], [23, 24],
-  [23, 25], [25, 27],
-  [24, 26], [26, 28],
-];
-
 function getWorkingAngleTriplets(
   exercise: Exercise
 ): Array<{ label: string; triplet: [number, number, number]; fill: string; stroke: string }> {
