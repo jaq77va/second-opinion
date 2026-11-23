@@ -416,7 +416,6 @@ function drawWorkingAngleSectors(
     const anticlockwise = delta < 0;
     const degValue = Math.round((Math.abs(delta) * 180) / Math.PI);
 
-    // Settore circolare pieno stile Pac-Man centrato sul giunto b
     ctx.beginPath();
     ctx.moveTo(bx, by);
     ctx.arc(bx, by, sectorRadius, startAngle, endAngle, anticlockwise);
@@ -428,7 +427,6 @@ function drawWorkingAngleSectors(
     ctx.strokeStyle = item.stroke;
     ctx.stroke();
 
-    // Etichetta angolo posizionata sulla bisettrice del settore
     const midAngle = startAngle + delta * 0.5;
     const labelDist = sectorRadius + 12;
     const lx = Math.max(20, Math.min(width - 28, bx + Math.cos(midAngle) * labelDist));
@@ -509,7 +507,6 @@ function drawStickmanOverlay(
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  // Asse Head -> Neck -> Hips e barre trasversali Spalle / Bacino (stile stick diagram senza scritte)
   drawSeg(isDrawable(head) ? head : null, neck, lineWidth);
   drawSeg(neck, hips, lineWidth);
   drawSeg(isDrawable(rightShoulder) ? rightShoulder : null, neck, lineWidth);
@@ -517,12 +514,11 @@ function drawStickmanOverlay(
   drawSeg(isDrawable(rightHip) ? rightHip : null, hips, lineWidth);
   drawSeg(hips, isDrawable(leftHip) ? leftHip : null, lineWidth);
 
-  // Arti superiori e inferiori
   const limbConnections: Array<[number, number]> = [
-    [12, 14], [14, 16], // Braccio destro
-    [11, 13], [13, 15], // Braccio sinistro
-    [24, 26], [26, 28], // Gamba destra
-    [23, 25], [25, 27], // Gamba sinistra
+    [12, 14], [14, 16],
+    [11, 13], [13, 15],
+    [24, 26], [26, 28],
+    [23, 25], [25, 27],
   ];
 
   for (const [i, j] of limbConnections) {
@@ -531,7 +527,6 @@ function drawStickmanOverlay(
     }
   }
 
-  // Pallini pieni sui nodi (inclusi Head, Neck e Hips)
   const drawJointDot = (pt: { x: number; y: number } | null | undefined, r = jointRadius) => {
     if (!pt || !isFinite(pt.x) || !isFinite(pt.y)) return;
     ctx.fillStyle = jointColor;
@@ -1374,7 +1369,7 @@ function AppBrandHeader({
         style={{
           display: 'flex',
           flexWrap: 'wrap',
-          alignItems: 'flex-end',
+          alignItems: 'flex-start',
           justifyContent: 'center',
           gap: '8px 18px',
           textAlign: 'center',
@@ -1396,11 +1391,11 @@ function AppBrandHeader({
         <span
           style={{
             fontSize: 13,
-            color: '#94a3b8',
-            fontWeight: 600,
+            color: '#7dd3fc',
+            fontWeight: 700,
             letterSpacing: '0.6px',
             textTransform: 'uppercase',
-            paddingBottom: 12,
+            paddingTop: 2,
             lineHeight: 1.2,
           }}
         >
@@ -1577,6 +1572,7 @@ function AppBrandHeader({
 export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState<boolean>(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(false);
   const [subLoading, setSubLoading] = useState<boolean>(false);
   const [currentPlan, setCurrentPlan] = useState<PlanType>('none');
   const [daysRemaining, setDaysRemaining] = useState<number>(0);
@@ -1658,6 +1654,11 @@ export function App() {
   const loggedSessionKeyRef = useRef<string | null>(null);
   const analysisSessionIdRef = useRef<number>(0);
   const isProgrammaticScrollRef = useRef<boolean>(false);
+  const isPasswordRecoveryRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    isPasswordRecoveryRef.current = isPasswordRecovery;
+  }, [isPasswordRecovery]);
 
   useEffect(() => {
     stickOnlyModeRef.current = stickOnlyMode;
@@ -1808,8 +1809,19 @@ export function App() {
   };
 
   useEffect(() => {
+    const hasRecoveryHash =
+      typeof window !== 'undefined' &&
+      (window.location.hash.includes('type=recovery') ||
+        window.location.search.includes('type=recovery'));
+
+    if (hasRecoveryHash) {
+      setIsPasswordRecovery(true);
+      isPasswordRecoveryRef.current = true;
+    }
+
     const recordLoginIfNew = async (sessionUserId?: string, accessToken?: string) => {
       if (!sessionUserId || !accessToken) return;
+      if (isPasswordRecoveryRef.current) return;
       const sessionKey = `${sessionUserId}:${accessToken.slice(-16)}`;
       if (loggedSessionKeyRef.current === sessionKey) return;
 
@@ -1824,16 +1836,32 @@ export function App() {
     supabase.auth.getSession().then(({ data }) => {
       setUser(data.session?.user ?? null);
       setAuthReady(true);
-      void recordLoginIfNew(data.session?.user?.id, data.session?.access_token);
+      if (!hasRecoveryHash) {
+        void recordLoginIfNew(data.session?.user?.id, data.session?.access_token);
+      }
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       setAuthReady(true);
 
-      if (event === 'SIGNED_IN') {
-        void recordLoginIfNew(session?.user?.id, session?.access_token);
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+        isPasswordRecoveryRef.current = true;
+        if (typeof window !== 'undefined' && window.location.hash) {
+          try {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          } catch {
+            // Ignora eventuali limitazioni history
+          }
+        }
+      } else if (event === 'SIGNED_IN') {
+        if (!isPasswordRecoveryRef.current) {
+          void recordLoginIfNew(session?.user?.id, session?.access_token);
+        }
       } else if (event === 'SIGNED_OUT') {
+        setIsPasswordRecovery(false);
+        isPasswordRecoveryRef.current = false;
         loggedSessionKeyRef.current = null;
       }
     });
@@ -2086,6 +2114,8 @@ export function App() {
     setGuideInitialExercise(undefined);
     setLegalTab(null);
     setIsTester(false);
+    setIsPasswordRecovery(false);
+    isPasswordRecoveryRef.current = false;
     loggedSessionKeyRef.current = null;
     resetAnalysisSession();
     await supabase.auth.signOut();
@@ -2707,11 +2737,17 @@ export function App() {
     );
   }
 
-  if (!user) {
+  if (!user || isPasswordRecovery) {
     return (
       <>
         <AppBrandHeader />
-        <AuthScreen />
+        <AuthScreen
+          forcePasswordRecovery={isPasswordRecovery}
+          onPasswordRecoveryComplete={() => {
+            setIsPasswordRecovery(false);
+            isPasswordRecoveryRef.current = false;
+          }}
+        />
         {renderLegalOverlays()}
       </>
     );
