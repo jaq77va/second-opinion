@@ -1344,6 +1344,7 @@ interface AppBrandHeaderProps {
   userDisplayName?: string;
   areGuidesDisabled?: boolean;
   onOpenGuides?: () => void;
+  onOpenAnglesGuide?: () => void;
   onLogout?: () => void;
 }
 
@@ -1354,6 +1355,7 @@ function AppBrandHeader({
   userDisplayName,
   areGuidesDisabled = false,
   onOpenGuides,
+  onOpenAnglesGuide,
   onLogout,
 }: AppBrandHeaderProps) {
   return (
@@ -1411,7 +1413,7 @@ function AppBrandHeader({
           style={{
             display: 'flex',
             flexWrap: 'wrap',
-            alignItems: 'flex-end',
+            alignItems: 'flex-start',
             justifyContent: 'space-between',
             gap: '10px 16px',
             width: '100%',
@@ -1424,7 +1426,7 @@ function AppBrandHeader({
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'flex-start',
-              gap: 6,
+              gap: 8,
               minWidth: 0,
               flex: '1 1 240px',
             }}
@@ -1490,6 +1492,28 @@ function AppBrandHeader({
                 </span>
               </div>
             </div>
+
+            {onLogout && (
+              <div>
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  style={{
+                    padding: '6px 11px',
+                    borderRadius: 7,
+                    border: '1px solid #334155',
+                    background: '#1e293b',
+                    color: '#cbd5e1',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Esci
+                </button>
+              </div>
+            )}
           </div>
 
           <div
@@ -1498,6 +1522,7 @@ function AppBrandHeader({
               alignItems: 'center',
               justifyContent: 'flex-end',
               gap: 8,
+              flexWrap: 'wrap',
               flexShrink: 0,
               marginLeft: 'auto',
             }}
@@ -1520,26 +1545,26 @@ function AppBrandHeader({
                   whiteSpace: 'nowrap',
                 }}
               >
-                📷 Guide
+                📷 Guide ripresa
               </button>
             )}
-            {onLogout && (
+            {onOpenAnglesGuide && (
               <button
                 type="button"
-                onClick={onLogout}
+                onClick={onOpenAnglesGuide}
                 style={{
                   padding: '7px 11px',
                   borderRadius: 7,
-                  border: '1px solid #334155',
-                  background: '#1e293b',
-                  color: '#cbd5e1',
+                  border: '1px solid rgba(250, 204, 21, 0.55)',
+                  background: 'rgba(250, 204, 21, 0.12)',
+                  color: '#fde047',
                   fontSize: 12,
-                  fontWeight: 600,
+                  fontWeight: 700,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                 }}
               >
-                Esci
+                📐 Angoli Esercizi
               </button>
             )}
           </div>
@@ -2879,6 +2904,9 @@ export function App() {
           setGuideInitialExercise(undefined);
           setIsGuidesOpen(true);
         }}
+        onOpenAnglesGuide={() => {
+          setIsAnglesGuideOpen(true);
+        }}
         onLogout={handleLogout}
       />
       <div style={{
@@ -3059,33 +3087,12 @@ export function App() {
               background: '#1e293b',
               border: '1px solid #334155',
               display: 'flex',
-              justifyContent: 'flex-end',
+              justifyContent: 'flex-start',
               alignItems: 'center',
               gap: 8,
               flexWrap: 'wrap',
             }}
           >
-            <button
-              type="button"
-              disabled={isProcessing}
-              onClick={() => setIsAnglesGuideOpen(true)}
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#fde047',
-                background: 'rgba(250, 204, 21, 0.12)',
-                border: '1px solid rgba(250, 204, 21, 0.45)',
-                padding: '7px 11px',
-                borderRadius: 8,
-                cursor: isProcessing ? 'not-allowed' : 'pointer',
-                opacity: isProcessing ? 0.5 : 1,
-                flexShrink: 0,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              📐 Angoli esercizi
-            </button>
-
             <button
               type="button"
               disabled={isProcessing}
