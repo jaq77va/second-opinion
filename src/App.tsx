@@ -473,8 +473,6 @@ function segmentLength(a: any, b: any, width: number, height: number): number {
   return Math.hypot((a.x - b.x) * width, (a.y - b.y) * height);
 }
 
-// Vincola un giunto distale (es. gomito, polso, ginocchio, caviglia) a una lunghezza di segmento realistica
-// rispetto al giunto prossimale e alla scala del tronco, evitando "allungamenti" o schizzi anomali.
 function constrainSegmentLength(
   proximal: any,
   distal: any,
@@ -539,8 +537,6 @@ function constrainSegmentLength(
   };
 }
 
-// Ricostruisce e interpola una posa completa e anatomica per qualsiasi esercizio
-// (squat, stacchi, spinte, tirate, alzate, push-up, trazioni, macchine) anche con dati mancanti o rumorosi.
 function deduceMissingBodyLandmarks(
   rawLandmarks: any[],
   prevSmoothed: any[] | null,
@@ -552,7 +548,6 @@ function deduceMissingBodyLandmarks(
   const MIN_DIRECT_VIS = 0.45;
   const maxFrameJumpPx = Math.max(14, Math.hypot(width, height) * 0.085);
 
-  // 1. Filtra i landmark diretti attendibili ed evita picchi improvvisi rispetto al frame precedente
   for (let i = 0; i < 33; i++) {
     const raw = rawLandmarks?.[i];
     const vis = raw && typeof raw.visibility === 'number' ? raw.visibility : raw ? 0.85 : 0;
@@ -564,14 +559,12 @@ function deduceMissingBodyLandmarks(
       if (prev) {
         const jumpPx = segmentLength(candidate, prev, width, height);
         if (jumpPx > maxFrameJumpPx) {
-          // Rilevamento rumoroso/anomalo: interpola verso la posizione precedente invece di accettare lo spike
           out[i] = lerpLm(prev, candidate, 0.25, true);
           continue;
         }
       }
       out[i] = candidate;
     } else if (prevSmoothed?.[i] && prev2Smoothed?.[i]) {
-      // Interpolazione/estrapolazione morbida e smorzata su 2 frame precedenti (mai scatti)
       const vx = (prevSmoothed[i].x - prev2Smoothed[i].x) * 0.35;
       const vy = (prevSmoothed[i].y - prev2Smoothed[i].y) * 0.35;
       const vz = ((prevSmoothed[i].z ?? 0) - (prev2Smoothed[i].z ?? 0)) * 0.35;
@@ -591,7 +584,6 @@ function deduceMissingBodyLandmarks(
     }
   }
 
-  // 2. Stima asse e scala del tronco (spalle 11-12 e fianchi 23-24)
   if (!out[11] && out[12]) {
     out[11] = {
       x: clamp01(out[12].x - 0.08),
@@ -628,7 +620,6 @@ function deduceMissingBodyLandmarks(
     };
   }
 
-  // Se manca completamente la parte superiore o inferiore, deduci lungo la direzione del tronco
   const hasTop = Boolean(out[11] && out[12]);
   const hasHip = Boolean(out[23] && out[24]);
   if (!hasTop && hasHip) {
@@ -662,31 +653,25 @@ function deduceMissingBodyLandmarks(
   const spineDy = midHipY - midShY;
   const torsoLen = Math.max(0.12, Math.min(0.36, Math.hypot(spineDx, spineDy) || 0.22));
   const spineAngle = Math.atan2(spineDy, spineDx);
-  const downAngle = spineAngle; // direzione verso il bacino / piedi lungo l'asse del tronco
+  const downAngle = spineAngle;
 
-  // 3. Vincoli anatomici sui segmenti degli arti (braccia: 11->13->15 e 12->14->16; gambe: 23->25->27 e 24->26->28)
   const armSegMin = torsoLen * 0.42;
   const armSegMax = torsoLen * 0.88;
   const legSegMin = torsoLen * 0.55;
   const legSegMax = torsoLen * 1.15;
 
-  // Braccio sinistro (11 -> 13 -> 15)
   out[13] = constrainSegmentLength(out[11], out[13], armSegMin, armSegMax, downAngle, Boolean(out[13]?.__inferred));
   out[15] = constrainSegmentLength(out[13], out[15], armSegMin * 0.9, armSegMax * 0.95, downAngle, Boolean(out[15]?.__inferred));
 
-  // Braccio destro (12 -> 14 -> 16)
   out[14] = constrainSegmentLength(out[12], out[14], armSegMin, armSegMax, downAngle, Boolean(out[14]?.__inferred));
   out[16] = constrainSegmentLength(out[14], out[16], armSegMin * 0.9, armSegMax * 0.95, downAngle, Boolean(out[16]?.__inferred));
 
-  // Gamba sinistra (23 -> 25 -> 27)
   out[25] = constrainSegmentLength(out[23], out[25], legSegMin, legSegMax, downAngle, Boolean(out[25]?.__inferred));
   out[27] = constrainSegmentLength(out[25], out[27], legSegMin * 0.9, legSegMax, downAngle, Boolean(out[27]?.__inferred));
 
-  // Gamba destra (24 -> 26 -> 28)
   out[26] = constrainSegmentLength(out[24], out[26], legSegMin, legSegMax, downAngle, Boolean(out[26]?.__inferred));
   out[28] = constrainSegmentLength(out[26], out[28], legSegMin * 0.9, legSegMax, downAngle, Boolean(out[28]?.__inferred));
 
-  // 4. Testa (0): dedotta lungo la direzione opposta al tronco rispetto al centro spalle
   const headDist = Math.max(0.055, Math.min(0.13, torsoLen * 0.34));
   const headFallbackX = clamp01(midShX - Math.cos(spineAngle) * headDist);
   const headFallbackY = clamp01(midShY - Math.sin(spineAngle) * headDist);
@@ -711,7 +696,6 @@ function deduceMissingBodyLandmarks(
     }
   }
 
-  // 5. Smoothing temporale fluido e uniforme su tutti i giunti principali
   const jointsToSmooth = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
   for (const idx of jointsToSmooth) {
     if (!out[idx]) continue;
@@ -748,7 +732,6 @@ function deduceMissingBodyLandmarks(
   return out;
 }
 
-// Interpola in modo continuo e fluido tra frame campionati durante il replay (qualsiasi esercizio)
 function interpolateTimedFrames(frames: TimedLandmarkFrame[], targetTimeSec: number): any[] | null {
   if (!frames.length) return null;
   if (frames.length === 1 || targetTimeSec <= frames[0].timeSec) {
@@ -776,7 +759,6 @@ function interpolateTimedFrames(frames: TimedLandmarkFrame[], targetTimeSec: num
   if (span <= 0.0001) return f1.landmarks;
 
   const rawAlpha = Math.max(0, Math.min(1, (targetTimeSec - f1.timeSec) / span));
-  // Smoothstep per rendere ancora più morbida la transizione tra frame campionati
   const smoothAlpha = rawAlpha * rawAlpha * (3 - 2 * rawAlpha);
 
   const merged: any[] = new Array(33);
@@ -958,7 +940,6 @@ function calculateTorsoInclinationDeg(landmarks: any[]): number | null {
 
   const dx = shX - hpX;
   const dy = shY - hpY;
-  // Angolo rispetto alla verticale (0° = busto verticale, 90° = busto orizzontale)
   const degFromVertical = (Math.abs(Math.atan2(Math.abs(dx), Math.abs(dy))) * 180) / Math.PI;
   return Math.max(0, Math.min(90, Math.round(degFromVertical)));
 }
@@ -1071,7 +1052,6 @@ function AppBrandHeader({
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
-      {/* Fascia superiore: Logo + Tagline centrati */}
       <div
         style={{
           display: 'flex',
@@ -1110,7 +1090,6 @@ function AppBrandHeader({
         </span>
       </div>
 
-      {/* Fascia inferiore: info a sinistra, Guide + Esci a destra */}
       {showPlanInfo && (
         <div
           style={{
@@ -1124,7 +1103,6 @@ function AppBrandHeader({
             borderTop: '1px solid rgba(51, 65, 85, 0.55)',
           }}
         >
-          {/* Sinistra: Nome utente + Piano attivo + Scadenza */}
           <div
             style={{
               display: 'flex',
@@ -1198,7 +1176,6 @@ function AppBrandHeader({
             </div>
           </div>
 
-          {/* Destra: Pulsanti Guide e Esci allineati a destra */}
           <div
             style={{
               display: 'flex',
@@ -1257,7 +1234,6 @@ function AppBrandHeader({
 }
 
 export function App() {
-  // --- STATI AUTENTICAZIONE E ABBONAMENTO ---
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState<boolean>(false);
   const [subLoading, setSubLoading] = useState<boolean>(false);
@@ -1268,16 +1244,13 @@ export function App() {
   const [planError, setPlanError] = useState<string | null>(null);
   const [unlockedByPlan, setUnlockedByPlan] = useState<Record<string, boolean>>({});
 
-  // --- STATI LINEE GUIDA RIPRESE ---
   const [isGuidesOpen, setIsGuidesOpen] = useState<boolean>(false);
   const [guideInitialExercise, setGuideInitialExercise] = useState<string | undefined>(undefined);
 
-  // --- STATI DOCUMENTI LEGALI E COOKIE ---
   const [legalTab, setLegalTab] = useState<LegalDocTab | null>(null);
   const [cookieForceOpenKey, setCookieForceOpenKey] = useState<number>(0);
   const [analyticsConsent, setAnalyticsConsent] = useState<boolean>(false);
 
-  // --- STATI APPLICAZIONE ANALISI BIOMECCANICA ---
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
   const [weightKg, setWeightKg] = useState<number>(20);
   const [status, setStatus] = useState<string>('Pronto per iniziare');
@@ -1297,10 +1270,8 @@ export function App() {
   const [isAnalysisOpen, setIsAnalysisOpen] = useState<boolean>(false);
   const [lastUploadedFile, setLastUploadedFile] = useState<File | null>(null);
 
-  // --- MODALITÀ VISUALIZZAZIONE HUMAN STICK (LIVE E REPLAY) ---
   const [stickOnlyMode, setStickOnlyMode] = useState<boolean>(false);
 
-  // --- STATI PLAYER UNIFICATO POST-ANALISI ---
   const [isReplayPlaying, setIsReplayPlaying] = useState<boolean>(false);
   const [replayCurrentTime, setReplayCurrentTime] = useState<number>(0);
   const [replayDuration, setReplayDuration] = useState<number>(0);
@@ -1317,7 +1288,9 @@ export function App() {
   const stickOnlyModeRef = useRef<boolean>(false);
   const carouselRef = useRef<HTMLDivElement | null>(null);
   const scrollSyncTimeoutRef = useRef<number | null>(null);
-  const lastGeomResultRef = useRef<AnalysisResult | null>(null);
+  const lastGeomResultRef = useRef<{ exercise: Exercise; result: AnalysisResult } | null>(null);
+  const activeLandmarkerRef = useRef<PoseLandmarker | null>(null);
+  const activeBlobUrlRef = useRef<string | null>(null);
   const telemetrySamplesRef = useRef<{
     angles: number[];
     roms: number[];
@@ -1340,6 +1313,22 @@ export function App() {
   useEffect(() => {
     stickOnlyModeRef.current = stickOnlyMode;
   }, [stickOnlyMode]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollSyncTimeoutRef.current !== null) {
+        window.clearTimeout(scrollSyncTimeoutRef.current);
+      }
+      if (activeLandmarkerRef.current) {
+        try { activeLandmarkerRef.current.close(); } catch {}
+        activeLandmarkerRef.current = null;
+      }
+      if (activeBlobUrlRef.current) {
+        URL.revokeObjectURL(activeBlobUrlRef.current);
+        activeBlobUrlRef.current = null;
+      }
+    };
+  }, []);
 
   const fetchPlanExercises = useCallback(async () => {
     try {
@@ -1383,7 +1372,19 @@ export function App() {
     [unlockedByPlan, isSubscriptionExpired]
   );
 
+  const cleanupActiveRuntimeResources = () => {
+    if (activeLandmarkerRef.current) {
+      try { activeLandmarkerRef.current.close(); } catch {}
+      activeLandmarkerRef.current = null;
+    }
+    if (activeBlobUrlRef.current) {
+      URL.revokeObjectURL(activeBlobUrlRef.current);
+      activeBlobUrlRef.current = null;
+    }
+  };
+
   const resetAnalysisSession = (options?: { preserveExerciseAndWeight?: boolean }) => {
+    cleanupActiveRuntimeResources();
     if (!options?.preserveExerciseAndWeight) {
       setSelectedExercise('squat');
       setWeightKg(20);
@@ -1427,9 +1428,6 @@ export function App() {
     }
 
     if (videoRef.current) {
-      if (videoRef.current.src && videoRef.current.src.startsWith('blob:')) {
-        URL.revokeObjectURL(videoRef.current.src);
-      }
       videoRef.current.pause();
       videoRef.current.removeAttribute('src');
       videoRef.current.load();
@@ -1441,7 +1439,6 @@ export function App() {
     }
   };
 
-  // Carica stato sessione Supabase e registra il login
   useEffect(() => {
     const recordLoginIfNew = async (sessionUserId?: string, accessToken?: string) => {
       if (!sessionUserId || !accessToken) return;
@@ -1490,7 +1487,6 @@ export function App() {
     }
   }, [user?.id]);
 
-  // Allinea il carosello quando l'esercizio cambia (es. rientro dalla Guida, click indice o reset)
   useEffect(() => {
     if (isGuidesOpen || !carouselRef.current) return;
     const idx = EXERCISES.findIndex((ex) => ex.id === selectedExercise);
@@ -1516,7 +1512,6 @@ export function App() {
     }
   }, [selectedExercise, isGuidesOpen]);
 
-  // Sincronizzazione replay unificata dopo il completamento dell'analisi (normale con Human Stick + Solo Human Stick)
   useEffect(() => {
     if (statusCode !== 'success') return;
     const video = videoRef.current;
@@ -1615,7 +1610,6 @@ export function App() {
     };
   }, [statusCode, stickOnlyMode]);
 
-  // Carica abbonamento dell'utente da public.subscriptions e configurazione sblocchi da public.plan_exercises
   const fetchUserSubscription = async (userId: string) => {
     setSubLoading(true);
     setPlanError(null);
@@ -1711,7 +1705,7 @@ export function App() {
 
   const handleInterruptAnalysis = () => {
     analysisSessionIdRef.current += 1;
-    resetAnalysisSession();
+    resetAnalysisSession({ preserveExerciseAndWeight: true });
     if (carouselRef.current) {
       isProgrammaticScrollRef.current = true;
       carouselRef.current.scrollLeft = 0;
@@ -1779,12 +1773,10 @@ export function App() {
     selectedExerciseObj.isTrialAllowed
   );
 
-  // Blocca scelta esercizio e carico appena viene caricato/avviato un video o c'è un'analisi attiva
   const hasActiveOrCompletedSession =
     isProcessing || statusCode === 'success' || statusCode === 'error' || Boolean(analysisResult);
   const areExerciseAndWeightLocked = isProcessing || hasActiveOrCompletedSession;
 
-  // "Nuova analisi" abilitato solo quando l'analisi video è terminata e l'IA ha dato risposta
   const isNewAnalysisEnabled =
     !isProcessing && statusCode === 'success' && aiStatusCode === 'success';
 
@@ -1846,7 +1838,11 @@ export function App() {
     setWeightKg(isNaN(val) ? 0 : Math.max(0, val));
   };
 
-  const triggerAiCoach = (geomResult: AnalysisResult, sessionIdAtStart?: number) => {
+  const triggerAiCoach = (
+    geomResult: AnalysisResult,
+    exerciseForCoach: Exercise,
+    sessionIdAtStart?: number
+  ) => {
     if (sessionIdAtStart !== undefined && analysisSessionIdRef.current !== sessionIdAtStart) {
       return;
     }
@@ -1854,7 +1850,7 @@ export function App() {
     setAiStatusMessage('Il server sta interrogando Gemini con i dati geometrici...');
     setAiFeedback('');
 
-    getGeminiFeedback(selectedExercise, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
+    getGeminiFeedback(exerciseForCoach, geomResult.minAngle, geomResult.maxAngle, geomResult.trendSummary)
       .then(async (feedback) => {
         if (sessionIdAtStart !== undefined && analysisSessionIdRef.current !== sessionIdAtStart) {
           return;
@@ -1865,7 +1861,7 @@ export function App() {
 
         await logUserActivity({
           eventType: 'exercise_analysis',
-          exerciseAnalyzed: selectedExercise,
+          exerciseAnalyzed: exerciseForCoach,
           aiResponse: feedback,
         });
       })
@@ -1873,9 +1869,10 @@ export function App() {
         if (sessionIdAtStart !== undefined && analysisSessionIdRef.current !== sessionIdAtStart) {
           return;
         }
-        setAiFeedback(`Errore AI: ${err.message}`);
+        const errMsg = err instanceof Error ? err.message : String(err ?? 'errore sconosciuto');
+        setAiFeedback(`Errore AI: ${errMsg}`);
         setAiStatusCode('error');
-        setAiStatusMessage(`Errore IA: ${err.message}`);
+        setAiStatusMessage(`Errore IA: ${errMsg}`);
       });
   };
 
@@ -1900,8 +1897,10 @@ export function App() {
 
     analysisSessionIdRef.current += 1;
     const currentSessionId = analysisSessionIdRef.current;
+    const sessionExerciseConfig = selectedExerciseObj;
+    const sessionExerciseId = sessionExerciseConfig.id;
+    const sessionWeightKg = weightKg;
 
-    // Legge SUBITO i byte in RAM prima di qualsiasi reset/re-render che su mobile può revocare il permesso al picker
     let fileBuffer: ArrayBuffer;
     try {
       fileBuffer = await file.arrayBuffer();
@@ -1930,18 +1929,22 @@ export function App() {
     setStatus('Verifica file e caricamento modello AI in corso...');
     setStatusCode('processing');
 
-    let localVideoUrl: string | null = null;
-
     try {
       const localVideoBlob = new Blob([fileBuffer], { type: file.type || 'video/mp4' });
-      localVideoUrl = URL.createObjectURL(localVideoBlob);
+      const localVideoUrl = URL.createObjectURL(localVideoBlob);
+      activeBlobUrlRef.current = localVideoUrl;
 
       const landmarker = await loadPoseLandmarkerWithRetry(3);
       if (analysisSessionIdRef.current !== currentSessionId) {
         try { landmarker.close(); } catch {}
-        if (localVideoUrl) URL.revokeObjectURL(localVideoUrl);
+        if (activeBlobUrlRef.current === localVideoUrl) {
+          URL.revokeObjectURL(localVideoUrl);
+          activeBlobUrlRef.current = null;
+        }
         return;
       }
+
+      activeLandmarkerRef.current = landmarker;
 
       const video = videoRef.current!;
       const canvas = canvasRef.current!;
@@ -1957,6 +1960,8 @@ export function App() {
       let frameCounter = 0;
       let targetWidth = 640;
       let targetHeight = 480;
+      let rafId: number | null = null;
+      let hasFinished = false;
 
       let angleHistory: number[] = [];
       let powerHistory: number[] = [];
@@ -1968,11 +1973,70 @@ export function App() {
       let prevSampleTimeSec: number | null = null;
       let sessionPeakPower = 0;
 
-      const effectiveMass = selectedExerciseObj.isDumbbell ? weightKg * 2 : weightKg;
+      const effectiveMass = sessionExerciseConfig.isDumbbell ? sessionWeightKg * 2 : sessionWeightKg;
+
+      const finalizeAnalysis = () => {
+        if (hasFinished || analysisSessionIdRef.current !== currentSessionId) return;
+        hasFinished = true;
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+
+        setIsProcessing(false);
+        setProgressPercent(100);
+        setPowerScore(0);
+        setAngularSpeedDegSec(0);
+        setStatus('Analisi completata con successo');
+        setStatusCode('success');
+
+        const geomResult = analyzeExerciseGeometry(sessionExerciseId, landmarksBufferRef.current);
+        setAnalysisResult(geomResult);
+        lastGeomResultRef.current = { exercise: sessionExerciseId, result: geomResult };
+
+        const samples = telemetrySamplesRef.current;
+        const avgOf = (arr: number[]) =>
+          arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : null;
+        const maxOf = (arr: number[]) => (arr.length ? Math.max(...arr) : null);
+        const minOf = (arr: number[]) => (arr.length ? Math.min(...arr) : null);
+
+        const minAng = samples.angles.length ? minOf(samples.angles)! : (geomResult?.minAngle ?? null);
+        const maxAng = samples.angles.length ? maxOf(samples.angles)! : (geomResult?.maxAngle ?? null);
+        const spanDeg = minAng !== null && maxAng !== null ? Math.abs(maxAng - minAng) : null;
+
+        const minTorso = minOf(samples.torsos);
+        const maxTorso = maxOf(samples.torsos);
+        const torsoOsc =
+          minTorso !== null && maxTorso !== null ? Math.abs(maxTorso - minTorso) : null;
+
+        setBiomechSummary({
+          minAngle: minAng,
+          maxAngle: maxAng,
+          romSpanDeg: spanDeg,
+          peakRomPercent: maxOf(samples.roms) ?? 0,
+          avgRomPercent: avgOf(samples.roms) ?? 0,
+          peakPowerW: Math.max(sessionPeakPower, maxOf(samples.powers) ?? 0),
+          avgPowerW: avgOf(samples.powers) ?? 0,
+          peakAngularSpeedDegSec: maxOf(samples.speeds) ?? 0,
+          avgAngularSpeedDegSec: avgOf(samples.speeds) ?? 0,
+          maxAsymmetryDeg: maxOf(samples.asymmetries),
+          avgAsymmetryDeg: avgOf(samples.asymmetries),
+          minTorsoDeg: minTorso,
+          maxTorsoDeg: maxTorso,
+          torsoOscillationDeg: torsoOsc,
+          sampleCount: samples.angles.length,
+        });
+
+        triggerAiCoach(geomResult, sessionExerciseId, currentSessionId);
+
+        if (activeLandmarkerRef.current === landmarker) {
+          try { landmarker.close(); } catch {}
+          activeLandmarkerRef.current = null;
+        }
+      };
 
       const startProcessingWhenReady = () => {
-        if (analysisSessionIdRef.current !== currentSessionId) {
-          try { landmarker.close(); } catch {}
+        if (analysisSessionIdRef.current !== currentSessionId || hasFinished) {
           return;
         }
         if (hasStarted) return;
@@ -1981,7 +2045,7 @@ export function App() {
         const originalHeight = video.videoHeight || 0;
 
         if (originalWidth === 0 || originalHeight === 0) {
-          setTimeout(startProcessingWhenReady, 100);
+          window.setTimeout(startProcessingWhenReady, 100);
           return;
         }
 
@@ -1997,74 +2061,26 @@ export function App() {
         setStatus('Analisi biomeccanica, ROM e potenza in corso...');
         setStatusCode('processing');
 
-        video.play().then(() => {
-          let lastFrameTime = performance.now();
+        video.addEventListener('ended', finalizeAnalysis, { once: true });
 
+        video.play().then(() => {
           const processFrame = () => {
-            if (analysisSessionIdRef.current !== currentSessionId) {
-              try { landmarker.close(); } catch {}
+            if (analysisSessionIdRef.current !== currentSessionId || hasFinished) {
               return;
             }
 
-            const now = performance.now();
-            const deltaTime = (now - lastFrameTime) / 1000;
-            lastFrameTime = now;
-
-            if (video.duration && !isNaN(video.duration)) {
+            if (video.duration && isFinite(video.duration) && video.duration > 0) {
               const currentProgress = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
               setProgressPercent(currentProgress);
             }
 
-            if (video.ended || video.paused) {
-              if (video.ended) {
-                setIsProcessing(false);
-                setProgressPercent(100);
-                setPowerScore(0);
-                setAngularSpeedDegSec(0);
-                setStatus('Analisi completata con successo');
-                setStatusCode('success');
+            if (video.ended) {
+              finalizeAnalysis();
+              return;
+            }
 
-                const geomResult = analyzeExerciseGeometry(selectedExercise, landmarksBufferRef.current);
-                setAnalysisResult(geomResult);
-                lastGeomResultRef.current = geomResult;
-
-                const samples = telemetrySamplesRef.current;
-                const avgOf = (arr: number[]) =>
-                  arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : null;
-                const maxOf = (arr: number[]) => (arr.length ? Math.max(...arr) : null);
-                const minOf = (arr: number[]) => (arr.length ? Math.min(...arr) : null);
-
-                const minAng = samples.angles.length ? minOf(samples.angles)! : (geomResult?.minAngle ?? null);
-                const maxAng = samples.angles.length ? maxOf(samples.angles)! : (geomResult?.maxAngle ?? null);
-                const spanDeg = minAng !== null && maxAng !== null ? Math.abs(maxAng - minAng) : null;
-
-                const minTorso = minOf(samples.torsos);
-                const maxTorso = maxOf(samples.torsos);
-                const torsoOsc =
-                  minTorso !== null && maxTorso !== null ? Math.abs(maxTorso - minTorso) : null;
-
-                setBiomechSummary({
-                  minAngle: minAng,
-                  maxAngle: maxAng,
-                  romSpanDeg: spanDeg,
-                  peakRomPercent: maxOf(samples.roms) ?? 0,
-                  avgRomPercent: avgOf(samples.roms) ?? 0,
-                  peakPowerW: Math.max(sessionPeakPower, maxOf(samples.powers) ?? 0),
-                  avgPowerW: avgOf(samples.powers) ?? 0,
-                  peakAngularSpeedDegSec: maxOf(samples.speeds) ?? 0,
-                  avgAngularSpeedDegSec: avgOf(samples.speeds) ?? 0,
-                  maxAsymmetryDeg: maxOf(samples.asymmetries),
-                  avgAsymmetryDeg: avgOf(samples.asymmetries),
-                  minTorsoDeg: minTorso,
-                  maxTorsoDeg: maxTorso,
-                  torsoOscillationDeg: torsoOsc,
-                  sampleCount: samples.angles.length,
-                });
-
-                triggerAiCoach(geomResult, currentSessionId);
-
-                try { landmarker.close(); } catch {}
-              }
+            if (video.paused) {
+              rafId = requestAnimationFrame(processFrame);
               return;
             }
 
@@ -2073,7 +2089,8 @@ export function App() {
 
             if (frameCounter % FRAME_SKIP === 0) {
               try {
-                const result = landmarker.detectForVideo(video, now);
+                const nowMs = performance.now();
+                const result = landmarker.detectForVideo(video, nowMs);
                 const rawPose =
                   result.landmarks && result.landmarks.length > 0 ? result.landmarks[0] : null;
                 const deducedLandmarks = deduceMissingBodyLandmarks(
@@ -2094,8 +2111,8 @@ export function App() {
                     landmarks: deducedLandmarks,
                   });
 
-                  const rawAngle = extractExerciseAngle(selectedExercise, currentLandmarks);
-                  const asymDiff = getLeftRightAngleDiff(selectedExercise, currentLandmarks);
+                  const rawAngle = extractExerciseAngle(sessionExerciseId, currentLandmarks);
+                  const asymDiff = getLeftRightAngleDiff(sessionExerciseId, currentLandmarks);
                   const torsoTilt = calculateTorsoInclinationDeg(currentLandmarks);
 
                   if (asymDiff !== null) {
@@ -2108,6 +2125,9 @@ export function App() {
                   }
 
                   if (rawAngle !== null) {
+                    const prevSmoothAngle =
+                      angleHistory.length > 0 ? angleHistory[angleHistory.length - 1] : null;
+
                     angleHistory.push(rawAngle);
                     if (angleHistory.length > 3) angleHistory.shift();
                     const smoothAngle = Math.round(
@@ -2117,33 +2137,36 @@ export function App() {
                     telemetrySamplesRef.current.angles.push(smoothAngle);
 
                     const currentTimeSec = video.currentTime;
-                    let rawAngularSpeed = 0;
+                    let dtSec = 0;
                     if (prevSampleAngle !== null && prevSampleTimeSec !== null) {
-                      const dtSec = currentTimeSec - prevSampleTimeSec;
-                      if (dtSec > 0.008 && dtSec < 1.5) {
-                        rawAngularSpeed = Math.abs(smoothAngle - prevSampleAngle) / dtSec;
-                        rawAngularSpeed = Math.min(rawAngularSpeed, 420);
+                      const rawDt = currentTimeSec - prevSampleTimeSec;
+                      if (rawDt > 0.008 && rawDt < 1.5) {
+                        dtSec = rawDt;
+                        const rawAngularSpeed = Math.min(
+                          Math.abs(smoothAngle - prevSampleAngle) / rawDt,
+                          420
+                        );
+                        speedHistory.push(rawAngularSpeed);
+                        if (speedHistory.length > 5) speedHistory.shift();
                       }
                     }
                     prevSampleAngle = smoothAngle;
                     prevSampleTimeSec = currentTimeSec;
 
-                    speedHistory.push(rawAngularSpeed);
-                    if (speedHistory.length > 5) speedHistory.shift();
-                    const smoothAngularSpeed = Math.round(
-                      speedHistory.reduce((acc, v) => acc + v, 0) / speedHistory.length
-                    );
+                    const smoothAngularSpeed = speedHistory.length
+                      ? Math.round(speedHistory.reduce((acc, v) => acc + v, 0) / speedHistory.length)
+                      : 0;
                     setAngularSpeedDegSec(smoothAngularSpeed);
                     telemetrySamplesRef.current.speeds.push(smoothAngularSpeed);
 
                     let rom = 0;
-                    if (selectedExercise === 'alzate_laterali') {
+                    if (sessionExerciseId === 'alzate_laterali') {
                       rom = ((smoothAngle - 35) / (100 - 35)) * 100;
-                    } else if (selectedExercise === 'squat') {
+                    } else if (sessionExerciseId === 'squat') {
                       rom = ((155 - smoothAngle) / (155 - 65)) * 100;
                     } else {
-                      const rMin = selectedExerciseObj.romMinAngle ?? 65;
-                      const rMax = selectedExerciseObj.romMaxAngle ?? 155;
+                      const rMin = sessionExerciseConfig.romMinAngle ?? 65;
+                      const rMax = sessionExerciseConfig.romMaxAngle ?? 155;
                       rom = ((rMax - smoothAngle) / (rMax - rMin)) * 100;
                     }
                     rom = Math.max(0, Math.min(100, Math.round(rom)));
@@ -2151,16 +2174,14 @@ export function App() {
                     telemetrySamplesRef.current.roms.push(rom);
 
                     let instantPower = 0;
-                    const angleDelta = angleHistory.length > 1 ? Math.abs(smoothAngle - angleHistory[angleHistory.length - 2]) : 0;
+                    const angleDelta =
+                      prevSmoothAngle !== null ? Math.abs(smoothAngle - prevSmoothAngle) : 0;
                     const MOVEMENT_DEADZONE = 1.5;
 
-                    if (angleDelta >= MOVEMENT_DEADZONE) {
-                      const safeDt = Math.max(deltaTime, 0.012);
-                      const safeDeltaAngle = Math.min(angleDelta, 4.0);
-
-                      const velocityFactor = safeDeltaAngle / (safeDt * 10);
-                      instantPower = effectiveMass * velocityFactor * 1.2;
-                      instantPower = Math.min(instantPower, 850);
+                    if (angleDelta >= MOVEMENT_DEADZONE && dtSec > 0) {
+                      const safeDeltaAngle = Math.min(angleDelta, 6.0);
+                      const velocityFactor = safeDeltaAngle / (dtSec * 10);
+                      instantPower = Math.min(effectiveMass * velocityFactor * 1.2, 850);
                     }
 
                     powerHistory.push(instantPower);
@@ -2178,7 +2199,9 @@ export function App() {
                     }
                   }
                 }
-              } catch (err) {}
+              } catch {
+                // Ignora frame non decodificabili e prosegue
+              }
             }
 
             if (ctx) {
@@ -2201,25 +2224,24 @@ export function App() {
               }
             }
 
-            requestAnimationFrame(processFrame);
+            rafId = requestAnimationFrame(processFrame);
           };
 
-          requestAnimationFrame(processFrame);
+          rafId = requestAnimationFrame(processFrame);
         }).catch((playErr) => {
           if (analysisSessionIdRef.current !== currentSessionId) return;
+          cleanupActiveRuntimeResources();
           setIsProcessing(false);
-          setStatus(`Errore riproduzione video: ${playErr.message}`);
+          setStatus(`Errore riproduzione video: ${playErr instanceof Error ? playErr.message : String(playErr)}`);
           setStatusCode('error');
         });
       };
 
       video.onloadedmetadata = startProcessingWhenReady;
       video.oncanplay = startProcessingWhenReady;
-      setTimeout(startProcessingWhenReady, 500);
+      window.setTimeout(startProcessingWhenReady, 500);
     } catch (err) {
-      if (localVideoUrl && videoRef.current?.src !== localVideoUrl) {
-        URL.revokeObjectURL(localVideoUrl);
-      }
+      cleanupActiveRuntimeResources();
       if (analysisSessionIdRef.current !== currentSessionId) return;
       setIsProcessing(false);
       setStatus(formatUploadErrorMessage(err));
@@ -2428,7 +2450,6 @@ export function App() {
             </span>
           </div>
 
-          {/* Indice pallini / trattini sopra il carosello */}
           <div
             role="tablist"
             aria-label="Indice esercizi"
@@ -2721,7 +2742,6 @@ export function App() {
             </div>
           )}
 
-          {/* Pannello Telemetria Biomeccanica Dinamica */}
           <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
               <div>
@@ -2746,7 +2766,6 @@ export function App() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid #334155', paddingTop: 12 }}>
-              {/* ROM (%) */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
                   <span style={{ color: '#94a3b8' }}>
@@ -2766,7 +2785,6 @@ export function App() {
                 </div>
               </div>
 
-              {/* Potenza istantanea rispetto a picco/scala 850W */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
                   <span style={{ color: '#94a3b8' }}>Andamento Potenza</span>
@@ -2784,7 +2802,6 @@ export function App() {
                 </div>
               </div>
 
-              {/* Velocità angolare (°/s) */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
                   <span style={{ color: '#94a3b8' }}>Velocità Angolare / Ritmo</span>
@@ -2804,7 +2821,6 @@ export function App() {
                 </div>
               </div>
 
-              {/* Simmetria Sinistra / Destra */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
                   <span style={{ color: '#94a3b8' }}>Simmetria SX / DX</span>
@@ -2842,7 +2858,6 @@ export function App() {
                 </div>
               </div>
 
-              {/* Stabilità / Inclinazione busto */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
                   <span style={{ color: '#94a3b8' }}>Inclinazione Busto (vs verticale)</span>
@@ -2948,7 +2963,6 @@ export function App() {
                     {analysisResult.trendSummary}
                   </p>
 
-                  {/* 1. Angolo & ROM (%) e ° */}
                   <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
                       <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Escursione Angolare & ROM</span>
@@ -2971,7 +2985,6 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* 2. Potenza Istantanea (W) & Picco */}
                   <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
                       <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Potenza di Sessione</span>
@@ -2990,7 +3003,6 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* 3. Velocità Angolare / Ritmo (°/s) */}
                   <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
                       <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Ritmo & Velocità Angolare</span>
@@ -3009,7 +3021,6 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* 4. Simmetria SX / DX */}
                   <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
                       <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Simmetria Sinistra / Destra</span>
@@ -3030,7 +3041,6 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* 5. Stabilità / Inclinazione Busto */}
                   <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
                       <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Stabilità & Inclinazione Busto</span>
@@ -3104,7 +3114,15 @@ export function App() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => lastGeomResultRef.current && triggerAiCoach(lastGeomResultRef.current, analysisSessionIdRef.current)}
+                  onClick={() => {
+                    if (lastGeomResultRef.current) {
+                      triggerAiCoach(
+                        lastGeomResultRef.current.result,
+                        lastGeomResultRef.current.exercise,
+                        analysisSessionIdRef.current
+                      );
+                    }
+                  }}
                   style={{
                     padding: '10px 16px',
                     background: '#ef4444',
@@ -3176,7 +3194,6 @@ export function App() {
             />
           )}
 
-          {/* Switch Visualizzazione: Video + Scheletro vs Solo Human Stick */}
           <div
             style={{
               marginTop: 18,

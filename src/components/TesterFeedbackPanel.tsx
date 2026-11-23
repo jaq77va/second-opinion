@@ -40,7 +40,11 @@ export interface TesterSessionContext {
   exerciseId: string;
   exerciseLabel: string;
   weightKg: number;
-  repCount: number;
+  repCount?: number;
+  liveAngleDeg?: number | null;
+  angularSpeedDegSec?: number;
+  symmetryDiffDeg?: number | null;
+  torsoTiltDeg?: number | null;
   romQuality: number;
   powerScore: number;
   minAngle?: number;
@@ -201,7 +205,11 @@ export function TesterFeedbackPanel({
       const sessionMetadata = {
         exercise_label: sessionContext.exerciseLabel,
         weight_kg: sessionContext.weightKg,
-        rep_count: sessionContext.repCount,
+        rep_count: sessionContext.repCount ?? null,
+        live_angle_deg: sessionContext.liveAngleDeg ?? null,
+        angular_speed_deg_sec: sessionContext.angularSpeedDegSec ?? null,
+        symmetry_diff_deg: sessionContext.symmetryDiffDeg ?? null,
+        torso_tilt_deg: sessionContext.torsoTiltDeg ?? null,
         rom_quality: sessionContext.romQuality,
         power_score: sessionContext.powerScore,
         min_angle: sessionContext.minAngle ?? null,
@@ -308,17 +316,25 @@ export function TesterFeedbackPanel({
             }}
           >
             <span>
-              Esercizio sessione: <strong style={{ color: '#38bdf8' }}>{sessionContext.exerciseLabel}</strong>
+              Esercizio sessione:{' '}
+              <strong style={{ color: '#38bdf8' }}>{sessionContext.exerciseLabel}</strong>
             </span>
             <span>
-              Reps rilevate: <strong style={{ color: '#f8fafc' }}>{sessionContext.repCount}</strong>
+              Reps rilevate:{' '}
+              <strong style={{ color: '#f8fafc' }}>{sessionContext.repCount ?? 'N/D'}</strong>
             </span>
           </div>
 
           <div>
             <label
               htmlFor="tester-issue-select"
-              style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#e2e8f0', marginBottom: 6 }}
+              style={{
+                display: 'block',
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#e2e8f0',
+                marginBottom: 6,
+              }}
             >
               Che problematica hai riscontrato?
             </label>
@@ -349,7 +365,13 @@ export function TesterFeedbackPanel({
           <div>
             <label
               htmlFor="tester-issue-notes"
-              style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#e2e8f0', marginBottom: 6 }}
+              style={{
+                display: 'block',
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#e2e8f0',
+                marginBottom: 6,
+              }}
             >
               Dettagli aggiuntivi (opzionale)
             </label>
@@ -402,7 +424,12 @@ export function TesterFeedbackPanel({
                 checked={attachVideo}
                 disabled={isFormLocked}
                 onChange={(e) => handleAttachToggle(e.target.checked)}
-                style={{ width: 15, height: 15, accentColor: '#a855f7', cursor: isFormLocked ? 'not-allowed' : 'pointer' }}
+                style={{
+                  width: 15,
+                  height: 15,
+                  accentColor: '#a855f7',
+                  cursor: isFormLocked ? 'not-allowed' : 'pointer',
+                }}
               />
               <strong style={{ fontSize: 13, color: '#e2e8f0' }}>
                 Allega anche video analizzato (facoltativo, max 50 MB)
