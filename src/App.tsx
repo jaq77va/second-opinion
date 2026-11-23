@@ -467,102 +467,101 @@ function drawStickmanOverlay(
   const isDrawable = (lm: any) =>
     lm && isFinite(lm.x) && isFinite(lm.y) && (lm.visibility ?? 1) > 0.25;
 
+  const midpoint = (a: any, b: any) => {
+    if (!isDrawable(a) || !isDrawable(b)) return null;
+    return {
+      x: (a.x + b.x) * 0.5,
+      y: (a.y + b.y) * 0.5,
+    };
+  };
+
   if (stickOnlyMode) {
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
-
-    if (showAngles) {
-      drawWorkingAngleSectors(ctx, exercise, landmarks, width, height);
-    }
-
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    POSE_CONNECTIONS.forEach(([i, j]) => {
-      const p1 = landmarks[i];
-      const p2 = landmarks[j];
-      if (isDrawable(p1) && isDrawable(p2)) {
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(p1.x * width, p1.y * height);
-        ctx.lineTo(p2.x * width, p2.y * height);
-        ctx.stroke();
-      }
-    });
-
-    const nose = landmarks[0];
-    const leftShoulder = landmarks[11];
-    const rightShoulder = landmarks[12];
-    if (isDrawable(nose)) {
-      let headRadius = Math.max(10, Math.round(width * 0.03));
-      if (isDrawable(leftShoulder) && isDrawable(rightShoulder)) {
-        const shoulderSpanPx = Math.hypot(
-          (leftShoulder.x - rightShoulder.x) * width,
-          (leftShoulder.y - rightShoulder.y) * height
-        );
-        if (shoulderSpanPx > 12) {
-          headRadius = Math.max(9, Math.min(24, Math.round(shoulderSpanPx * 0.26)));
-        }
-        const midShoulderX = ((leftShoulder.x + rightShoulder.x) / 2) * width;
-        const midShoulderY = ((leftShoulder.y + rightShoulder.y) / 2) * height;
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(midShoulderX, midShoulderY);
-        ctx.lineTo(nose.x * width, nose.y * height);
-        ctx.stroke();
-      }
-
-      ctx.fillStyle = '#0f172a';
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(nose.x * width, nose.y * height, headRadius, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    const jointIndices = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
-    jointIndices.forEach((idx) => {
-      const lm = landmarks[idx];
-      if (isDrawable(lm)) {
-        ctx.fillStyle = '#f43f5e';
-        ctx.beginPath();
-        ctx.arc(lm.x * width, lm.y * height, 4.2, 0, 2 * Math.PI);
-        ctx.fill();
-      }
-    });
-  } else {
-    if (showAngles) {
-      drawWorkingAngleSectors(ctx, exercise, landmarks, width, height);
-    }
-
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    POSE_CONNECTIONS.forEach(([i, j]) => {
-      const p1 = landmarks[i];
-      const p2 = landmarks[j];
-      if (isDrawable(p1) && isDrawable(p2)) {
-        ctx.strokeStyle = '#00ffcc';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(p1.x * width, p1.y * height);
-        ctx.lineTo(p2.x * width, p2.y * height);
-        ctx.stroke();
-      }
-    });
-
-    const bodyJoints = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
-    bodyJoints.forEach((idx) => {
-      const lm = landmarks[idx];
-      if (isDrawable(lm)) {
-        ctx.fillStyle = '#ff0055';
-        ctx.beginPath();
-        ctx.arc(lm.x * width, lm.y * height, 4, 0, 2 * Math.PI);
-        ctx.fill();
-      }
-    });
   }
+
+  if (showAngles) {
+    drawWorkingAngleSectors(ctx, exercise, landmarks, width, height);
+  }
+
+  const head = landmarks[0];
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  const leftHip = landmarks[23];
+  const rightHip = landmarks[24];
+
+  const neck = midpoint(leftShoulder, rightShoulder);
+  const hips = midpoint(leftHip, rightHip);
+
+  const lineColor = stickOnlyMode ? '#38bdf8' : '#00ffcc';
+  const jointColor = stickOnlyMode ? '#f43f5e' : '#ff0055';
+  const lineWidth = stickOnlyMode ? 3.8 : 3.2;
+  const jointRadius = stickOnlyMode ? 4.4 : 4;
+
+  const drawSeg = (
+    p1: { x: number; y: number } | null | undefined,
+    p2: { x: number; y: number } | null | undefined,
+    w = lineWidth
+  ) => {
+    if (!p1 || !p2) return;
+    if (!isFinite(p1.x) || !isFinite(p1.y) || !isFinite(p2.x) || !isFinite(p2.y)) return;
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(p1.x * width, p1.y * height);
+    ctx.lineTo(p2.x * width, p2.y * height);
+    ctx.stroke();
+  };
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Asse Head -> Neck -> Hips e barre trasversali Spalle / Bacino (stile stick diagram senza scritte)
+  drawSeg(isDrawable(head) ? head : null, neck, lineWidth);
+  drawSeg(neck, hips, lineWidth);
+  drawSeg(isDrawable(rightShoulder) ? rightShoulder : null, neck, lineWidth);
+  drawSeg(neck, isDrawable(leftShoulder) ? leftShoulder : null, lineWidth);
+  drawSeg(isDrawable(rightHip) ? rightHip : null, hips, lineWidth);
+  drawSeg(hips, isDrawable(leftHip) ? leftHip : null, lineWidth);
+
+  // Arti superiori e inferiori
+  const limbConnections: Array<[number, number]> = [
+    [12, 14], [14, 16], // Braccio destro
+    [11, 13], [13, 15], // Braccio sinistro
+    [24, 26], [26, 28], // Gamba destra
+    [23, 25], [25, 27], // Gamba sinistra
+  ];
+
+  for (const [i, j] of limbConnections) {
+    if (isDrawable(landmarks[i]) && isDrawable(landmarks[j])) {
+      drawSeg(landmarks[i], landmarks[j], lineWidth);
+    }
+  }
+
+  // Pallini pieni sui nodi (inclusi Head, Neck e Hips)
+  const drawJointDot = (pt: { x: number; y: number } | null | undefined, r = jointRadius) => {
+    if (!pt || !isFinite(pt.x) || !isFinite(pt.y)) return;
+    ctx.fillStyle = jointColor;
+    ctx.beginPath();
+    ctx.arc(pt.x * width, pt.y * height, r, 0, 2 * Math.PI);
+    ctx.fill();
+  };
+
+  const jointIndices = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+  for (const idx of jointIndices) {
+    if (isDrawable(landmarks[idx])) {
+      drawJointDot(landmarks[idx]);
+    }
+  }
+
+  drawJointDot(neck);
+  drawJointDot(hips);
+  if (isDrawable(head)) {
+    drawJointDot(head, jointRadius + 0.8);
+  }
+
+  ctx.restore();
 }
 
 function formatTimeSec(seconds: number): string {
