@@ -344,20 +344,17 @@ function drawStickmanOverlay(
     lm && isFinite(lm.x) && isFinite(lm.y) && (lm.visibility ?? 1) > 0.25;
 
   if (stickOnlyMode) {
-    // Sfondo nero puro per modalità Solo Human Stick
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
 
-    // Connessioni principali del corpo sempre continue e fluide
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     POSE_CONNECTIONS.forEach(([i, j]) => {
       const p1 = landmarks[i];
       const p2 = landmarks[j];
       if (isDrawable(p1) && isDrawable(p2)) {
-        const inferredSeg = Boolean(p1.__inferred || p2.__inferred);
-        ctx.strokeStyle = inferredSeg ? 'rgba(56, 189, 248, 0.78)' : '#38bdf8';
-        ctx.lineWidth = inferredSeg ? 3.5 : 4.2;
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.moveTo(p1.x * width, p1.y * height);
         ctx.lineTo(p2.x * width, p2.y * height);
@@ -365,19 +362,18 @@ function drawStickmanOverlay(
       }
     });
 
-    // Testa stilizzata collegata al baricentro delle spalle
     const nose = landmarks[0];
     const leftShoulder = landmarks[11];
     const rightShoulder = landmarks[12];
     if (isDrawable(nose)) {
-      let headRadius = Math.max(10, Math.round(width * 0.032));
+      let headRadius = Math.max(10, Math.round(width * 0.03));
       if (isDrawable(leftShoulder) && isDrawable(rightShoulder)) {
         const shoulderSpanPx = Math.hypot(
           (leftShoulder.x - rightShoulder.x) * width,
           (leftShoulder.y - rightShoulder.y) * height
         );
         if (shoulderSpanPx > 12) {
-          headRadius = Math.max(9, Math.min(26, Math.round(shoulderSpanPx * 0.28)));
+          headRadius = Math.max(9, Math.min(24, Math.round(shoulderSpanPx * 0.26)));
         }
         const midShoulderX = ((leftShoulder.x + rightShoulder.x) / 2) * width;
         const midShoulderY = ((leftShoulder.y + rightShoulder.y) / 2) * height;
@@ -398,14 +394,13 @@ function drawStickmanOverlay(
       ctx.stroke();
     }
 
-    // Articolazioni principali sempre presenti
     const jointIndices = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
     jointIndices.forEach((idx) => {
       const lm = landmarks[idx];
       if (isDrawable(lm)) {
-        ctx.fillStyle = lm.__inferred ? '#fb7185' : '#f43f5e';
+        ctx.fillStyle = '#f43f5e';
         ctx.beginPath();
-        ctx.arc(lm.x * width, lm.y * height, 4.5, 0, 2 * Math.PI);
+        ctx.arc(lm.x * width, lm.y * height, 4.2, 0, 2 * Math.PI);
         ctx.fill();
       }
     });
@@ -416,8 +411,7 @@ function drawStickmanOverlay(
       const p1 = landmarks[i];
       const p2 = landmarks[j];
       if (isDrawable(p1) && isDrawable(p2)) {
-        const inferredSeg = Boolean(p1.__inferred || p2.__inferred);
-        ctx.strokeStyle = inferredSeg ? 'rgba(0, 255, 204, 0.72)' : '#00ffcc';
+        ctx.strokeStyle = '#00ffcc';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(p1.x * width, p1.y * height);
@@ -430,7 +424,7 @@ function drawStickmanOverlay(
     bodyJoints.forEach((idx) => {
       const lm = landmarks[idx];
       if (isDrawable(lm)) {
-        ctx.fillStyle = lm.__inferred ? 'rgba(255, 0, 85, 0.75)' : '#ff0055';
+        ctx.fillStyle = '#ff0055';
         ctx.beginPath();
         ctx.arc(lm.x * width, lm.y * height, 4, 0, 2 * Math.PI);
         ctx.fill();
@@ -449,7 +443,7 @@ function formatTimeSec(seconds: number): string {
 
 function clamp01(v: number): number {
   if (!isFinite(v)) return 0.5;
-  return Math.max(0, Math.min(1, v));
+  return Math.max(0.02, Math.min(0.98, v));
 }
 
 function cloneLandmark(lm: any) {
@@ -469,23 +463,8 @@ function lerpLm(a: any, b: any, t: number, inferred = false) {
     x: clamp01(a.x + (b.x - a.x) * clampedT),
     y: clamp01(a.y + (b.y - a.y) * clampedT),
     z: (a.z ?? 0) + ((b.z ?? 0) - (a.z ?? 0)) * clampedT,
-    visibility: Math.min(0.95, Math.max(0.55, ((a.visibility ?? 0.7) + (b.visibility ?? 0.7)) * 0.5)),
+    visibility: Math.min(0.96, Math.max(0.6, ((a.visibility ?? 0.75) + (b.visibility ?? 0.75)) * 0.5)),
     __inferred: inferred,
-  };
-}
-
-function extrapolateLinear(prev2: any, prev1: any, alpha = 0.65, damping = 0.78) {
-  if (!prev1) return null;
-  if (!prev2) return cloneLandmark({ ...prev1, visibility: Math.max(0.5, (prev1.visibility ?? 0.7) * 0.85), __inferred: true });
-  const vx = (prev1.x - prev2.x) * damping;
-  const vy = (prev1.y - prev2.y) * damping;
-  const vz = ((prev1.z ?? 0) - (prev2.z ?? 0)) * damping;
-  return {
-    x: clamp01(prev1.x + vx * alpha),
-    y: clamp01(prev1.y + vy * alpha),
-    z: (prev1.z ?? 0) + vz * alpha,
-    visibility: Math.max(0.5, Math.min(0.9, (prev1.visibility ?? 0.75) * 0.88)),
-    __inferred: true,
   };
 }
 
@@ -494,6 +473,74 @@ function segmentLength(a: any, b: any, width: number, height: number): number {
   return Math.hypot((a.x - b.x) * width, (a.y - b.y) * height);
 }
 
+// Vincola un giunto distale (es. gomito, polso, ginocchio, caviglia) a una lunghezza di segmento realistica
+// rispetto al giunto prossimale e alla scala del tronco, evitando "allungamenti" o schizzi anomali.
+function constrainSegmentLength(
+  proximal: any,
+  distal: any,
+  minLen: number,
+  maxLen: number,
+  fallbackAngleRad: number,
+  inferredFlag: boolean
+) {
+  if (!proximal) return distal;
+  if (!distal) {
+    const len = (minLen + maxLen) * 0.5;
+    return {
+      x: clamp01(proximal.x + Math.cos(fallbackAngleRad) * len),
+      y: clamp01(proximal.y + Math.sin(fallbackAngleRad) * len),
+      z: proximal.z ?? 0,
+      visibility: 0.62,
+      __inferred: true,
+    };
+  }
+
+  const dx = distal.x - proximal.x;
+  const dy = distal.y - proximal.y;
+  const dist = Math.hypot(dx, dy);
+
+  if (dist < 1e-5) {
+    const len = (minLen + maxLen) * 0.5;
+    return {
+      x: clamp01(proximal.x + Math.cos(fallbackAngleRad) * len),
+      y: clamp01(proximal.y + Math.sin(fallbackAngleRad) * len),
+      z: distal.z ?? proximal.z ?? 0,
+      visibility: Math.max(0.55, distal.visibility ?? 0.65),
+      __inferred: true,
+    };
+  }
+
+  let clampedDist = dist;
+  let wasClamped = false;
+  if (dist < minLen) {
+    clampedDist = minLen;
+    wasClamped = true;
+  } else if (dist > maxLen) {
+    clampedDist = maxLen;
+    wasClamped = true;
+  }
+
+  if (!wasClamped) {
+    return {
+      ...distal,
+      x: clamp01(distal.x),
+      y: clamp01(distal.y),
+      __inferred: Boolean(distal.__inferred || inferredFlag),
+    };
+  }
+
+  const scale = clampedDist / dist;
+  return {
+    x: clamp01(proximal.x + dx * scale),
+    y: clamp01(proximal.y + dy * scale),
+    z: distal.z ?? proximal.z ?? 0,
+    visibility: Math.max(0.55, Math.min(0.9, distal.visibility ?? 0.7)),
+    __inferred: true,
+  };
+}
+
+// Ricostruisce e interpola una posa completa e anatomica per qualsiasi esercizio
+// (squat, stacchi, spinte, tirate, alzate, push-up, trazioni, macchine) anche con dati mancanti o rumorosi.
 function deduceMissingBodyLandmarks(
   rawLandmarks: any[],
   prevSmoothed: any[] | null,
@@ -502,227 +549,206 @@ function deduceMissingBodyLandmarks(
   height = 360
 ): any[] {
   const out: any[] = new Array(33);
-  const MIN_DIRECT_VIS = 0.36;
+  const MIN_DIRECT_VIS = 0.45;
+  const maxFrameJumpPx = Math.max(14, Math.hypot(width, height) * 0.085);
 
-  // 1. Copia landmark validi o deduci da storico recente (inerzia / estrapolazione)
+  // 1. Filtra i landmark diretti attendibili ed evita picchi improvvisi rispetto al frame precedente
   for (let i = 0; i < 33; i++) {
     const raw = rawLandmarks?.[i];
     const vis = raw && typeof raw.visibility === 'number' ? raw.visibility : raw ? 0.85 : 0;
-    if (raw && isFinite(raw.x) && isFinite(raw.y) && vis >= MIN_DIRECT_VIS) {
-      out[i] = cloneLandmark(raw);
+    const validRaw = raw && isFinite(raw.x) && isFinite(raw.y) && vis >= MIN_DIRECT_VIS;
+
+    if (validRaw) {
+      const candidate = cloneLandmark(raw);
+      const prev = prevSmoothed?.[i];
+      if (prev) {
+        const jumpPx = segmentLength(candidate, prev, width, height);
+        if (jumpPx > maxFrameJumpPx) {
+          // Rilevamento rumoroso/anomalo: interpola verso la posizione precedente invece di accettare lo spike
+          out[i] = lerpLm(prev, candidate, 0.25, true);
+          continue;
+        }
+      }
+      out[i] = candidate;
     } else if (prevSmoothed?.[i] && prev2Smoothed?.[i]) {
-      out[i] = extrapolateLinear(prev2Smoothed[i], prevSmoothed[i], 0.55, 0.72);
+      // Interpolazione/estrapolazione morbida e smorzata su 2 frame precedenti (mai scatti)
+      const vx = (prevSmoothed[i].x - prev2Smoothed[i].x) * 0.35;
+      const vy = (prevSmoothed[i].y - prev2Smoothed[i].y) * 0.35;
+      const vz = ((prevSmoothed[i].z ?? 0) - (prev2Smoothed[i].z ?? 0)) * 0.35;
+      out[i] = {
+        x: clamp01(prevSmoothed[i].x + vx),
+        y: clamp01(prevSmoothed[i].y + vy),
+        z: (prevSmoothed[i].z ?? 0) + vz,
+        visibility: Math.max(0.55, (prevSmoothed[i].visibility ?? 0.75) * 0.9),
+        __inferred: true,
+      };
     } else if (prevSmoothed?.[i]) {
       out[i] = cloneLandmark({
         ...prevSmoothed[i],
-        visibility: Math.max(0.5, (prevSmoothed[i].visibility ?? 0.7) * 0.85),
+        visibility: Math.max(0.55, (prevSmoothed[i].visibility ?? 0.75) * 0.88),
         __inferred: true,
       });
-    } else if (raw && isFinite(raw.x) && isFinite(raw.y)) {
-      out[i] = cloneLandmark({ ...raw, visibility: Math.max(0.5, vis), __inferred: true });
     }
   }
 
-  // 2. Simmetria bilaterale & proporzioni anatomiche per colmare eventuali buchi (spalle, fianchi, ginocchia, caviglie, gomiti, polsi)
-  const ensureSymmetric = (primaryIdx: number, mirrorIdx: number, offsetX = 0, offsetY = 0) => {
-    const p = out[primaryIdx];
-    const m = out[mirrorIdx];
-    if (p && !m) {
-      out[mirrorIdx] = {
-        x: clamp01(p.x + offsetX),
-        y: clamp01(p.y + offsetY),
-        z: p.z ?? 0,
-        visibility: Math.max(0.52, (p.visibility ?? 0.75) * 0.82),
-        __inferred: true,
-      };
-    } else if (m && !p) {
-      out[primaryIdx] = {
-        x: clamp01(m.x - offsetX),
-        y: clamp01(m.y - offsetY),
-        z: m.z ?? 0,
-        visibility: Math.max(0.52, (m.visibility ?? 0.75) * 0.82),
-        __inferred: true,
-      };
-    }
-  };
-
-  // Spalle (11 <-> 12) e Fianchi (23 <-> 24)
-  ensureSymmetric(11, 12, 0, 0);
-  ensureSymmetric(23, 24, 0, 0);
-
-  if (!out[11] && out[23]) {
+  // 2. Stima asse e scala del tronco (spalle 11-12 e fianchi 23-24)
+  if (!out[11] && out[12]) {
     out[11] = {
-      x: out[23].x,
-      y: clamp01(out[23].y - 0.24),
-      z: out[23].z ?? 0,
-      visibility: 0.6,
-      __inferred: true,
-    };
-  }
-  if (!out[12] && out[24]) {
-    out[12] = {
-      x: out[24].x,
-      y: clamp01(out[24].y - 0.24),
-      z: out[24].z ?? 0,
-      visibility: 0.6,
-      __inferred: true,
-    };
-  }
-  ensureSymmetric(11, 12, 0, 0);
-
-  if (!out[23] && out[11]) {
-    out[23] = {
-      x: out[11].x,
-      y: clamp01(out[11].y + 0.22),
-      z: out[11].z ?? 0,
-      visibility: 0.6,
-      __inferred: true,
-    };
-  }
-  if (!out[24] && out[12]) {
-    out[24] = {
-      x: out[12].x,
-      y: clamp01(out[12].y + 0.22),
+      x: clamp01(out[12].x - 0.08),
+      y: clamp01(out[12].y),
       z: out[12].z ?? 0,
-      visibility: 0.6,
+      visibility: 0.62,
+      __inferred: true,
+    };
+  } else if (!out[12] && out[11]) {
+    out[12] = {
+      x: clamp01(out[11].x + 0.08),
+      y: clamp01(out[11].y),
+      z: out[11].z ?? 0,
+      visibility: 0.62,
       __inferred: true,
     };
   }
-  ensureSymmetric(23, 24, 0, 0);
 
-  const torsoLeftLen = out[11] && out[23] ? Math.hypot(out[23].x - out[11].x, out[23].y - out[11].y) : 0.22;
-  const torsoRightLen = out[12] && out[24] ? Math.hypot(out[24].x - out[12].x, out[24].y - out[12].y) : torsoLeftLen;
+  if (!out[23] && out[24]) {
+    out[23] = {
+      x: clamp01(out[24].x - 0.07),
+      y: clamp01(out[24].y),
+      z: out[24].z ?? 0,
+      visibility: 0.62,
+      __inferred: true,
+    };
+  } else if (!out[24] && out[23]) {
+    out[24] = {
+      x: clamp01(out[23].x + 0.07),
+      y: clamp01(out[23].y),
+      z: out[23].z ?? 0,
+      visibility: 0.62,
+      __inferred: true,
+    };
+  }
 
-  // Deduzione arti superiori: gomiti (13, 14) e polsi (15, 16)
-  const inferArmSide = (shIdx: number, elIdx: number, wrIdx: number, hipIdx: number, torsoLen: number) => {
-    const sh = out[shIdx];
-    const hip = out[hipIdx];
-    if (!sh) return;
-    const armSeg = Math.max(0.11, torsoLen * 0.72);
-    const dirX = hip ? (sh.x - hip.x) * 0.45 : 0;
+  // Se manca completamente la parte superiore o inferiore, deduci lungo la direzione del tronco
+  const hasTop = Boolean(out[11] && out[12]);
+  const hasHip = Boolean(out[23] && out[24]);
+  if (!hasTop && hasHip) {
+    const midHipX = (out[23].x + out[24].x) * 0.5;
+    const midHipY = (out[23].y + out[24].y) * 0.5;
+    const prevTopLen =
+      prevSmoothed?.[11] && prevSmoothed?.[23]
+        ? Math.hypot(prevSmoothed[23].x - prevSmoothed[11].x, prevSmoothed[23].y - prevSmoothed[11].y)
+        : 0.22;
+    const estTorso = Math.max(0.14, Math.min(0.32, prevTopLen));
+    out[11] = { x: clamp01(midHipX - 0.07), y: clamp01(midHipY - estTorso), z: 0, visibility: 0.6, __inferred: true };
+    out[12] = { x: clamp01(midHipX + 0.07), y: clamp01(midHipY - estTorso), z: 0, visibility: 0.6, __inferred: true };
+  } else if (hasTop && !hasHip) {
+    const midShX = (out[11].x + out[12].x) * 0.5;
+    const midShY = (out[11].y + out[12].y) * 0.5;
+    const prevTopLen =
+      prevSmoothed?.[11] && prevSmoothed?.[23]
+        ? Math.hypot(prevSmoothed[23].x - prevSmoothed[11].x, prevSmoothed[23].y - prevSmoothed[11].y)
+        : 0.22;
+    const estTorso = Math.max(0.14, Math.min(0.32, prevTopLen));
+    out[23] = { x: clamp01(midShX - 0.06), y: clamp01(midShY + estTorso), z: 0, visibility: 0.6, __inferred: true };
+    out[24] = { x: clamp01(midShX + 0.06), y: clamp01(midShY + estTorso), z: 0, visibility: 0.6, __inferred: true };
+  }
 
-    if (!out[elIdx]) {
-      out[elIdx] = {
-        x: clamp01(sh.x + dirX),
-        y: clamp01(sh.y + armSeg * 0.92),
-        z: sh.z ?? 0,
-        visibility: 0.58,
-        __inferred: true,
-      };
-    }
-    if (!out[wrIdx]) {
-      const el = out[elIdx];
-      out[wrIdx] = {
-        x: clamp01(el.x + dirX * 0.6),
-        y: clamp01(el.y + armSeg * 0.88),
-        z: el.z ?? 0,
-        visibility: 0.55,
-        __inferred: true,
-      };
-    }
-  };
+  const midShX = out[11] && out[12] ? (out[11].x + out[12].x) * 0.5 : 0.5;
+  const midShY = out[11] && out[12] ? (out[11].y + out[12].y) * 0.5 : 0.35;
+  const midHipX = out[23] && out[24] ? (out[23].x + out[24].x) * 0.5 : midShX;
+  const midHipY = out[23] && out[24] ? (out[23].y + out[24].y) * 0.5 : midShY + 0.22;
 
-  inferArmSide(11, 13, 15, 23, torsoLeftLen);
-  inferArmSide(12, 14, 16, 24, torsoRightLen);
-  ensureSymmetric(13, 14, 0, 0);
-  ensureSymmetric(15, 16, 0, 0);
+  const spineDx = midHipX - midShX;
+  const spineDy = midHipY - midShY;
+  const torsoLen = Math.max(0.12, Math.min(0.36, Math.hypot(spineDx, spineDy) || 0.22));
+  const spineAngle = Math.atan2(spineDy, spineDx);
+  const downAngle = spineAngle; // direzione verso il bacino / piedi lungo l'asse del tronco
 
-  // Deduzione arti inferiori: ginocchia (25, 26) e caviglie (27, 28)
-  const inferLegSide = (hipIdx: number, knIdx: number, anIdx: number, torsoLen: number) => {
-    const hip = out[hipIdx];
-    if (!hip) return;
-    const thighLen = Math.max(0.14, torsoLen * 0.92);
-    const shinLen = Math.max(0.14, torsoLen * 0.90);
+  // 3. Vincoli anatomici sui segmenti degli arti (braccia: 11->13->15 e 12->14->16; gambe: 23->25->27 e 24->26->28)
+  const armSegMin = torsoLen * 0.42;
+  const armSegMax = torsoLen * 0.88;
+  const legSegMin = torsoLen * 0.55;
+  const legSegMax = torsoLen * 1.15;
 
-    if (!out[knIdx]) {
-      out[knIdx] = {
-        x: clamp01(hip.x),
-        y: clamp01(hip.y + thighLen),
-        z: hip.z ?? 0,
-        visibility: 0.6,
-        __inferred: true,
-      };
-    }
-    if (!out[anIdx]) {
-      const kn = out[knIdx];
-      out[anIdx] = {
-        x: clamp01(kn.x),
-        y: clamp01(kn.y + shinLen),
-        z: kn.z ?? 0,
-        visibility: 0.56,
-        __inferred: true,
-      };
-    }
-  };
+  // Braccio sinistro (11 -> 13 -> 15)
+  out[13] = constrainSegmentLength(out[11], out[13], armSegMin, armSegMax, downAngle, Boolean(out[13]?.__inferred));
+  out[15] = constrainSegmentLength(out[13], out[15], armSegMin * 0.9, armSegMax * 0.95, downAngle, Boolean(out[15]?.__inferred));
 
-  inferLegSide(23, 25, 27, torsoLeftLen);
-  inferLegSide(24, 26, 28, torsoRightLen);
-  ensureSymmetric(25, 26, 0, 0);
-  ensureSymmetric(27, 28, 0, 0);
+  // Braccio destro (12 -> 14 -> 16)
+  out[14] = constrainSegmentLength(out[12], out[14], armSegMin, armSegMax, downAngle, Boolean(out[14]?.__inferred));
+  out[16] = constrainSegmentLength(out[14], out[16], armSegMin * 0.9, armSegMax * 0.95, downAngle, Boolean(out[16]?.__inferred));
 
-  // Testa (0 = naso): se assente, deduci sopra il punto medio delle spalle
-  if (!out[0] && out[11] && out[12]) {
-    const midX = (out[11].x + out[12].x) * 0.5;
-    const midY = (out[11].y + out[12].y) * 0.5;
-    const headDist = Math.max(0.06, Math.min(0.14, torsoLeftLen * 0.36));
+  // Gamba sinistra (23 -> 25 -> 27)
+  out[25] = constrainSegmentLength(out[23], out[25], legSegMin, legSegMax, downAngle, Boolean(out[25]?.__inferred));
+  out[27] = constrainSegmentLength(out[25], out[27], legSegMin * 0.9, legSegMax, downAngle, Boolean(out[27]?.__inferred));
+
+  // Gamba destra (24 -> 26 -> 28)
+  out[26] = constrainSegmentLength(out[24], out[26], legSegMin, legSegMax, downAngle, Boolean(out[26]?.__inferred));
+  out[28] = constrainSegmentLength(out[26], out[28], legSegMin * 0.9, legSegMax, downAngle, Boolean(out[28]?.__inferred));
+
+  // 4. Testa (0): dedotta lungo la direzione opposta al tronco rispetto al centro spalle
+  const headDist = Math.max(0.055, Math.min(0.13, torsoLen * 0.34));
+  const headFallbackX = clamp01(midShX - Math.cos(spineAngle) * headDist);
+  const headFallbackY = clamp01(midShY - Math.sin(spineAngle) * headDist);
+  if (!out[0]) {
     out[0] = {
-      x: clamp01(midX),
-      y: clamp01(midY - headDist),
-      z: ((out[11].z ?? 0) + (out[12].z ?? 0)) * 0.5,
-      visibility: 0.65,
+      x: headFallbackX,
+      y: headFallbackY,
+      z: ((out[11]?.z ?? 0) + (out[12]?.z ?? 0)) * 0.5,
+      visibility: 0.68,
       __inferred: true,
     };
+  } else {
+    const dHead = Math.hypot(out[0].x - midShX, out[0].y - midShY);
+    if (dHead < headDist * 0.45 || dHead > headDist * 1.9) {
+      out[0] = {
+        x: clamp01(out[0].x * 0.3 + headFallbackX * 0.7),
+        y: clamp01(out[0].y * 0.3 + headFallbackY * 0.7),
+        z: out[0].z ?? 0,
+        visibility: 0.65,
+        __inferred: true,
+      };
+    }
   }
 
-  // 3. Controllo anti-jitter / anti-spike sui segmenti e smoothing temporale adattivo
+  // 5. Smoothing temporale fluido e uniforme su tutti i giunti principali
   const jointsToSmooth = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
-  const maxStepPx = Math.max(18, Math.hypot(width, height) * 0.14);
-
   for (const idx of jointsToSmooth) {
     if (!out[idx]) continue;
     const curr = out[idx];
     const prev = prevSmoothed?.[idx];
     if (prev) {
       const distPx = segmentLength(curr, prev, width, height);
-      // Limita salti anomali improvvisi su un singolo frame (tipico dei buchi di rilevamento)
-      if (distPx > maxStepPx) {
-        const ratio = maxStepPx / distPx;
-        curr.x = clamp01(prev.x + (curr.x - prev.x) * ratio);
-        curr.y = clamp01(prev.y + (curr.y - prev.y) * ratio);
-        curr.__inferred = true;
-      }
-
-      // EMA adattivo: più fluido quando il movimento è piccolo, più reattivo sullo spostamento reale
-      const alpha = curr.__inferred ? 0.38 : distPx < 5 ? 0.42 : 0.68;
+      const alpha = curr.__inferred ? 0.28 : distPx < 4 ? 0.32 : 0.52;
       out[idx] = {
         x: clamp01(prev.x + (curr.x - prev.x) * alpha),
         y: clamp01(prev.y + (curr.y - prev.y) * alpha),
-        z: ((prev.z ?? 0) * (1 - alpha)) + ((curr.z ?? 0) * alpha),
-        visibility: Math.max(0.55, Math.min(0.98, ((prev.visibility ?? 0.8) * (1 - alpha)) + ((curr.visibility ?? 0.8) * alpha))),
+        z: (prev.z ?? 0) * (1 - alpha) + (curr.z ?? 0) * alpha,
+        visibility: Math.max(
+          0.6,
+          Math.min(0.98, (prev.visibility ?? 0.8) * (1 - alpha) + (curr.visibility ?? 0.8) * alpha)
+        ),
         __inferred: curr.__inferred,
       };
     }
   }
 
-  // Assicura continuità su tutti i 33 landmark per eventuale lettura angolare
   for (let i = 0; i < 33; i++) {
     if (!out[i]) {
-      const anchor = out[23] || out[11] || { x: 0.5, y: 0.5, z: 0, visibility: 0.5 };
       out[i] = {
-        x: anchor.x,
-        y: anchor.y,
-        z: anchor.z ?? 0,
-        visibility: 0.5,
+        x: midHipX,
+        y: midHipY,
+        z: 0,
+        visibility: 0.55,
         __inferred: true,
       };
     }
   }
 
-  // Evita che width/height non usati generino warning
-  void height;
   return out;
 }
 
+// Interpola in modo continuo e fluido tra frame campionati durante il replay (qualsiasi esercizio)
 function interpolateTimedFrames(frames: TimedLandmarkFrame[], targetTimeSec: number): any[] | null {
   if (!frames.length) return null;
   if (frames.length === 1 || targetTimeSec <= frames[0].timeSec) {
@@ -749,13 +775,16 @@ function interpolateTimedFrames(frames: TimedLandmarkFrame[], targetTimeSec: num
   const span = f2.timeSec - f1.timeSec;
   if (span <= 0.0001) return f1.landmarks;
 
-  const alpha = Math.max(0, Math.min(1, (targetTimeSec - f1.timeSec) / span));
+  const rawAlpha = Math.max(0, Math.min(1, (targetTimeSec - f1.timeSec) / span));
+  // Smoothstep per rendere ancora più morbida la transizione tra frame campionati
+  const smoothAlpha = rawAlpha * rawAlpha * (3 - 2 * rawAlpha);
+
   const merged: any[] = new Array(33);
   for (let i = 0; i < 33; i++) {
     const l1 = f1.landmarks?.[i];
     const l2 = f2.landmarks?.[i];
     if (l1 && l2) {
-      merged[i] = lerpLm(l1, l2, alpha, Boolean(l1.__inferred || l2.__inferred));
+      merged[i] = lerpLm(l1, l2, smoothAlpha, Boolean(l1.__inferred || l2.__inferred));
     } else {
       merged[i] = cloneLandmark(l1 || l2);
     }
