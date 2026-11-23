@@ -10,6 +10,12 @@ export const AuthScreen: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
+  const togglePasswordVisibility = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowPassword((prev) => !prev);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -80,6 +86,7 @@ export const AuthScreen: React.FC = () => {
               fontWeight: 700,
               fontSize: 13,
               cursor: 'pointer',
+              touchAction: 'manipulation',
             }}
           >
             Accedi
@@ -101,6 +108,7 @@ export const AuthScreen: React.FC = () => {
               fontWeight: 700,
               fontSize: 13,
               cursor: 'pointer',
+              touchAction: 'manipulation',
             }}
           >
             Registrati
@@ -160,6 +168,7 @@ export const AuthScreen: React.FC = () => {
               id="auth-email"
               type="email"
               required
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="nome@esempio.it"
@@ -189,13 +198,14 @@ export const AuthScreen: React.FC = () => {
                 id="auth-password"
                 type={showPassword ? 'text' : 'password'}
                 required
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
-                  padding: '10px 42px 10px 12px',
+                  padding: '10px 44px 10px 12px',
                   borderRadius: 8,
                   border: '1px solid #334155',
                   background: '#0f172a',
@@ -206,21 +216,37 @@ export const AuthScreen: React.FC = () => {
               />
               <button
                 type="button"
-                onClick={() => setShowPassword((prev) => !prev)}
+                onClick={togglePasswordVisibility}
+                onPointerDown={(e) => {
+                  // Evita che il tap sul bottone faccia perdere il focus o attivi comportamenti ambigui su touch
+                  if (e.pointerType === 'touch') {
+                    e.preventDefault();
+                  }
+                }}
                 aria-label={showPassword ? 'Nascondi password' : 'Mostra password'}
+                aria-pressed={showPassword}
                 title={showPassword ? 'Nascondi password' : 'Mostra password'}
                 style={{
                   position: 'absolute',
-                  right: 8,
+                  right: 6,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  minWidth: 34,
+                  minHeight: 34,
+                  zIndex: 2,
                   background: 'transparent',
                   border: 'none',
-                  color: '#94a3b8',
+                  color: showPassword ? '#38bdf8' : '#94a3b8',
                   cursor: 'pointer',
                   padding: 4,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: 16,
+                  fontSize: 17,
+                  lineHeight: 1,
+                  touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'transparent',
+                  userSelect: 'none',
                 }}
               >
                 {showPassword ? '🙈' : '👁️'}
@@ -243,6 +269,7 @@ export const AuthScreen: React.FC = () => {
               fontWeight: 800,
               cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.7 : 1,
+              touchAction: 'manipulation',
             }}
           >
             {loading ? 'Attendere...' : mode === 'login' ? 'Accedi' : 'Registrati'}

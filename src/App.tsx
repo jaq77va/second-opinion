@@ -451,6 +451,14 @@ function findNearestTimedFrame(frames: TimedLandmarkFrame[], targetTimeSec: numb
   return frames[low].landmarks;
 }
 
+function formatTimeSec(sec: number): string {
+  if (!isFinite(sec) || sec < 0) return '0:00';
+  const totalSec = Math.floor(sec);
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
 function calculateLiveAngle(a: any, b: any, c: any): number {
   const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
   let angle = Math.abs((radians * 180.0) / Math.PI);
@@ -869,6 +877,11 @@ export function App() {
   // --- MODALITÀ VISUALIZZAZIONE HUMAN STICK (LIVE E REPLAY) ---
   const [stickOnlyMode, setStickOnlyMode] = useState<boolean>(false);
 
+  // --- STATI PLAYER UNIFICATO POST-ANALISI ---
+  const [isReplayPlaying, setIsReplayPlaying] = useState<boolean>(false);
+  const [replayCurrentTime, setReplayCurrentTime] = useState<number>(0);
+  const [replayDuration, setReplayDuration] = useState<number>(0);
+
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [aiStatusCode, setAiStatusCode] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [aiStatusMessage, setAiStatusMessage] = useState<string>('In attesa di dati geometrici...');
@@ -948,6 +961,9 @@ export function App() {
     setRepPeakPowers([]);
     setIsAnalysisOpen(false);
     setLastUploadedFile(null);
+    setIsReplayPlaying(false);
+    setReplayCurrentTime(0);
+    setReplayDuration(0);
     setAiFeedback('');
     setAiStatusCode('idle');
     setAiStatusMessage('In attesa di dati geometrici...');
@@ -1050,9 +1066,9 @@ export function App() {
     }
   }, [selectedExercise, isGuidesOpen]);
 
-  // Sincronizzazione replay in modalità Solo Human Stick dopo il completamento dell'analisi
+  // Sincronizzazione replay unificata dopo il completamento dell'analisi (normale con Human Stick + Solo Human Stick)
   useEffect(() => {
-    if (statusCode !== 'success' || !stickOnlyMode) return;
+    if (statusCode !== 'success') return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
@@ -1061,48 +1077,91 @@ export function App() {
 
     let rafId: number | null = null;
 
-    const renderStickReplayFrame = () => {
-      const w = canvas.width || 480;
-      const h = canvas.height || 360;
-      const nearestLandmarks = findNearestTimedFrame(timedLandmarksRef.current, video.currentTime);
-      if (nearestLandmarks) {
-        drawStickmanOverlay(ctx, nearestLandmarks, w, h, true);
-      } else {
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, w, h);
+    const syncDuration = () => {
+      if (video.duration && isFinite(video.duration)) {
+        setReplayDuration(video.duration);
       }
+      setReplayCurrentTime(video.currentTime || 0);
+    };
+
+    const renderReplayFrame = () => {
+      const w = canvas.width || video.videoWidth || 480;
+      const h = canvas.height || video.videoHeight || 360;
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+
+      const nearestLandmarks = findNearestTimedFrame(timedLandmarksRef.current, video.currentTime);
+
+      if (stickOnlyMode) {
+        if (nearestLandmarks) {
+          drawStickmanOverlay(ctx, nearestLandmarks, w, h, true);
+        } else {
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(0, 0, w, h);
+        }
+      } else {
+        ctx.clearRect(0, 0, w, h);
+        if (video.readyState >= 2) {
+          ctx.drawImage(video, 0, 0, w, h);
+        }
+        if (nearestLandmarks) {
+          drawStickmanOverlay(ctx, nearestLandmarks, w, h, false);
+        }
+      }
+
+      setReplayCurrentTime(video.currentTime || 0);
+
       if (!video.paused && !video.ended) {
-        rafId = requestAnimationFrame(renderStickReplayFrame);
+        rafId = requestAnimationFrame(renderReplayFrame);
+      } else {
+        setIsReplayPlaying(false);
       }
     };
 
     const handlePlay = () => {
+      setIsReplayPlaying(true);
+      syncDuration();
       if (rafId !== null) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(renderStickReplayFrame);
+      rafId = requestAnimationFrame(renderReplayFrame);
     };
 
-    const handleSeekOrPause = () => {
+    const handlePauseOrEnded = () => {
+      setIsReplayPlaying(false);
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
         rafId = null;
       }
-      renderStickReplayFrame();
+      renderReplayFrame();
     };
 
-    // Disegna subito il frame corrente anche se il video è in pausa
-    renderStickReplayFrame();
+    const handleSeeked = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      renderReplayFrame();
+    };
 
+    syncDuration();
+    renderReplayFrame();
+
+    video.addEventListener('loadedmetadata', syncDuration);
+    video.addEventListener('durationchange', syncDuration);
     video.addEventListener('play', handlePlay);
-    video.addEventListener('pause', handleSeekOrPause);
-    video.addEventListener('seeked', handleSeekOrPause);
-    video.addEventListener('timeupdate', renderStickReplayFrame);
+    video.addEventListener('pause', handlePauseOrEnded);
+    video.addEventListener('ended', handlePauseOrEnded);
+    video.addEventListener('seeked', handleSeeked);
+    video.addEventListener('timeupdate', renderReplayFrame);
 
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
+      video.removeEventListener('loadedmetadata', syncDuration);
+      video.removeEventListener('durationchange', syncDuration);
       video.removeEventListener('play', handlePlay);
-      video.removeEventListener('pause', handleSeekOrPause);
-      video.removeEventListener('seeked', handleSeekOrPause);
-      video.removeEventListener('timeupdate', renderStickReplayFrame);
+      video.removeEventListener('pause', handlePauseOrEnded);
+      video.removeEventListener('ended', handlePauseOrEnded);
+      video.removeEventListener('seeked', handleSeeked);
+      video.removeEventListener('timeupdate', renderReplayFrame);
     };
   }, [statusCode, stickOnlyMode]);
 
@@ -1264,7 +1323,6 @@ export function App() {
     EXERCISES.findIndex((ex) => ex.id === selectedExercise)
   );
   const selectedExerciseObj = EXERCISES[selectedExerciseIndex] || EXERCISES[0];
-  const currentHint = selectedExerciseObj.viewHint;
   const isExerciseLocked = !isExerciseUnlockedForPlan(
     currentPlan,
     selectedExerciseObj.id,
@@ -2074,13 +2132,18 @@ export function App() {
             </button>
           </div>
 
-          <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-            <div>
-              <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Inquadratura consigliata</span>
-              <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                {currentHint}
-              </span>
-            </div>
+          <div
+            style={{
+              marginTop: 14,
+              padding: '12px 16px',
+              borderRadius: 10,
+              background: '#1e293b',
+              border: '1px solid #334155',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+            }}
+          >
             <button
               type="button"
               disabled={isProcessing}
@@ -2512,29 +2575,123 @@ export function App() {
             </div>
           </div>
 
-          <div style={{ position: 'relative', marginTop: 10, width: '100%', background: '#000', borderRadius: 12, overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-            <canvas
-              ref={canvasRef}
-              style={{
-                display: statusCode === 'success' && !stickOnlyMode ? 'none' : 'block',
-                width: '100%',
-                height: 'auto',
-                background: '#000',
-              }}
-            />
-            <video
-              ref={videoRef}
-              controls={statusCode === 'success'}
-              style={{
-                display: statusCode === 'success' ? 'block' : 'none',
-                width: '100%',
-                height: statusCode === 'success' && stickOnlyMode ? 48 : 'auto',
-                background: '#000',
-              }}
-              muted={statusCode !== 'success'}
-              playsInline
-              preload="auto"
-            />
+          <div
+            style={{
+              marginTop: 10,
+              width: '100%',
+              background: '#0f172a',
+              borderRadius: 12,
+              overflow: 'hidden',
+              border: '1px solid #334155',
+              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)',
+            }}
+          >
+            <div style={{ position: 'relative', width: '100%', background: '#000' }}>
+              <canvas
+                ref={canvasRef}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  height: 'auto',
+                  background: '#000',
+                }}
+              />
+              <video
+                ref={videoRef}
+                controls={false}
+                style={{
+                  display: 'none',
+                  width: '100%',
+                  height: 'auto',
+                  background: '#000',
+                }}
+                muted={statusCode !== 'success'}
+                playsInline
+                preload="auto"
+              />
+            </div>
+
+            {statusCode === 'success' && (
+              <div
+                style={{
+                  padding: '10px 12px',
+                  background: '#1e293b',
+                  borderTop: '1px solid #334155',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+              >
+                <button
+                  type="button"
+                  aria-label={isReplayPlaying ? 'Metti in pausa' : 'Riproduci video'}
+                  onClick={() => {
+                    const vid = videoRef.current;
+                    if (!vid) return;
+                    if (vid.paused || vid.ended) {
+                      if (vid.ended) {
+                        vid.currentTime = 0;
+                      }
+                      vid.muted = false;
+                      void vid.play();
+                    } else {
+                      vid.pause();
+                    }
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #38bdf8',
+                    background: 'rgba(56, 189, 248, 0.16)',
+                    color: '#38bdf8',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    touchAction: 'manipulation',
+                  }}
+                >
+                  {isReplayPlaying ? '⏸ Pausa' : '▶ Play'}
+                </button>
+
+                <input
+                  type="range"
+                  min={0}
+                  max={replayDuration > 0 ? replayDuration : 100}
+                  step={0.05}
+                  value={Math.min(replayCurrentTime, replayDuration > 0 ? replayDuration : 100)}
+                  aria-label="Posizione riproduzione video"
+                  onChange={(e) => {
+                    const vid = videoRef.current;
+                    if (!vid) return;
+                    const nextTime = parseFloat(e.target.value);
+                    if (!isNaN(nextTime)) {
+                      vid.currentTime = nextTime;
+                      setReplayCurrentTime(nextTime);
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    accentColor: '#38bdf8',
+                    cursor: 'pointer',
+                    minWidth: 0,
+                  }}
+                />
+
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: '#cbd5e1',
+                    fontVariantNumeric: 'tabular-nums',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {formatTimeSec(replayCurrentTime)} / {formatTimeSec(replayDuration)}
+                </span>
+              </div>
+            )}
           </div>
 
           <footer
