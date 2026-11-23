@@ -876,12 +876,22 @@ function extractExerciseAngle(exercise: Exercise, landmarks: any[]): number | nu
   }
 }
 
-function getLeftRightAngleDiff(exercise: Exercise, landmarks: any[]): number | null {
-  if (!landmarks || !landmarks.length) return null;
-  let leftTriplet: [number, number, number] | null = null;
-  let rightTriplet: [number, number, number] | null = null;
+function getLeftRightAngles(
+  exercise: Exercise,
+  landmarks: any[]
+): { left: number | null; right: number | null; diff: number | null } {
+  if (!landmarks || !landmarks.length) return { left: null, right: null, diff: null };
 
-  if (exercise === 'squat' || exercise === 'leg_extension' || exercise === 'leg_curl') {
+  let leftTriplet: [number, number, number];
+  let rightTriplet: [number, number, number];
+
+  if (
+    exercise === 'squat' ||
+    exercise === 'leg_extension' ||
+    exercise === 'leg_curl' ||
+    exercise === 'affondi' ||
+    exercise === 'bulgarian_squat'
+  ) {
     leftTriplet = [23, 25, 27];
     rightTriplet = [24, 26, 28];
   } else if (exercise === 'stacco' || exercise === 'stacco_rumeno') {
@@ -895,14 +905,40 @@ function getLeftRightAngleDiff(exercise: Exercise, landmarks: any[]): number | n
     rightTriplet = [12, 14, 16];
   }
 
-  if (!leftTriplet || !rightTriplet) return null;
   const leftOk = areLandmarksVisible(landmarks, leftTriplet, 0.45);
   const rightOk = areLandmarksVisible(landmarks, rightTriplet, 0.45);
-  if (!leftOk || !rightOk) return null;
 
-  const lAng = calculateLiveAngle(landmarks[leftTriplet[0]], landmarks[leftTriplet[1]], landmarks[leftTriplet[2]]);
-  const rAng = calculateLiveAngle(landmarks[rightTriplet[0]], landmarks[rightTriplet[1]], landmarks[rightTriplet[2]]);
-  return Math.abs(lAng - rAng);
+  const left = leftOk
+    ? calculateLiveAngle(landmarks[leftTriplet[0]], landmarks[leftTriplet[1]], landmarks[leftTriplet[2]])
+    : null;
+  const right = rightOk
+    ? calculateLiveAngle(landmarks[rightTriplet[0]], landmarks[rightTriplet[1]], landmarks[rightTriplet[2]])
+    : null;
+
+  const diff = left !== null && right !== null ? Math.abs(left - right) : null;
+  return { left, right, diff };
+}
+
+function angleToRomPercent(
+  exerciseId: Exercise,
+  exerciseConfig: ExerciseConfig,
+  angleDeg: number | null
+): number | null {
+  if (angleDeg === null) return null;
+
+  let rom = 0;
+  if (exerciseId === 'alzate_laterali') {
+    rom = ((angleDeg - 35) / (100 - 35)) * 100;
+  } else if (exerciseId === 'squat') {
+    rom = ((155 - angleDeg) / (155 - 65)) * 100;
+  } else {
+    const rMin = exerciseConfig.romMinAngle ?? 65;
+    const rMax = exerciseConfig.romMaxAngle ?? 155;
+    const span = rMax - rMin;
+    rom = span !== 0 ? ((rMax - angleDeg) / span) * 100 : 0;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(rom)));
 }
 
 function calculateTorsoInclinationDeg(landmarks: any[]): number | null {
@@ -1262,6 +1298,8 @@ export function App() {
   const [powerScore, setPowerScore] = useState<number>(0);
   const [peakPowerScore, setPeakPowerScore] = useState<number>(0);
   const [angularSpeedDegSec, setAngularSpeedDegSec] = useState<number>(0);
+  const [leftAngleDeg, setLeftAngleDeg] = useState<number | null>(null);
+  const [rightAngleDeg, setRightAngleDeg] = useState<number | null>(null);
   const [symmetryDiffDeg, setSymmetryDiffDeg] = useState<number | null>(null);
   const [torsoTiltDeg, setTorsoTiltDeg] = useState<number | null>(null);
 
@@ -1398,6 +1436,8 @@ export function App() {
     setPowerScore(0);
     setPeakPowerScore(0);
     setAngularSpeedDegSec(0);
+    setLeftAngleDeg(null);
+    setRightAngleDeg(null);
     setSymmetryDiffDeg(null);
     setTorsoTiltDeg(null);
     setAnalysisResult(null);
@@ -2112,9 +2152,14 @@ export function App() {
                   });
 
                   const rawAngle = extractExerciseAngle(sessionExerciseId, currentLandmarks);
-                  const asymDiff = getLeftRightAngleDiff(sessionExerciseId, currentLandmarks);
+                  const { left, right, diff: asymDiff } = getLeftRightAngles(
+                    sessionExerciseId,
+                    currentLandmarks
+                  );
                   const torsoTilt = calculateTorsoInclinationDeg(currentLandmarks);
 
+                  setLeftAngleDeg(left);
+                  setRightAngleDeg(right);
                   if (asymDiff !== null) {
                     setSymmetryDiffDeg(asymDiff);
                     telemetrySamplesRef.current.asymmetries.push(asymDiff);
@@ -2159,17 +2204,7 @@ export function App() {
                     setAngularSpeedDegSec(smoothAngularSpeed);
                     telemetrySamplesRef.current.speeds.push(smoothAngularSpeed);
 
-                    let rom = 0;
-                    if (sessionExerciseId === 'alzate_laterali') {
-                      rom = ((smoothAngle - 35) / (100 - 35)) * 100;
-                    } else if (sessionExerciseId === 'squat') {
-                      rom = ((155 - smoothAngle) / (155 - 65)) * 100;
-                    } else {
-                      const rMin = sessionExerciseConfig.romMinAngle ?? 65;
-                      const rMax = sessionExerciseConfig.romMaxAngle ?? 155;
-                      rom = ((rMax - smoothAngle) / (rMax - rMin)) * 100;
-                    }
-                    rom = Math.max(0, Math.min(100, Math.round(rom)));
+                    const rom = angleToRomPercent(sessionExerciseId, sessionExerciseConfig, smoothAngle) ?? 0;
                     setRomQuality(rom);
                     telemetrySamplesRef.current.roms.push(rom);
 
@@ -2418,6 +2453,20 @@ export function App() {
     (user.user_metadata?.full_name as string | undefined) ||
     user.email ||
     '';
+
+  const leftRomPct = angleToRomPercent(selectedExercise, selectedExerciseObj, leftAngleDeg);
+  const rightRomPct = angleToRomPercent(selectedExercise, selectedExerciseObj, rightAngleDeg);
+
+  const asymColor =
+    symmetryDiffDeg === null
+      ? '#64748b'
+      : symmetryDiffDeg <= 8
+      ? '#22c55e'
+      : symmetryDiffDeg <= 16
+      ? '#eab308'
+      : '#ef4444';
+
+  const sideBarColor = symmetryDiffDeg === null ? '#475569' : asymColor;
 
   return (
     <>
@@ -2822,39 +2871,55 @@ export function App() {
               </div>
 
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                  <span style={{ color: '#94a3b8' }}>Simmetria SX / DX</span>
-                  <span
-                    style={{
-                      color:
-                        symmetryDiffDeg === null
-                          ? '#64748b'
-                          : symmetryDiffDeg <= 8
-                          ? '#22c55e'
-                          : symmetryDiffDeg <= 16
-                          ? '#eab308'
-                          : '#ef4444',
-                    }}
-                  >
-                    {symmetryDiffDeg !== null ? `Δ ${symmetryDiffDeg}°` : 'N/D'}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
+                  <span style={{ color: '#94a3b8' }}>Simmetria SX / DX (ROM)</span>
+                  <span style={{ color: asymColor }}>
+                    {symmetryDiffDeg !== null ? `Asimmetria Δ ${symmetryDiffDeg}°` : 'N/D'}
                   </span>
                 </div>
-                <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
-                  <div
-                    style={{
-                      width: `${symmetryDiffDeg !== null ? Math.max(4, Math.min(100, Math.round((symmetryDiffDeg / 25) * 100))) : 0}%`,
-                      height: '100%',
-                      background:
-                        symmetryDiffDeg === null
-                          ? '#475569'
-                          : symmetryDiffDeg <= 8
-                          ? '#22c55e'
-                          : symmetryDiffDeg <= 16
-                          ? '#eab308'
-                          : '#ef4444',
-                      transition: 'width 0.1s ease, background 0.2s ease',
-                    }}
-                  />
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: '#cbd5e1', marginBottom: 2 }}>
+                      <span>SX</span>
+                      <span>
+                        {leftAngleDeg !== null && leftRomPct !== null
+                          ? `ROM ${leftRomPct}% (${leftAngleDeg}°)`
+                          : 'N/D'}
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 8, background: '#0f172a', borderRadius: 4, overflow: 'hidden', border: '1px solid #334155' }}>
+                      <div
+                        style={{
+                          width: `${leftRomPct !== null ? leftRomPct : 0}%`,
+                          height: '100%',
+                          background: sideBarColor,
+                          transition: 'width 0.1s ease, background 0.2s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: '#cbd5e1', marginBottom: 2 }}>
+                      <span>DX</span>
+                      <span>
+                        {rightAngleDeg !== null && rightRomPct !== null
+                          ? `ROM ${rightRomPct}% (${rightAngleDeg}°)`
+                          : 'N/D'}
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 8, background: '#0f172a', borderRadius: 4, overflow: 'hidden', border: '1px solid #334155' }}>
+                      <div
+                        style={{
+                          width: `${rightRomPct !== null ? rightRomPct : 0}%`,
+                          height: '100%',
+                          background: sideBarColor,
+                          transition: 'width 0.1s ease, background 0.2s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
