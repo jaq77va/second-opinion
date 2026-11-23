@@ -1150,6 +1150,7 @@ export function App() {
 
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isExerciseLocked) {
+      e.target.value = '';
       alert('Questo esercizio è riservato agli abbonati. Passa a un piano completo per sbloccarlo!');
       return;
     }
@@ -1162,17 +1163,37 @@ export function App() {
       resetAnalysisSession({ preserveExerciseAndWeight: true });
       setStatus('Il file video supera il limite massimo di 50 MB.');
       setStatusCode('error');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      e.target.value = '';
       return;
     }
 
     analysisSessionIdRef.current += 1;
     const currentSessionId = analysisSessionIdRef.current;
 
+    // Legge SUBITO i byte in RAM prima di qualsiasi reset/re-render che su mobile può revocare il permesso al picker
+    let fileBuffer: ArrayBuffer;
+    try {
+      fileBuffer = await file.arrayBuffer();
+    } catch (readErr) {
+      if (analysisSessionIdRef.current !== currentSessionId) return;
+      const readMsg = readErr instanceof Error ? readErr.message : String(readErr ?? '');
+      resetAnalysisSession({ preserveExerciseAndWeight: true });
+      setStatus(
+        `Impossibile leggere il file video in locale (${readMsg || 'accesso negato o riferimento scaduto'}). Se il video è su cloud o galleria remota, salvalo o scaricalo sul dispositivo e riprova.`
+      );
+      setStatusCode('error');
+      return;
+    }
+
+    if (analysisSessionIdRef.current !== currentSessionId) return;
+
+    const persistentMemoryFile = new File([fileBuffer], file.name || `video_${Date.now()}.mp4`, {
+      type: file.type || 'video/mp4',
+      lastModified: file.lastModified || Date.now(),
+    });
+
     resetAnalysisSession({ preserveExerciseAndWeight: true });
-    setLastUploadedFile(file);
+    setLastUploadedFile(persistentMemoryFile);
 
     setIsProcessing(true);
     setStatus('Verifica file e caricamento modello AI in corso...');
@@ -1181,22 +1202,7 @@ export function App() {
     let localVideoUrl: string | null = null;
 
     try {
-      let localVideoBlob: Blob;
-      try {
-        const fileBuffer = await file.arrayBuffer();
-        if (analysisSessionIdRef.current !== currentSessionId) return;
-        localVideoBlob = new Blob([fileBuffer], { type: file.type || 'video/mp4' });
-      } catch (readErr) {
-        if (analysisSessionIdRef.current !== currentSessionId) return;
-        const readMsg = readErr instanceof Error ? readErr.message : String(readErr ?? '');
-        setIsProcessing(false);
-        setStatus(
-          `Impossibile leggere il file video in locale (${readMsg || 'accesso negato o riferimento scaduto'}). Se il video è su cloud o galleria remota, salvalo o scaricalo sul dispositivo e riprova.`
-        );
-        setStatusCode('error');
-        return;
-      }
-
+      const localVideoBlob = new Blob([fileBuffer], { type: file.type || 'video/mp4' });
       localVideoUrl = URL.createObjectURL(localVideoBlob);
 
       const landmarker = await loadPoseLandmarkerWithRetry(3);

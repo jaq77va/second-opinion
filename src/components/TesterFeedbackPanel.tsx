@@ -59,6 +59,22 @@ interface TesterFeedbackPanelProps {
 
 const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 
+async function materializeFileInMemory(file: File): Promise<File> {
+  const buffer = await file.arrayBuffer();
+  return new File([buffer], file.name || `video_${Date.now()}.mp4`, {
+    type: file.type || 'video/mp4',
+    lastModified: file.lastModified || Date.now(),
+  });
+}
+
+function formatFeedbackUploadError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  if (/failed to fetch|networkerror|load failed|fetch/i.test(msg)) {
+    return 'Errore di rete (Failed to fetch) durante il caricamento del video feedback. Verifica la connessione internet e riprova.';
+  }
+  return msg || 'Impossibile inviare il feedback.';
+}
+
 export function TesterFeedbackPanel({
   userId,
   sessionContext,
@@ -75,6 +91,7 @@ export function TesterFeedbackPanel({
     attachVideoByDefault ?? Boolean(defaultVideoFile)
   );
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [hasSubmittedSuccess, setHasSubmittedSuccess] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
@@ -94,12 +111,15 @@ export function TesterFeedbackPanel({
   useEffect(() => {
     setCustomVideoFile(null);
     setAttachVideo(attachVideoByDefault ?? Boolean(defaultVideoFile));
+    setHasSubmittedSuccess(false);
+    setSubmitError(null);
+    setSubmitSuccess(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   }, [defaultVideoFile, attachVideoByDefault]);
 
-  const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const chosenFile = e.target.files?.[0] ?? null;
     setSubmitError(null);
     setSubmitSuccess(null);
@@ -116,8 +136,20 @@ export function TesterFeedbackPanel({
       return;
     }
 
-    setCustomVideoFile(chosenFile);
-    setAttachVideo(true);
+    try {
+      // Materializza subito in memoria per evitare che su mobile il riferimento scada prima del submit
+      const memoryFile = await materializeFileInMemory(chosenFile);
+      setCustomVideoFile(memoryFile);
+      setAttachVideo(true);
+    } catch (readErr) {
+      setCustomVideoFile(null);
+      const readMsg = readErr instanceof Error ? readErr.message : String(readErr ?? '');
+      setSubmitError(
+        `Impossibile leggere il file video selezionato (${readMsg || 'permesso scaduto'}). Riprova selezionando un file locale.`
+      );
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const handleAttachToggle = (checked: boolean) => {
@@ -128,7 +160,7 @@ export function TesterFeedbackPanel({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (disabled) return;
+    if (disabled || submitting || hasSubmittedSuccess) return;
     setSubmitting(true);
     setSubmitError(null);
     setSubmitSuccess(null);
@@ -142,13 +174,20 @@ export function TesterFeedbackPanel({
           throw new Error('Il file video supera il limite massimo di 50 MB.');
         }
 
-        const safeExt = fileToSend.name.split('.').pop()?.toLowerCase() || 'mp4';
+        // Garantisce che il payload sia un Blob/File in RAM con MIME type esplicito
+        const safeBlob = new Blob([await fileToSend.arrayBuffer()], {
+          type: fileToSend.type || 'video/mp4',
+        });
+
+        const rawExt = fileToSend.name.split('.').pop()?.toLowerCase() || 'mp4';
+        const safeExt = /^[a-z0-9]{1,8}$/.test(rawExt) ? rawExt : 'mp4';
         const filePath = `${userId}/${Date.now()}_${sessionContext.exerciseId}.${safeExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from('tester-feedback-videos')
-          .upload(filePath, fileToSend, {
+          .upload(filePath, safeBlob, {
             contentType: fileToSend.type || 'video/mp4',
+            cacheControl: '3600',
             upsert: false,
           });
 
@@ -186,6 +225,7 @@ export function TesterFeedbackPanel({
         throw insertError;
       }
 
+      setHasSubmittedSuccess(true);
       setSubmitSuccess('Feedback inviato con successo! Grazie per il supporto al test.');
       setDescription('');
       setCustomVideoFile(null);
@@ -193,11 +233,13 @@ export function TesterFeedbackPanel({
         fileInputRef.current.value = '';
       }
     } catch (err: any) {
-      setSubmitError(err?.message || 'Impossibile inviare il feedback.');
+      setSubmitError(formatFeedbackUploadError(err));
     } finally {
       setSubmitting(false);
     }
   };
+
+  const isFormLocked = submitting || hasSubmittedSuccess;
 
   return (
     <div
@@ -284,7 +326,7 @@ export function TesterFeedbackPanel({
               id="tester-issue-select"
               value={issueCategory}
               onChange={(e) => setIssueCategory(e.target.value)}
-              disabled={submitting}
+              disabled={isFormLocked}
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -316,7 +358,7 @@ export function TesterFeedbackPanel({
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              disabled={submitting}
+              disabled={isFormLocked}
               placeholder="Es. Ho fatto 8 ripetizioni ma ne ha contate 5, camera laterale a 2,5 m..."
               style={{
                 width: '100%',
@@ -351,16 +393,16 @@ export function TesterFeedbackPanel({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                cursor: submitting ? 'not-allowed' : 'pointer',
+                cursor: isFormLocked ? 'not-allowed' : 'pointer',
                 userSelect: 'none',
               }}
             >
               <input
                 type="checkbox"
                 checked={attachVideo}
-                disabled={submitting}
+                disabled={isFormLocked}
                 onChange={(e) => handleAttachToggle(e.target.checked)}
-                style={{ width: 15, height: 15, accentColor: '#a855f7', cursor: submitting ? 'not-allowed' : 'pointer' }}
+                style={{ width: 15, height: 15, accentColor: '#a855f7', cursor: isFormLocked ? 'not-allowed' : 'pointer' }}
               />
               <strong style={{ fontSize: 13, color: '#e2e8f0' }}>
                 Allega anche video analizzato (facoltativo, max 50 MB)
@@ -371,7 +413,7 @@ export function TesterFeedbackPanel({
               ref={fileInputRef}
               type="file"
               accept="video/*"
-              disabled={submitting}
+              disabled={isFormLocked}
               onChange={handleVideoFileChange}
               style={{ display: 'none' }}
             />
@@ -405,7 +447,7 @@ export function TesterFeedbackPanel({
 
               <button
                 type="button"
-                disabled={submitting}
+                disabled={isFormLocked}
                 onClick={() => fileInputRef.current?.click()}
                 style={{
                   padding: '6px 10px',
@@ -415,7 +457,8 @@ export function TesterFeedbackPanel({
                   color: '#38bdf8',
                   fontSize: 12,
                   fontWeight: 700,
-                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  cursor: isFormLocked ? 'not-allowed' : 'pointer',
+                  opacity: isFormLocked ? 0.55 : 1,
                   flexShrink: 0,
                 }}
               >
@@ -460,19 +503,28 @@ export function TesterFeedbackPanel({
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={isFormLocked}
             style={{
               padding: '10px 14px',
               borderRadius: 8,
-              border: 'none',
-              background: '#a855f7',
-              color: '#fff',
+              border: hasSubmittedSuccess ? '1px solid #22c55e' : 'none',
+              background: hasSubmittedSuccess
+                ? 'rgba(34, 197, 94, 0.18)'
+                : submitting
+                ? '#6b21a8'
+                : '#a855f7',
+              color: hasSubmittedSuccess ? '#86efac' : '#fff',
               fontSize: 13,
               fontWeight: 800,
-              cursor: submitting ? 'not-allowed' : 'pointer',
+              cursor: isFormLocked ? 'not-allowed' : 'pointer',
+              opacity: isFormLocked ? 0.75 : 1,
             }}
           >
-            {submitting ? 'Invio feedback in corso...' : 'Invia segnalazione tester'}
+            {submitting
+              ? 'Invio feedback in corso...'
+              : hasSubmittedSuccess
+              ? '✓ Segnalazione inviata'
+              : 'Invia segnalazione tester'}
           </button>
         </form>
       )}
