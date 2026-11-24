@@ -34,7 +34,8 @@ type Exercise =
   | 'pushdown_cavi'
   | 'trazioni_sbarra';
 
-type PlanType = 'none' | 'trial' | 'quarterly' | 'semiannual' | 'annual';
+type PlanType = 'none' | 'trial' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+type PaidPlanType = 'monthly' | 'quarterly' | 'semiannual' | 'annual';
 
 type AngleMode = 'extension_flexion' | 'abduction_up';
 
@@ -1325,6 +1326,7 @@ function formatUploadErrorMessage(err: unknown): string {
 function getPlanLabel(plan: PlanType): string {
   switch (plan) {
     case 'trial': return 'Trial 7 Giorni';
+    case 'monthly': return 'Mensile';
     case 'quarterly': return 'Trimestrale';
     case 'semiannual': return 'Semestrale';
     case 'annual': return 'Annuale';
@@ -1579,6 +1581,8 @@ export function App() {
   const [isSubscriptionExpired, setIsSubscriptionExpired] = useState<boolean>(false);
   const [isTester, setIsTester] = useState<boolean>(false);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [checkoutLoadingPlan, setCheckoutLoadingPlan] = useState<PaidPlanType | null>(null);
+  const [checkoutNotice, setCheckoutNotice] = useState<{ type: 'success' | 'cancelled'; text: string } | null>(null);
   const [unlockedByPlan, setUnlockedByPlan] = useState<Record<string, boolean>>({});
 
   const [isGuidesOpen, setIsGuidesOpen] = useState<boolean>(false);
@@ -2080,6 +2084,41 @@ export function App() {
     }
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user?.id || typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const checkoutState = params.get('checkout');
+    if (!checkoutState) return;
+
+    params.delete('checkout');
+    const cleanSearch = params.toString();
+    const cleanUrl = `${window.location.pathname}${cleanSearch ? `?${cleanSearch}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, '', cleanUrl);
+
+    if (checkoutState === 'cancelled') {
+      setCheckoutNotice({
+        type: 'cancelled',
+        text: 'Pagamento annullato. Puoi selezionare un piano in qualsiasi momento.',
+      });
+      return;
+    }
+
+    if (checkoutState === 'success') {
+      setCheckoutNotice({
+        type: 'success',
+        text: 'Pagamento completato! Attivazione abbonamento in corso...',
+      });
+
+      void fetchUserSubscription(user.id);
+      const retryTimer = window.setTimeout(() => {
+        void fetchUserSubscription(user.id);
+      }, 2500);
+
+      return () => window.clearTimeout(retryTimer);
+    }
+  }, [user?.id]);
+
   const handleActivateTrial = async () => {
     if (!user) return;
     setSubLoading(true);
@@ -2103,8 +2142,41 @@ export function App() {
     }
   };
 
-  const handleSelectPaidPlan = async (plan: 'quarterly' | 'semiannual' | 'annual') => {
-    alert(`Checkout Stripe per piano "${getPlanLabel(plan)}" in fase di collegamento.`);
+  const handleSelectPaidPlan = async (plan: PaidPlanType) => {
+    if (!user || checkoutLoadingPlan) return;
+    setCheckoutLoadingPlan(plan);
+    setPlanError(null);
+    setCheckoutNotice(null);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error('Sessione scaduta. Effettua nuovamente il login.');
+      }
+
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: { planType: plan },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Errore durante la creazione della sessione di pagamento.');
+      }
+
+      if (!data?.url) {
+        throw new Error('URL di pagamento Stripe non ricevuto dal server.');
+      }
+
+      window.location.href = data.url;
+    } catch (err: any) {
+      console.error('Errore checkout Stripe:', err);
+      setPlanError(err?.message || 'Impossibile avviare il pagamento con Stripe.');
+      setCheckoutLoadingPlan(null);
+    }
   };
 
   const handleLogout = async () => {
@@ -2766,6 +2838,8 @@ export function App() {
   }
 
   if (currentPlan === 'none' || isSubscriptionExpired) {
+    const isRedirecting = checkoutLoadingPlan !== null;
+
     return (
       <>
         <AppBrandHeader />
@@ -2773,7 +2847,11 @@ export function App() {
           <div style={{ maxWidth: 460, width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <span style={{ fontSize: 12, color: '#94a3b8' }}>{user.email}</span>
-              <button onClick={handleLogout} style={{ background: 'transparent', border: '1px solid #334155', color: '#cbd5e1', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>
+              <button
+                onClick={handleLogout}
+                disabled={isRedirecting}
+                style={{ background: 'transparent', border: '1px solid #334155', color: '#cbd5e1', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: isRedirecting ? 'not-allowed' : 'pointer' }}
+              >
                 Esci
               </button>
             </div>
@@ -2782,8 +2860,24 @@ export function App() {
               {isSubscriptionExpired ? 'Il tuo piano è scaduto' : 'Scegli il tuo piano'}
             </h2>
             <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginBottom: 20 }}>
-              Video illimitati su tutti i piani
+              Video illimitati su tutti i piani · Disdici quando vuoi
             </p>
+
+            {checkoutNotice && (
+              <div
+                style={{
+                  padding: 12,
+                  marginBottom: 14,
+                  borderRadius: 8,
+                  background: checkoutNotice.type === 'success' ? 'rgba(34, 197, 94, 0.12)' : 'rgba(234, 179, 8, 0.12)',
+                  border: `1px solid ${checkoutNotice.type === 'success' ? '#22c55e' : '#eab308'}`,
+                  color: checkoutNotice.type === 'success' ? '#86efac' : '#fde047',
+                  fontSize: 13,
+                }}
+              >
+                {checkoutNotice.text}
+              </div>
+            )}
 
             {planError && (
               <div style={{ padding: 12, marginBottom: 14, borderRadius: 8, background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#f43f5e', fontSize: 13 }}>
@@ -2793,13 +2887,17 @@ export function App() {
 
             {currentPlan === 'none' && (
               <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #38bdf8', marginBottom: 14 }}>
-                <h3 style={{ margin: '0 0 6px 0', color: '#38bdf8' }}>Trial 7 Giorni</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                  <h3 style={{ margin: 0, color: '#38bdf8' }}>Trial 7 Giorni</h3>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: '#38bdf8' }}>Gratis</span>
+                </div>
                 <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
                   Accesso agli esercizi inclusi nel piano Trial. Analisi video illimitate per 7 giorni.
                 </p>
                 <button
                   onClick={handleActivateTrial}
-                  style={{ width: '100%', padding: 10, background: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: '1px solid #38bdf8', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
+                  disabled={isRedirecting}
+                  style={{ width: '100%', padding: 10, background: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: '1px solid #38bdf8', borderRadius: 8, fontWeight: 'bold', cursor: isRedirecting ? 'not-allowed' : 'pointer', opacity: isRedirecting ? 0.6 : 1 }}
                 >
                   Attiva Trial Gratuito
                 </button>
@@ -2807,41 +2905,70 @@ export function App() {
             )}
 
             <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #334155', marginBottom: 14 }}>
-              <h3 style={{ margin: '0 0 6px 0', color: '#fff' }}>Abbonamento Trimestrale</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                <h3 style={{ margin: 0, color: '#fff' }}>Abbonamento Mensile</h3>
+                <span style={{ fontSize: 16, fontWeight: 800, color: '#38bdf8' }}>11,90 € <small style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>/ mese</small></span>
+              </div>
+              <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
+                Tutti gli esercizi sbloccati. Video illimitati con rinnovo mensile.
+              </p>
+              <button
+                onClick={() => handleSelectPaidPlan('monthly')}
+                disabled={isRedirecting}
+                style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: isRedirecting ? 'not-allowed' : 'pointer', opacity: isRedirecting && checkoutLoadingPlan !== 'monthly' ? 0.6 : 1 }}
+              >
+                {checkoutLoadingPlan === 'monthly' ? 'Reindirizzamento a Stripe...' : 'Scegli Mensile'}
+              </button>
+            </div>
+
+            <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #334155', marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                <h3 style={{ margin: 0, color: '#fff' }}>Abbonamento Trimestrale</h3>
+                <span style={{ fontSize: 16, fontWeight: 800, color: '#38bdf8' }}>24,90 € <small style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>/ 3 mesi</small></span>
+              </div>
               <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
                 Tutti gli esercizi sbloccati. Video illimitati per 3 mesi.
               </p>
               <button
                 onClick={() => handleSelectPaidPlan('quarterly')}
-                style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
+                disabled={isRedirecting}
+                style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: isRedirecting ? 'not-allowed' : 'pointer', opacity: isRedirecting && checkoutLoadingPlan !== 'quarterly' ? 0.6 : 1 }}
               >
-                Scegli Trimestrale
+                {checkoutLoadingPlan === 'quarterly' ? 'Reindirizzamento a Stripe...' : 'Scegli Trimestrale'}
               </button>
             </div>
 
             <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #334155', marginBottom: 14 }}>
-              <h3 style={{ margin: '0 0 6px 0', color: '#fff' }}>Abbonamento Semestrale</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                <h3 style={{ margin: 0, color: '#fff' }}>Abbonamento Semestrale</h3>
+                <span style={{ fontSize: 16, fontWeight: 800, color: '#38bdf8' }}>39,90 € <small style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>/ 6 mesi</small></span>
+              </div>
               <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
                 Tutti gli esercizi sbloccati. Video illimitati per 6 mesi.
               </p>
               <button
                 onClick={() => handleSelectPaidPlan('semiannual')}
-                style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
+                disabled={isRedirecting}
+                style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: isRedirecting ? 'not-allowed' : 'pointer', opacity: isRedirecting && checkoutLoadingPlan !== 'semiannual' ? 0.6 : 1 }}
               >
-                Scegli Semestrale
+                {checkoutLoadingPlan === 'semiannual' ? 'Reindirizzamento a Stripe...' : 'Scegli Semestrale'}
               </button>
             </div>
 
             <div style={{ background: '#1e293b', padding: 18, borderRadius: 12, border: '1px solid #22c55e' }}>
-              <h3 style={{ margin: '0 0 6px 0', color: '#22c55e' }}>Abbonamento Annuale (Miglior Valore)</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                <h3 style={{ margin: 0, color: '#22c55e' }}>Abbonamento Annuale (Miglior Valore)</h3>
+                <span style={{ fontSize: 16, fontWeight: 800, color: '#22c55e' }}>69,90 € <small style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>/ anno</small></span>
+              </div>
               <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 12px 0' }}>
                 Tutti gli esercizi sbloccati. Video illimitati per 12 mesi.
               </p>
               <button
                 onClick={() => handleSelectPaidPlan('annual')}
-                style={{ width: '100%', padding: 10, background: '#22c55e', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}
+                disabled={isRedirecting}
+                style={{ width: '100%', padding: 10, background: '#22c55e', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: isRedirecting ? 'not-allowed' : 'pointer', opacity: isRedirecting && checkoutLoadingPlan !== 'annual' ? 0.6 : 1 }}
               >
-                Scegli Annuale
+                {checkoutLoadingPlan === 'annual' ? 'Reindirizzamento a Stripe...' : 'Scegli Annuale'}
               </button>
             </div>
           </div>
