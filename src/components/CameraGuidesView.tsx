@@ -1,7 +1,49 @@
 import { useState, useEffect } from 'react';
 
+export type GuideExerciseId =
+  | 'squat'
+  | 'stacco'
+  | 'panca_piana'
+  | 'alzate_laterali'
+  | 'affondi'
+  | 'bulgarian_squat'
+  | 'push_up'
+  | 'military_press'
+  | 'curl_bicipiti'
+  | 'french_press'
+  | 'rematore_bilanciere'
+  | 'stacco_rumeno'
+  | 'lat_machine'
+  | 'pulley_basso'
+  | 'leg_extension'
+  | 'leg_curl'
+  | 'chest_press'
+  | 'shoulder_press'
+  | 'pushdown_cavi'
+  | 'trazioni_sbarra'
+  | 'front_squat'
+  | 'goblet_squat'
+  | 'sumo_deadlift'
+  | 'hip_thrust'
+  | 'panca_inclinata'
+  | 'chest_dips'
+  | 'arnold_press'
+  | 'front_raises'
+  | 'face_pull'
+  | 'lat_machine_presa_inversa'
+  | 'rematore_manubrio'
+  | 'pullover_cavi'
+  | 'hammer_curl'
+  | 'curl_panca_scott'
+  | 'estensioni_tricipiti_sopra_testa'
+  | 'affondi_laterali'
+  | 'step_up'
+  | 'calf_raise_in_piedi'
+  | 'ab_coaster_crunch'
+  | 'hyperextension';
+
 export interface ExerciseGuideItem {
-  id: string;
+  id: GuideExerciseId;
   label: string;
   imagePath: string;
   guideImagePath: string;
@@ -275,17 +317,286 @@ export const EXERCISE_GUIDES: ExerciseGuideItem[] = [
     doTips: 'Inquadra dalla sbarra fino alle gambe per leggere estensione e chiusura.',
     avoidTips: 'Evita riprese dal basso troppo vicine alla sbarra.',
   },
+  {
+    id: 'front_squat',
+    label: 'Front squat',
+    imagePath: '/images/front_squat.png',
+    guideImagePath: '/images/guides/front_squat.png',
+    cameraAngleBadge: 'Laterale 90°',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza bacino',
+    cameraDistance: '2,5 – 3 m (figura intera)',
+    doTips: 'Inquadra a figura intera per tracciare ginocchia, bacino e verticalità del busto.',
+    avoidTips: 'Evita inquadrature strette che tagliano i piedi o nascondono i gomiti.',
+  },
+  {
+    id: 'goblet_squat',
+    label: 'Goblet squat',
+    imagePath: '/images/goblet_squat.png',
+    guideImagePath: '/images/guides/goblet_squat.png',
+    cameraAngleBadge: 'Laterale 90° (o 45°)',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza bacino',
+    cameraDistance: '2,5 – 3 m (figura intera)',
+    doTips: 'Riprendi di profilo o a 45° per leggere profondità del ginocchio e assetto del busto.',
+    avoidTips: 'Non tenere il kettlebell o manubrio davanti alle ginocchia in modo da coprirle.',
+  },
+  {
+    id: 'sumo_deadlift',
+    label: 'Sumo deadlift',
+    imagePath: '/images/sumo_deadlift.png',
+    guideImagePath: '/images/guides/sumo_deadlift.png',
+    cameraAngleBadge: 'Obliqua 45° (o Frontale)',
+    cameraAngleDeg: 45,
+    cameraSide: 'oblique',
+    cameraHeight: 'Altezza bacino',
+    cameraDistance: '2,5 – 3 m (figura intera)',
+    doTips: 'Inquadra a 45° per vedere apertura delle anche, allineamento delle ginocchia e schiena.',
+    avoidTips: 'Evita un profilo troppo stretto dove la gamba vicina copre l’altra o il bilanciere.',
+  },
+  {
+    id: 'hip_thrust',
+    label: 'Hip thrust',
+    imagePath: '/images/hip_thrust.png',
+    guideImagePath: '/images/guides/hip_thrust.png',
+    cameraAngleBadge: 'Laterale 90°',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza bacino / panca',
+    cameraDistance: '2,5 – 3 m',
+    doTips: 'Inquadra spalle sulla panca, bacino e ginocchia fino al lockout d’anca.',
+    avoidTips: 'Evita che i dischi del bilanciere coprano il bacino.',
+  },
+  {
+    id: 'panca_inclinata',
+    label: 'Panca inclinata',
+    imagePath: '/images/panca_inclinata.png',
+    guideImagePath: '/images/guides/panca_inclinata.png',
+    cameraAngleBadge: 'Obliqua 45°',
+    cameraAngleDeg: 45,
+    cameraSide: 'oblique',
+    cameraHeight: 'Altezza petto alto',
+    cameraDistance: '2 – 2,5 m',
+    doTips: 'Inquadra spalla, gomito e traiettoria del carico su panca inclinata.',
+    avoidTips: 'Evita che i montanti della panca o i dischi nascondano il gomito.',
+  },
+  {
+    id: 'chest_dips',
+    label: 'Chest dips',
+    imagePath: '/images/chest_dips.png',
+    guideImagePath: '/images/guides/chest_dips.png',
+    cameraAngleBadge: 'Obliqua 45° (o Laterale 90°)',
+    cameraAngleDeg: 45,
+    cameraSide: 'oblique',
+    cameraHeight: 'Altezza parallele',
+    cameraDistance: '2,5 m',
+    doTips: 'Inquadra inclinazione del busto, spalla e gomito durante discesa e risalita.',
+    avoidTips: 'Evita che i montanti delle parallele ostruiscano il gomito.',
+  },
+  {
+    id: 'arnold_press',
+    label: 'Arnold press',
+    imagePath: '/images/arnold_press.png',
+    guideImagePath: '/images/guides/arnold_press.png',
+    cameraAngleBadge: 'Frontale o Obliqua 45°',
+    cameraAngleDeg: 45,
+    cameraSide: 'oblique',
+    cameraHeight: 'Altezza spalle',
+    cameraDistance: '2 – 2,5 m',
+    doTips: 'Mantieni visibili gomiti e manubri dalla rotazione iniziale fino alla spinta in alto.',
+    avoidTips: 'Non tagliare la parte alta del movimento.',
+  },
+  {
+    id: 'front_raises',
+    label: 'Front raises',
+    imagePath: '/images/front_raises.png',
+    guideImagePath: '/images/guides/front_raises.png',
+    cameraAngleBadge: 'Laterale 90° (o Obliqua 45°)',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza spalle',
+    cameraDistance: '2 – 2,5 m',
+    doTips: 'Riprendi di lato o a 45° per leggere l’elevazione frontale e l’eventuale oscillazione del busto.',
+    avoidTips: 'Evita riprese frontali pure che schiacciano l’angolo di elevazione sul piano sagittale.',
+  },
+  {
+    id: 'face_pull',
+    label: 'Face pull',
+    imagePath: '/images/face_pull.png',
+    guideImagePath: '/images/guides/face_pull.png',
+    cameraAngleBadge: 'Obliqua 45°',
+    cameraAngleDeg: 45,
+    cameraSide: 'oblique',
+    cameraHeight: 'Altezza viso / spalle',
+    cameraDistance: '2 m',
+    doTips: 'Posiziona la camera a 45° per leggere trazione, apertura dei gomiti e rotazione esterna.',
+    avoidTips: 'Evita di metterti tra la carrucola e la corda.',
+  },
+  {
+    id: 'lat_machine_presa_inversa',
+    label: 'Lat machine presa inversa',
+    imagePath: '/images/lat_machine_presa_inversa.png',
+    guideImagePath: '/images/guides/lat_machine_presa_inversa.png',
+    cameraAngleBadge: 'Obliqua 45° (o Posteriore)',
+    cameraAngleDeg: 45,
+    cameraSide: 'oblique',
+    cameraHeight: 'Altezza spalle',
+    cameraDistance: '2 – 2,5 m',
+    doTips: 'Inquadra spalle, gomiti e busto dalla distensione in alto fino alla trazione al petto.',
+    avoidTips: 'Evita che la struttura della macchina o le ginocchiere coprano il movimento.',
+  },
+  {
+    id: 'rematore_manubrio',
+    label: 'Rematore manubrio',
+    imagePath: '/images/rematore_manubrio.png',
+    guideImagePath: '/images/guides/rematore_manubrio.png',
+    cameraAngleBadge: 'Laterale 90° (lato che tira)',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza panca',
+    cameraDistance: '2 m',
+    doTips: 'Riprendi sul lato del braccio che lavora per vedere l’escursione del gomito e del busto.',
+    avoidTips: 'Evita di riprendere dal lato della panca se il tronco copre il braccio.',
+  },
+  {
+    id: 'pullover_cavi',
+    label: 'Pullover cavi',
+    imagePath: '/images/pullover_cavi.png',
+    guideImagePath: '/images/guides/pullover_cavi.png',
+    cameraAngleBadge: 'Laterale 90°',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza spalle / busto',
+    cameraDistance: '2 – 2,5 m',
+    doTips: 'Inquadra di profilo spalla, gomito, busto e traiettoria del cavo.',
+    avoidTips: 'Evita riprese frontali che non mostrano l’arco di estensione della spalla.',
+  },
+  {
+    id: 'hammer_curl',
+    label: 'Hammer curl',
+    imagePath: '/images/hammer_curl.png',
+    guideImagePath: '/images/guides/hammer_curl.png',
+    cameraAngleBadge: 'Profilo laterale 90°',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza gomito',
+    cameraDistance: '1,8 – 2 m',
+    doTips: 'Inquadra spalla, gomito e polso lungo il fianco con impugnatura neutra.',
+    avoidTips: 'Evita riprese troppo frontali che schiacciano l’angolo del gomito.',
+  },
+  {
+    id: 'curl_panca_scott',
+    label: 'Curl panca Scott',
+    imagePath: '/images/curl_panca_scott.png',
+    guideImagePath: '/images/guides/curl_panca_scott.png',
+    cameraAngleBadge: 'Laterale 90° (lato libero)',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza leggio Scott',
+    cameraDistance: '1,8 – 2 m',
+    doTips: 'Riprendi sul lato aperto del leggio per leggere spalla, gomito e polso senza ostacoli.',
+    avoidTips: 'Evita che il leggio imbottito o la mano opposta coprano il gomito.',
+  },
+  {
+    id: 'estensioni_tricipiti_sopra_testa',
+    label: 'Estensioni tricipiti sopra la testa',
+    imagePath: '/images/estensioni_tricipiti_sopra_testa.png',
+    guideImagePath: '/images/guides/estensioni_tricipiti_sopra_testa.png',
+    cameraAngleBadge: 'Laterale 90°',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza spalle / testa',
+    cameraDistance: '2 m',
+    doTips: 'Lascia spazio sopra la testa e inquadra bene spalla, gomito e polso.',
+    avoidTips: 'Non tagliare le mani nella fase di massima distensione.',
+  },
+  {
+    id: 'affondi_laterali',
+    label: 'Affondi laterali',
+    imagePath: '/images/affondi_laterali.png',
+    guideImagePath: '/images/guides/affondi_laterali.png',
+    cameraAngleBadge: 'Frontale 0°',
+    cameraAngleDeg: 0,
+    cameraSide: 'front',
+    cameraHeight: 'Altezza bacino',
+    cameraDistance: '3 m (figura intera)',
+    doTips: 'Inquadra frontalmente a figura intera per leggere spostamento laterale, anca e ginocchio.',
+    avoidTips: 'Evita riprese troppo vicine che tagliano il piede esterno durante l’affondo.',
+  },
+  {
+    id: 'step_up',
+    label: 'Step up',
+    imagePath: '/images/step_up.png',
+    guideImagePath: '/images/guides/step_up.png',
+    cameraAngleBadge: 'Laterale 90° (o Obliqua 45°)',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza box / bacino',
+    cameraDistance: '2,5 – 3 m (figura intera)',
+    doTips: 'Riprendi a figura intera includendo il box, la gamba che spinge e l’allineamento del tronco.',
+    avoidTips: 'Non tagliare i piedi a terra o la chiusura in alto sopra il box.',
+  },
+  {
+    id: 'calf_raise_in_piedi',
+    label: 'Calf raise in piedi',
+    imagePath: '/images/calf_raise_in_piedi.png',
+    guideImagePath: '/images/guides/calf_raise_in_piedi.png',
+    cameraAngleBadge: 'Laterale 90°',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza ginocchio / caviglia',
+    cameraDistance: '2 m',
+    doTips: 'Inquadra bene gamba e piede a terra o su rialzo per osservare il sollevamento del tallone.',
+    avoidTips: 'Evita riprese troppo alte che tagliano i piedi.',
+  },
+  {
+    id: 'ab_coaster_crunch',
+    label: 'Ab coaster crunch',
+    imagePath: '/images/ab_coaster_crunch.png',
+    guideImagePath: '/images/guides/ab_coaster_crunch.png',
+    cameraAngleBadge: 'Laterale 90°',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza bacino / carrello',
+    cameraDistance: '2 – 2,5 m',
+    doTips: 'Riprendi di profilo il binario e il corpo per tracciare la risalita delle ginocchia e la chiusura del tronco.',
+    avoidTips: 'Evita che il montante frontale della macchina copra il bacino.',
+  },
+  {
+    id: 'hyperextension',
+    label: 'Hyperextension',
+    imagePath: '/images/hyperextension.png',
+    guideImagePath: '/images/guides/hyperextension.png',
+    cameraAngleBadge: 'Laterale 90°',
+    cameraAngleDeg: 90,
+    cameraSide: 'left',
+    cameraHeight: 'Altezza supporto bacino',
+    cameraDistance: '2,5 m',
+    doTips: 'Inquadra di profilo il supporto all’altezza del bacino, il tronco e la testa.',
+    avoidTips: 'Evita di tagliare la discesa in basso o di iperestendere eccessivamente la schiena in alto.',
+  },
 ];
 
 function StickmanAngleIllustration({ guide }: { guide: ExerciseGuideItem }) {
-  const isHorizontal = guide.id === 'push_up';
+  const isHorizontal =
+    guide.id === 'push_up' ||
+    guide.id === 'ab_coaster_crunch' ||
+    guide.id === 'hyperextension';
   const isSeated =
     guide.id === 'pulley_basso' ||
     guide.id === 'leg_extension' ||
     guide.id === 'chest_press' ||
     guide.id === 'shoulder_press' ||
-    guide.id === 'lat_machine';
-  const isSupineOrBench = guide.id === 'panca_piana' || guide.id === 'french_press';
+    guide.id === 'lat_machine' ||
+    guide.id === 'lat_machine_presa_inversa' ||
+    guide.id === 'arnold_press' ||
+    guide.id === 'curl_panca_scott';
+  const isSupineOrBench =
+    guide.id === 'panca_piana' ||
+    guide.id === 'panca_inclinata' ||
+    guide.id === 'french_press';
   const isProne = guide.id === 'leg_curl';
 
   const camPos = (() => {
@@ -386,10 +697,10 @@ function StickmanAngleIllustration({ guide }: { guide: ExerciseGuideItem }) {
 }
 
 interface CameraGuidesViewProps {
-  initialExerciseId?: string;
+  initialExerciseId?: GuideExerciseId;
   readOnlySelection?: boolean;
-  onSelectExercise?: (exerciseId: string) => void;
-  onClose: (selectedExerciseId?: string) => void;
+  onSelectExercise?: (exerciseId: GuideExerciseId) => void;
+  onClose: (selectedExerciseId?: GuideExerciseId) => void;
 }
 
 export function CameraGuidesView({
@@ -399,10 +710,14 @@ export function CameraGuidesView({
   onClose,
 }: CameraGuidesViewProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedFilterId, setSelectedFilterId] = useState<string>(initialExerciseId || 'all');
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string | undefined>(initialExerciseId);
+  const [selectedFilterId, setSelectedFilterId] = useState<GuideExerciseId | 'all'>(
+    initialExerciseId || 'all'
+  );
+  const [selectedExerciseId, setSelectedExerciseId] = useState<GuideExerciseId | undefined>(
+    initialExerciseId
+  );
   const [showGeneralRules, setShowGeneralRules] = useState<boolean>(true);
-  const [fallbackIds, setFallbackIds] = useState<Record<string, boolean>>({});
+  const [fallbackIds, setFallbackIds] = useState<Partial<Record<GuideExerciseId, boolean>>>({});
 
   useEffect(() => {
     setSelectedExerciseId(initialExerciseId);
@@ -417,7 +732,7 @@ export function CameraGuidesView({
     return matchesSelected && matchesSearch;
   });
 
-  const handleChooseGuide = (exerciseId: string) => {
+  const handleChooseGuide = (exerciseId: GuideExerciseId) => {
     if (readOnlySelection) return;
     setSelectedExerciseId(exerciseId);
     onSelectExercise?.(exerciseId);
@@ -452,7 +767,9 @@ export function CameraGuidesView({
           >
             ← Torna all'analisi
           </button>
-          <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>20 Esercizi</span>
+          <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>
+            {EXERCISE_GUIDES.length} Esercizi
+          </span>
         </div>
 
         <h1 style={{ margin: '0 0 6px 0', fontSize: 24, fontWeight: 800, color: '#38bdf8' }}>
@@ -500,7 +817,7 @@ export function CameraGuidesView({
               setSearchQuery(e.target.value);
               if (selectedFilterId !== 'all') setSelectedFilterId('all');
             }}
-            placeholder="Cerca esercizio (es. Squat, Bulgarian...)"
+            placeholder="Cerca esercizio (es. Squat, Hip thrust, Bulgarian...)"
             style={{
               flex: 1,
               padding: '10px 12px',
@@ -550,7 +867,6 @@ export function CameraGuidesView({
                   cursor: readOnlySelection ? 'default' : 'pointer',
                 }}
               >
-                {/* TOP CARD HEADER */}
                 <div
                   style={{
                     padding: '12px 16px',
@@ -578,7 +894,6 @@ export function CameraGuidesView({
                   </span>
                 </div>
 
-                {/* OMINO + ANGOLO RIPRESA + PARAMETRI CAMERA */}
                 <div style={{ padding: 16 }}>
                   <div
                     style={{
@@ -634,7 +949,6 @@ export function CameraGuidesView({
                     </div>
                   </div>
 
-                  {/* CHECKLIST DO / AVOID */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div
                       style={{

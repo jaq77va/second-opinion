@@ -178,19 +178,15 @@ export function TesterFeedbackPanel({
           throw new Error('Il file video supera il limite massimo di 50 MB.');
         }
 
-        // Garantisce che il payload sia un Blob/File in RAM con MIME type esplicito
-        const safeBlob = new Blob([await fileToSend.arrayBuffer()], {
-          type: fileToSend.type || 'video/mp4',
-        });
-
+        const contentType = fileToSend.type || 'video/mp4';
         const rawExt = fileToSend.name.split('.').pop()?.toLowerCase() || 'mp4';
         const safeExt = /^[a-z0-9]{1,8}$/.test(rawExt) ? rawExt : 'mp4';
         const filePath = `${userId}/${Date.now()}_${sessionContext.exerciseId}.${safeExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from('tester-feedback-videos')
-          .upload(filePath, safeBlob, {
-            contentType: fileToSend.type || 'video/mp4',
+          .upload(filePath, fileToSend, {
+            contentType,
             cacheControl: '3600',
             upsert: false,
           });

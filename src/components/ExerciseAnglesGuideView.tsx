@@ -1,53 +1,11 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import type { GuideExerciseId } from './CameraGuidesView';
 
-export type GuideExerciseId =
-  | 'squat'
-  | 'stacco'
-  | 'panca_piana'
-  | 'alzate_laterali'
-  | 'affondi'
-  | 'bulgarian_squat'
-  | 'push_up'
-  | 'military_press'
-  | 'curl_bicipiti'
-  | 'french_press'
-  | 'rematore_bilanciere'
-  | 'stacco_rumeno'
-  | 'lat_machine'
-  | 'pulley_basso'
-  | 'leg_extension'
-  | 'leg_curl'
-  | 'chest_press'
-  | 'shoulder_press'
-  | 'pushdown_cavi'
-  | 'trazioni_sbarra';
-
-type PoseVariant =
-  | 'squat'
-  | 'stacco'
-  | 'panca_piana'
-  | 'alzate_laterali'
-  | 'affondi'
-  | 'bulgarian_squat'
-  | 'push_up'
-  | 'military_press'
-  | 'curl_bicipiti'
-  | 'french_press'
-  | 'rematore_bilanciere'
-  | 'stacco_rumeno'
-  | 'lat_machine'
-  | 'pulley_basso'
-  | 'leg_extension'
-  | 'leg_curl'
-  | 'chest_press'
-  | 'shoulder_press'
-  | 'pushdown_cavi'
-  | 'trazioni_sbarra';
+export type { GuideExerciseId };
 
 interface ExerciseAngleSpec {
   id: GuideExerciseId;
   label: string;
-  pose: PoseVariant;
   jointName: string;
   landmarksLabel: string;
   eccentricRange: string;
@@ -61,7 +19,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'squat',
     label: 'Squat',
-    pose: 'squat',
     jointName: 'Ginocchio',
     landmarksLabel: 'Anca – Ginocchio – Caviglia (23–25–27 / 24–26–28)',
     eccentricRange: '~175° → ~80°–100°',
@@ -73,7 +30,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'stacco',
     label: 'Stacco da terra',
-    pose: 'stacco',
     jointName: 'Anca (apertura tronco/coscia)',
     landmarksLabel: 'Spalla – Anca – Ginocchio (11–23–25 / 12–24–26)',
     eccentricRange: '~170° → ~55°–75°',
@@ -85,7 +41,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'panca_piana',
     label: 'Panca piana',
-    pose: 'panca_piana',
     jointName: 'Gomito',
     landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
     eccentricRange: '~165° → ~75°–95°',
@@ -97,7 +52,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'alzate_laterali',
     label: 'Alzate laterali',
-    pose: 'alzate_laterali',
     jointName: 'Spalla (abduzione sul piano frontale)',
     landmarksLabel: 'Anca – Spalla – Gomito (23–11–13 / 24–12–14)',
     eccentricRange: '~85°–95° → ~15°–35°',
@@ -109,7 +63,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'affondi',
     label: 'Affondi',
-    pose: 'affondi',
     jointName: 'Ginocchio (gamba anteriore)',
     landmarksLabel: 'Anca – Ginocchio – Caviglia (23–25–27 / 24–26–28)',
     eccentricRange: '~170° → ~85°–105°',
@@ -121,7 +74,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'bulgarian_squat',
     label: 'Bulgarian squat',
-    pose: 'bulgarian_squat',
     jointName: 'Ginocchio (gamba anteriore)',
     landmarksLabel: 'Anca – Ginocchio – Caviglia (23–25–27 / 24–26–28)',
     eccentricRange: '~165° → ~80°–100°',
@@ -133,7 +85,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'push_up',
     label: 'Push-up',
-    pose: 'push_up',
     jointName: 'Gomito',
     landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
     eccentricRange: '~170° → ~75°–95°',
@@ -145,7 +96,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'military_press',
     label: 'Military press',
-    pose: 'military_press',
     jointName: 'Gomito',
     landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
     eccentricRange: '~170° → ~75°–95°',
@@ -157,7 +107,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'curl_bicipiti',
     label: 'Curl bicipiti',
-    pose: 'curl_bicipiti',
     jointName: 'Gomito',
     landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
     eccentricRange: '~40°–60° → ~155°–170°',
@@ -169,7 +118,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'french_press',
     label: 'French press',
-    pose: 'french_press',
     jointName: 'Gomito',
     landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
     eccentricRange: '~165° → ~65°–85°',
@@ -181,7 +129,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'rematore_bilanciere',
     label: 'Rematore bilanciere',
-    pose: 'rematore_bilanciere',
     jointName: 'Gomito',
     landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
     eccentricRange: '~65°–85° → ~155°–170°',
@@ -193,7 +140,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'stacco_rumeno',
     label: 'Stacco rumeno',
-    pose: 'stacco_rumeno',
     jointName: 'Anca (hip hinge)',
     landmarksLabel: 'Spalla – Anca – Ginocchio (11–23–25 / 12–24–26)',
     eccentricRange: '~175° → ~75°–95°',
@@ -205,7 +151,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'lat_machine',
     label: 'Lat machine',
-    pose: 'lat_machine',
     jointName: 'Gomito',
     landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
     eccentricRange: '~65°–85° → ~165°–175°',
@@ -217,7 +162,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'pulley_basso',
     label: 'Pulley basso',
-    pose: 'pulley_basso',
     jointName: 'Gomito',
     landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
     eccentricRange: '~65°–85° → ~160°–175°',
@@ -229,7 +173,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'leg_extension',
     label: 'Leg extension',
-    pose: 'leg_extension',
     jointName: 'Ginocchio',
     landmarksLabel: 'Anca – Ginocchio – Caviglia (23–25–27 / 24–26–28)',
     eccentricRange: '~165°–175° → ~80°–100°',
@@ -241,7 +184,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'leg_curl',
     label: 'Leg curl',
-    pose: 'leg_curl',
     jointName: 'Ginocchio',
     landmarksLabel: 'Anca – Ginocchio – Caviglia (23–25–27 / 24–26–28)',
     eccentricRange: '~65°–85° → ~160°–175°',
@@ -253,7 +195,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'chest_press',
     label: 'Chest press',
-    pose: 'chest_press',
     jointName: 'Gomito',
     landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
     eccentricRange: '~165° → ~75°–95°',
@@ -265,7 +206,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'shoulder_press',
     label: 'Shoulder press',
-    pose: 'shoulder_press',
     jointName: 'Gomito',
     landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
     eccentricRange: '~165° → ~75°–95°',
@@ -277,7 +217,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'pushdown_cavi',
     label: 'Pushdown cavi',
-    pose: 'pushdown_cavi',
     jointName: 'Gomito',
     landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
     eccentricRange: '~165°–175° → ~75°–95°',
@@ -289,7 +228,6 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
   {
     id: 'trazioni_sbarra',
     label: 'Trazioni sbarra',
-    pose: 'trazioni_sbarra',
     jointName: 'Gomito',
     landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
     eccentricRange: '~65°–85° → ~165°–175°',
@@ -297,6 +235,226 @@ const EXERCISE_ANGLE_SPECS: ExerciseAngleSpec[] = [
     eccentricNote: 'Discesa verso la sospensione: il gomito si riapre con controllo.',
     concentricNote: 'Risalita verso la sbarra: chiusura dell’angolo al gomito.',
     cameraTip: 'Frontale o 3/4 a figura intera includendo la sbarra e l’intera escursione.',
+  },
+  {
+    id: 'front_squat',
+    label: 'Front squat',
+    jointName: 'Ginocchio',
+    landmarksLabel: 'Anca – Ginocchio – Caviglia (23–25–27 / 24–26–28)',
+    eccentricRange: '~175° → ~80°–95°',
+    concentricRange: '~80°–95° → ~175°',
+    eccentricNote: 'Discesa controllata: chiusura del ginocchio con gomiti alti e tronco verticale.',
+    concentricNote: 'Spinta di risalita: riapertura dell’angolo al ginocchio.',
+    cameraTip: 'Profilo laterale a figura intera con anca, ginocchio e caviglia visibili.',
+  },
+  {
+    id: 'goblet_squat',
+    label: 'Goblet squat',
+    jointName: 'Ginocchio',
+    landmarksLabel: 'Anca – Ginocchio – Caviglia (23–25–27 / 24–26–28)',
+    eccentricRange: '~175° → ~80°–100°',
+    concentricRange: '~80°–100° → ~175°',
+    eccentricNote: 'Discesa con carico al petto: chiusura del ginocchio e busto sostenuto.',
+    concentricNote: 'Risalita: estensione del ginocchio fino alla stazione eretta.',
+    cameraTip: 'Laterale o 45° a figura intera evitando che il carico copra le ginocchia.',
+  },
+  {
+    id: 'sumo_deadlift',
+    label: 'Sumo deadlift',
+    jointName: 'Anca / Ginocchio (apertura bacino e gambe)',
+    landmarksLabel: 'Spalla – Anca – Ginocchio (11–23–25 / 12–24–26)',
+    eccentricRange: '~170° → ~60°–80°',
+    concentricRange: '~60°–80° → ~170°',
+    eccentricNote: 'Discesa controllata con stance ampio: flessione di anca e ginocchia con schiena neutra.',
+    concentricNote: 'Spinta di chiusura: estensione completa di anca e ginocchia.',
+    cameraTip: 'Obliqua a 45° o frontale a figura intera per osservare anche e ginocchia.',
+  },
+  {
+    id: 'hip_thrust',
+    label: 'Hip thrust',
+    jointName: 'Anca (estensione del bacino)',
+    landmarksLabel: 'Spalla – Anca – Ginocchio (11–23–25 / 12–24–26)',
+    eccentricRange: '~170° → ~80°–100°',
+    concentricRange: '~80°–100° → ~170°',
+    eccentricNote: 'Abbassamento controllato del bacino: flessione dell’anca senza perdere tensione.',
+    concentricNote: 'Spinta d’anca verso l’alto: apertura fino all’allineamento spalle-anca-ginocchio.',
+    cameraTip: 'Laterale a 90° includendo spalla appoggiata alla panca, bacino e ginocchia.',
+  },
+  {
+    id: 'panca_inclinata',
+    label: 'Panca inclinata',
+    jointName: 'Gomito',
+    landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
+    eccentricRange: '~165° → ~75°–95°',
+    concentricRange: '~75°–95° → ~165°',
+    eccentricNote: 'Discesa verso la parte alta del petto: chiusura controllata del gomito.',
+    concentricNote: 'Spinta verso l’alto: riapertura del gomito verso la distensione.',
+    cameraTip: 'Obliqua a 45° su panca inclinata con spalla, gomito e polso ben leggibili.',
+  },
+  {
+    id: 'chest_dips',
+    label: 'Chest dips',
+    jointName: 'Gomito',
+    landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
+    eccentricRange: '~165°–175° → ~75°–95°',
+    concentricRange: '~75°–95° → ~165°–175°',
+    eccentricNote: 'Discesa con lieve inclinazione del busto in avanti: flessione controllata del gomito.',
+    concentricNote: 'Spinta verso l’alto: distensione delle braccia fino al supporto.',
+    cameraTip: 'Obliqua a 45° o laterale a figura intera con spalla e gomito liberi da ostacoli.',
+  },
+  {
+    id: 'arnold_press',
+    label: 'Arnold press',
+    jointName: 'Gomito / Spalla (rotazione e spinta)',
+    landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
+    eccentricRange: '~165°–175° → ~75°–95°',
+    concentricRange: '~75°–95° → ~165°–175°',
+    eccentricNote: 'Discesa e rotazione verso il petto: chiusura del gomito.',
+    concentricNote: 'Rotazione e spinta sopra la testa: distensione del gomito.',
+    cameraTip: 'Frontale o obliqua a 45° con spazio sopra la testa e gomiti visibili.',
+  },
+  {
+    id: 'front_raises',
+    label: 'Front raises',
+    jointName: 'Spalla (flessione frontale)',
+    landmarksLabel: 'Anca – Spalla – Gomito (23–11–13 / 24–12–14)',
+    eccentricRange: '~80°–95° → ~10°–25°',
+    concentricRange: '~10°–25° → ~80°–95°',
+    eccentricNote: 'Ritorno controllato verso le cosce: chiusura dell’angolo spalla-gomito.',
+    concentricNote: 'Elevazione frontale del braccio: apertura dell’angolo fino all’altezza delle spalle.',
+    cameraTip: 'Laterale a 90° o obliqua a 45° per leggere l’elevazione sul piano sagittale.',
+  },
+  {
+    id: 'face_pull',
+    label: 'Face pull',
+    jointName: 'Gomito / Spalla (retrazione e rotazione esterna)',
+    landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
+    eccentricRange: '~65°–85° → ~155°–170°',
+    concentricRange: '~155°–170° → ~65°–85°',
+    eccentricNote: 'Ritorno della corda in avanti: estensione del gomito.',
+    concentricNote: 'Trazione verso il viso: flessione del gomito e apertura esterna.',
+    cameraTip: 'Obliqua a 45° all’altezza delle spalle per vedere corda, gomiti e mani.',
+  },
+  {
+    id: 'lat_machine_presa_inversa',
+    label: 'Lat machine presa inversa',
+    jointName: 'Gomito',
+    landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
+    eccentricRange: '~65°–85° → ~165°–175°',
+    concentricRange: '~165°–175° → ~65°–85°',
+    eccentricNote: 'Risalita della sbarra con presa supina: il gomito si riapre con controllo.',
+    concentricNote: 'Trazione verso la parte alta del petto: chiusura dell’angolo al gomito.',
+    cameraTip: 'Obliqua a 45° o posteriore con braccia e sbarra completamente visibili.',
+  },
+  {
+    id: 'rematore_manubrio',
+    label: 'Rematore manubrio',
+    jointName: 'Gomito',
+    landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
+    eccentricRange: '~65°–85° → ~160°–175°',
+    concentricRange: '~160°–175° → ~65°–85°',
+    eccentricNote: 'Discesa del manubrio: distensione del gomito mantenendo il tronco stabile.',
+    concentricNote: 'Trazione del gomito verso il fianco: chiusura dell’angolo articolare.',
+    cameraTip: 'Laterale sul lato del braccio che lavora con tronco e gomito liberi.',
+  },
+  {
+    id: 'pullover_cavi',
+    label: 'Pullover cavi',
+    jointName: 'Spalla (estensione/flessione sul piano sagittale)',
+    landmarksLabel: 'Anca – Spalla – Gomito (23–11–13 / 24–12–14)',
+    eccentricRange: '~20°–35° → ~130°–160°',
+    concentricRange: '~130°–160° → ~20°–35°',
+    eccentricNote: 'Ritorno in alto verso la linea delle spalle: apertura dell’angolo anca-spalla-gomito.',
+    concentricNote: 'Trazione del cavo verso il bacino: chiusura dell’angolo con braccia quasi tese.',
+    cameraTip: 'Laterale a 90° con busto, spalla e traiettoria del cavo ben leggibili.',
+  },
+  {
+    id: 'hammer_curl',
+    label: 'Hammer curl',
+    jointName: 'Gomito',
+    landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
+    eccentricRange: '~40°–60° → ~155°–170°',
+    concentricRange: '~155°–170° → ~40°–60°',
+    eccentricNote: 'Discesa con presa neutra: riapertura graduale del gomito.',
+    concentricNote: 'Flessione del gomito con presa neutra verso l’alto.',
+    cameraTip: 'Laterale a 90° con gomito fermo lungo il fianco.',
+  },
+  {
+    id: 'curl_panca_scott',
+    label: 'Curl panca Scott',
+    jointName: 'Gomito',
+    landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
+    eccentricRange: '~35°–50° → ~150°–165°',
+    concentricRange: '~150°–165° → ~35°–50°',
+    eccentricNote: 'Discesa controllata sul leggio: estensione graduale senza bloccare di colpo.',
+    concentricNote: 'Flessione del gomito: chiusura dell’angolo mantenendo l’omero appoggiato.',
+    cameraTip: 'Laterale sul lato libero del leggio con gomito e polso ben visibili.',
+  },
+  {
+    id: 'estensioni_tricipiti_sopra_testa',
+    label: 'Estensioni tricipiti sopra la testa',
+    jointName: 'Gomito',
+    landmarksLabel: 'Spalla – Gomito – Polso (11–13–15 / 12–14–16)',
+    eccentricRange: '~165°–175° → ~60°–80°',
+    concentricRange: '~60°–80° → ~165°–175°',
+    eccentricNote: 'Abbassamento del carico dietro la nuca: flessione mirata del gomito.',
+    concentricNote: 'Distensione verso l’alto: riapertura dell’angolo al gomito.',
+    cameraTip: 'Laterale a 90° lasciando spazio sopra la testa per la fase di chiusura.',
+  },
+  {
+    id: 'affondi_laterali',
+    label: 'Affondi laterali',
+    jointName: 'Ginocchio (gamba in affondo)',
+    landmarksLabel: 'Anca – Ginocchio – Caviglia (23–25–27 / 24–26–28)',
+    eccentricRange: '~175° → ~75°–95°',
+    concentricRange: '~75°–95° → ~175°',
+    eccentricNote: 'Spostamento laterale e discesa sull’anca: chiusura del ginocchio con l’altra gamba distesa.',
+    concentricNote: 'Spinta di ritorno al centro: distensione del ginocchio e riallineamento.',
+    cameraTip: 'Frontale a figura intera per leggere escursione laterale e allineamento del ginocchio.',
+  },
+  {
+    id: 'step_up',
+    label: 'Step up',
+    jointName: 'Ginocchio (gamba sul box)',
+    landmarksLabel: 'Anca – Ginocchio – Caviglia (23–25–27 / 24–26–28)',
+    eccentricRange: '~170° → ~80°–100°',
+    concentricRange: '~80°–100° → ~170°',
+    eccentricNote: 'Discesa controllata dal box: chiusura progressiva del ginocchio della gamba d’appoggio.',
+    concentricNote: 'Salita sul box: estensione del ginocchio fino alla stazione eretta in alto.',
+    cameraTip: 'Laterale o 45° a figura intera includendo box, gamba d’appoggio e chiusura in alto.',
+  },
+  {
+    id: 'calf_raise_in_piedi',
+    label: 'Calf raise in piedi',
+    jointName: 'Caviglia (flessione plantare)',
+    landmarksLabel: 'Ginocchio – Caviglia – Piede (25–27–31 / 26–28–32)',
+    eccentricRange: '~95°–115° → ~125°–145°',
+    concentricRange: '~125°–145° → ~95°–115°',
+    eccentricNote: 'Discesa del tallone: allungamento controllato del polpaccio.',
+    concentricNote: 'Spinta sull’avampiede: sollevamento del tallone e contrazione.',
+    cameraTip: 'Laterale a 90° all’altezza del ginocchio/caviglia con piede ben visibile.',
+  },
+  {
+    id: 'ab_coaster_crunch',
+    label: 'Ab coaster crunch',
+    jointName: 'Tronco / Anca (flessione sul binario)',
+    landmarksLabel: 'Spalla – Anca – Ginocchio (11–23–25 / 12–24–26)',
+    eccentricRange: '~85°–105° → ~155°–170°',
+    concentricRange: '~155°–170° → ~85°–105°',
+    eccentricNote: 'Ritorno lungo il binario: riapertura controllata senza inarcare la zona lombare.',
+    concentricNote: 'Risalita sul binario: chiusura dell’angolo spalla-anca-ginocchio con contrazione addominale.',
+    cameraTip: 'Laterale a 90° per osservare il percorso sul binario e la flessione del bacino.',
+  },
+  {
+    id: 'hyperextension',
+    label: 'Hyperextension',
+    jointName: 'Anca (estensione del tronco sul supporto)',
+    landmarksLabel: 'Spalla – Anca – Ginocchio (11–23–25 / 12–24–26)',
+    eccentricRange: '~175° → ~85°–105°',
+    concentricRange: '~85°–105° → ~175°',
+    eccentricNote: 'Discesa controllata del busto in avanti: chiusura dell’angolo all’anca con schiena neutra.',
+    concentricNote: 'Estensione fino all’allineamento del corpo: apertura dell’angolo senza iperestendere.',
+    cameraTip: 'Laterale a 90° includendo il supporto d’appoggio, il busto e la testa.',
   },
 ];
 
@@ -324,7 +482,17 @@ function sectorPath(cx: number, cy: number, r: number, startDeg: number, endDeg:
   return `M ${cx.toFixed(1)} ${cy.toFixed(1)} L ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} A ${r} ${r} 0 ${largeArcFlag} ${sweepFlag} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)} Z`;
 }
 
-function SegmentLine({ a, b, width = 3.2, color = '#38bdf8' }: { a: Pt; b: Pt; width?: number; color?: string }) {
+function SegmentLine({
+  a,
+  b,
+  width = 3.2,
+  color = '#38bdf8',
+}: {
+  a: Pt;
+  b: Pt;
+  width?: number;
+  color?: string;
+}) {
   return (
     <line
       x1={a.x}
@@ -343,10 +511,10 @@ function JointDot({ p, r = 3.6, color = '#f43f5e' }: { p: Pt; r?: number; color?
 }
 
 function HumanStickAngleSvg({
-  pose,
+  exerciseId,
   phase,
 }: {
-  pose: PoseVariant;
+  exerciseId: GuideExerciseId;
   phase: 'eccentric' | 'concentric';
 }) {
   const isEcc = phase === 'eccentric';
@@ -372,8 +540,10 @@ function HumanStickAngleSvg({
   let rSector = 15;
   let labelDeg = 53;
 
-  switch (pose) {
-    case 'squat': {
+  switch (exerciseId) {
+    case 'squat':
+    case 'goblet_squat':
+    case 'front_squat': {
       if (isEcc) {
         head = { x: 74, y: 34 };
         neck = { x: 76, y: 44 };
@@ -388,7 +558,6 @@ function HumanStickAngleSvg({
         endDeg = -76;
         rSector = 16;
         labelDeg = -114;
-        propEl = <line x1={74} y1={52} x2={98} y2={52} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />;
       } else {
         head = { x: 80, y: 18 };
         neck = { x: 80, y: 29 };
@@ -403,12 +572,13 @@ function HumanStickAngleSvg({
         endDeg = -22;
         rSector = 15;
         labelDeg = -57;
-        propEl = <line x1={68} y1={38} x2={94} y2={38} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />;
       }
       break;
     }
 
-    case 'stacco': {
+    case 'stacco':
+    case 'sumo_deadlift':
+    case 'hyperextension': {
       if (isEcc) {
         head = { x: 96, y: 44 };
         neck = { x: 90, y: 52 };
@@ -423,7 +593,6 @@ function HumanStickAngleSvg({
         endDeg = 32;
         rSector = 15;
         labelDeg = 0;
-        propEl = <line x1={72} y1={98} x2={102} y2={98} stroke="#94a3b8" strokeWidth={2.6} strokeLinecap="round" />;
       } else {
         head = { x: 80, y: 18 };
         neck = { x: 80, y: 29 };
@@ -438,7 +607,6 @@ function HumanStickAngleSvg({
         endDeg = -15;
         rSector = 14;
         labelDeg = -52;
-        propEl = <line x1={68} y1={73} x2={96} y2={73} stroke="#94a3b8" strokeWidth={2.6} strokeLinecap="round" />;
       }
       break;
     }
@@ -458,7 +626,6 @@ function HumanStickAngleSvg({
         endDeg = 66;
         rSector = 15;
         labelDeg = 24;
-        propEl = <line x1={74} y1={95} x2={100} y2={95} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />;
       } else {
         head = { x: 80, y: 18 };
         neck = { x: 80, y: 29 };
@@ -473,18 +640,13 @@ function HumanStickAngleSvg({
         endDeg = -15;
         rSector = 14;
         labelDeg = -52;
-        propEl = <line x1={68} y1={73} x2={96} y2={73} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />;
       }
       break;
     }
 
-    case 'panca_piana': {
-      propEl = (
-        <g>
-          <rect x={26} y={76} width={108} height={7} rx={3} fill="#334155" />
-          <line x1={116} y1={42} x2={116} y2={76} stroke="#475569" strokeWidth={2.5} />
-        </g>
-      );
+    case 'panca_piana':
+    case 'panca_inclinata': {
+      propEl = <rect x={26} y={76} width={108} height={7} rx={3} fill="#334155" />;
       head = { x: 38, y: 67 };
       neck = { x: 48, y: 71 };
       sh = { x: 54, y: 72 };
@@ -511,7 +673,8 @@ function HumanStickAngleSvg({
       break;
     }
 
-    case 'french_press': {
+    case 'french_press':
+    case 'estensioni_tricipiti_sopra_testa': {
       propEl = <rect x={26} y={76} width={108} height={7} rx={3} fill="#334155" />;
       head = { x: 38, y: 67 };
       neck = { x: 48, y: 71 };
@@ -539,7 +702,8 @@ function HumanStickAngleSvg({
       break;
     }
 
-    case 'alzate_laterali': {
+    case 'alzate_laterali':
+    case 'front_raises': {
       head = { x: 80, y: 20 };
       neck = { x: 80, y: 31 };
       sh = { x: 80, y: 36 };
@@ -565,11 +729,12 @@ function HumanStickAngleSvg({
         rSector = 15;
         labelDeg = 45;
       }
-      propEl = <circle cx={wrist.x} cy={wrist.y + 2} r={3.2} fill="#cbd5e1" />;
       break;
     }
 
-    case 'affondi': {
+    case 'affondi':
+    case 'affondi_laterali':
+    case 'step_up': {
       head = { x: 78, y: 24 };
       neck = { x: 78, y: 34 };
       sh = { x: 78, y: 39 };
@@ -628,7 +793,8 @@ function HumanStickAngleSvg({
       break;
     }
 
-    case 'push_up': {
+    case 'push_up':
+    case 'ab_coaster_crunch': {
       propEl = <line x1={22} y1={104} x2={138} y2={104} stroke="#475569" strokeWidth={2.5} />;
       ankle = { x: 32, y: 102 };
       knee = { x: 58, y: 92 };
@@ -656,7 +822,8 @@ function HumanStickAngleSvg({
       break;
     }
 
-    case 'military_press': {
+    case 'military_press':
+    case 'arnold_press': {
       head = { x: 80, y: 24 };
       neck = { x: 80, y: 34 };
       sh = { x: 80, y: 39 };
@@ -671,7 +838,6 @@ function HumanStickAngleSvg({
         endDeg = 112;
         rSector = 13;
         labelDeg = 65;
-        propEl = <line x1={68} y1={34} x2={106} y2={34} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />;
       } else {
         elbow = { x: 92, y: 28 };
         wrist = { x: 92, y: 12 };
@@ -680,12 +846,13 @@ function HumanStickAngleSvg({
         endDeg = 156;
         rSector = 12;
         labelDeg = 122;
-        propEl = <line x1={68} y1={14} x2={106} y2={14} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />;
       }
       break;
     }
 
-    case 'curl_bicipiti': {
+    case 'curl_bicipiti':
+    case 'hammer_curl':
+    case 'curl_panca_scott': {
       head = { x: 76, y: 20 };
       neck = { x: 77, y: 31 };
       sh = { x: 78, y: 36 };
@@ -708,11 +875,11 @@ function HumanStickAngleSvg({
         rSector = 14;
         labelDeg = -33;
       }
-      propEl = <circle cx={wrist.x + 2} cy={wrist.y} r={3.2} fill="#cbd5e1" />;
       break;
     }
 
-    case 'rematore_bilanciere': {
+    case 'rematore_bilanciere':
+    case 'rematore_manubrio': {
       head = { x: 102, y: 48 };
       neck = { x: 94, y: 54 };
       sh = { x: 90, y: 58 };
@@ -727,7 +894,6 @@ function HumanStickAngleSvg({
         endDeg = -18;
         rSector = 13;
         labelDeg = -55;
-        propEl = <line x1={74} y1={97} x2={102} y2={97} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />;
       } else {
         elbow = { x: 82, y: 64 };
         wrist = { x: 92, y: 54 };
@@ -736,19 +902,13 @@ function HumanStickAngleSvg({
         endDeg = 46;
         rSector = 13;
         labelDeg = 9;
-        propEl = <line x1={80} y1={56} x2={106} y2={56} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />;
       }
       break;
     }
 
-    case 'lat_machine': {
-      propEl = (
-        <g>
-          <line x1={46} y1={12} x2={116} y2={12} stroke="#475569" strokeWidth={3} />
-          <rect x={68} y={76} width={22} height={38} rx={3} fill="#334155" />
-          <line x1={62} y1={22} x2={98} y2={22} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />
-        </g>
-      );
+    case 'lat_machine':
+    case 'lat_machine_presa_inversa':
+    case 'face_pull': {
       head = { x: 80, y: 34 };
       neck = { x: 80, y: 43 };
       sh = { x: 80, y: 47 };
@@ -775,13 +935,8 @@ function HumanStickAngleSvg({
       break;
     }
 
-    case 'pulley_basso': {
-      propEl = (
-        <g>
-          <rect x={64} y={76} width={22} height={38} rx={3} fill="#334155" />
-          <line x1={126} y1={72} x2={126} y2={112} stroke="#475569" strokeWidth={3} />
-        </g>
-      );
+    case 'pulley_basso':
+    case 'pullover_cavi': {
       head = { x: 78, y: 28 };
       neck = { x: 78, y: 38 };
       sh = { x: 78, y: 42 };
@@ -809,12 +964,6 @@ function HumanStickAngleSvg({
     }
 
     case 'leg_extension': {
-      propEl = (
-        <g>
-          <rect x={54} y={66} width={24} height={48} rx={3} fill="#334155" />
-          <rect x={68} y={66} width={26} height={8} rx={2} fill="#475569" />
-        </g>
-      );
       head = { x: 64, y: 26 };
       neck = { x: 66, y: 36 };
       sh = { x: 67, y: 41 };
@@ -867,13 +1016,9 @@ function HumanStickAngleSvg({
       break;
     }
 
-    case 'chest_press': {
-      propEl = (
-        <g>
-          <rect x={62} y={40} width={8} height={38} rx={2} fill="#334155" />
-          <rect x={62} y={74} width={26} height={38} rx={3} fill="#334155" />
-        </g>
-      );
+    case 'chest_press':
+    case 'shoulder_press':
+    case 'hip_thrust': {
       head = { x: 78, y: 28 };
       neck = { x: 78, y: 38 };
       sh = { x: 78, y: 42 };
@@ -900,41 +1045,9 @@ function HumanStickAngleSvg({
       break;
     }
 
-    case 'shoulder_press': {
-      propEl = (
-        <g>
-          <rect x={62} y={40} width={8} height={38} rx={2} fill="#334155" />
-          <rect x={62} y={74} width={26} height={38} rx={3} fill="#334155" />
-        </g>
-      );
-      head = { x: 80, y: 28 };
-      neck = { x: 80, y: 38 };
-      sh = { x: 80, y: 42 };
-      hip = { x: 78, y: 72 };
-      knee = { x: 96, y: 82 };
-      ankle = { x: 98, y: 112 };
-      if (isEcc) {
-        elbow = { x: 96, y: 50 };
-        wrist = { x: 92, y: 32 };
-        apex = elbow;
-        startDeg = 18;
-        endDeg = 112;
-        rSector = 13;
-        labelDeg = 65;
-      } else {
-        elbow = { x: 92, y: 32 };
-        wrist = { x: 92, y: 14 };
-        apex = elbow;
-        startDeg = 88;
-        endDeg = 156;
-        rSector = 12;
-        labelDeg = 122;
-      }
-      break;
-    }
-
-    case 'pushdown_cavi': {
-      propEl = <line x1={116} y1={12} x2={116} y2={114} stroke="#475569" strokeWidth={2.5} />;
+    case 'pushdown_cavi':
+    case 'chest_dips':
+    case 'calf_raise_in_piedi': {
       head = { x: 78, y: 22 };
       neck = { x: 78, y: 32 };
       sh = { x: 78, y: 37 };
@@ -961,36 +1074,19 @@ function HumanStickAngleSvg({
     }
 
     case 'trazioni_sbarra': {
-      propEl = <line x1={38} y1={14} x2={122} y2={14} stroke="#94a3b8" strokeWidth={3} strokeLinecap="round" />;
-      if (isEcc) {
-        head = { x: 80, y: 40 };
-        neck = { x: 80, y: 49 };
-        sh = { x: 80, y: 53 };
-        hip = { x: 80, y: 80 };
-        knee = { x: 78, y: 98 };
-        ankle = { x: 78, y: 114 };
-        elbow = { x: 90, y: 34 };
-        wrist = { x: 86, y: 14 };
-        apex = elbow;
-        startDeg = 18;
-        endDeg = 126;
-        rSector = 13;
-        labelDeg = 72;
-      } else {
-        head = { x: 80, y: 24 };
-        neck = { x: 80, y: 34 };
-        sh = { x: 80, y: 38 };
-        hip = { x: 80, y: 66 };
-        knee = { x: 78, y: 86 };
-        ankle = { x: 78, y: 104 };
-        elbow = { x: 94, y: 28 };
-        wrist = { x: 86, y: 14 };
-        apex = elbow;
-        startDeg = 32;
-        endDeg = 142;
-        rSector = 13;
-        labelDeg = 87;
-      }
+      head = { x: 80, y: 40 };
+      neck = { x: 80, y: 49 };
+      sh = { x: 80, y: 53 };
+      hip = { x: 80, y: 80 };
+      knee = { x: 78, y: 98 };
+      ankle = { x: 78, y: 114 };
+      elbow = { x: 90, y: 34 };
+      wrist = { x: 86, y: 14 };
+      apex = elbow;
+      startDeg = 18;
+      endDeg = 126;
+      rSector = 13;
+      labelDeg = 72;
       break;
     }
   }
@@ -1105,7 +1201,7 @@ function HumanStickAngleSvg({
 }
 
 interface ExerciseAnglesGuideViewProps {
-  initialExerciseId?: string;
+  initialExerciseId?: GuideExerciseId;
   readOnlySelection?: boolean;
   onSelectExercise?: (exerciseId: GuideExerciseId) => void;
   onClose: (chosenExerciseId?: GuideExerciseId) => void;
@@ -1165,7 +1261,7 @@ export function ExerciseAnglesGuideView({
               📐 Angoli Esercizi (Eccentrica / Concentrica)
             </h2>
             <p style={{ margin: '3px 0 0 0', fontSize: 12, color: '#94a3b8' }}>
-              Scheda angoli con sagoma Human Stick dedicata per ciascuno dei 20 esercizi
+              Scheda angoli con sagoma Human Stick dedicata per ciascuno dei {EXERCISE_ANGLE_SPECS.length} esercizi
             </p>
           </div>
 
@@ -1311,8 +1407,8 @@ export function ExerciseAnglesGuideView({
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <HumanStickAngleSvg pose={currentSpec.pose} phase="eccentric" />
-            <HumanStickAngleSvg pose={currentSpec.pose} phase="concentric" />
+            <HumanStickAngleSvg exerciseId={currentSpec.id} phase="eccentric" />
+            <HumanStickAngleSvg exerciseId={currentSpec.id} phase="concentric" />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
