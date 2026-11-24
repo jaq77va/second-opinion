@@ -3701,6 +3701,97 @@ export function App() {
             </div>
           </div>
 
+          {/* MINI-BARRA COMPATTA STICKY SOPRA IL PLAYER DURANTE IL REPLAY */}
+          {statusCode === 'success' && (
+            <div
+              aria-label="Sintesi movimento durante il replay"
+              style={{
+                position: 'sticky',
+                top: 8,
+                zIndex: 25,
+                marginTop: 10,
+                padding: '8px 10px',
+                borderRadius: 10,
+                background: 'rgba(15, 23, 42, 0.94)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid #38bdf8',
+                boxShadow: '0 8px 18px -4px rgba(0, 0, 0, 0.55)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
+                <span
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: 7,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: hasTelemetryActivity ? romColor : '#94a3b8',
+                    background: hasTelemetryActivity ? `${romColor}22` : 'rgba(148, 163, 184, 0.14)',
+                    border: `1px solid ${hasTelemetryActivity ? `${romColor}66` : '#334155'}`,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  ROM {hasTelemetryActivity ? `${romQuality}%` : '—'} · {romLabel}
+                </span>
+
+                <span
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: 7,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: rhythmBadge.color,
+                    background: rhythmBadge.bg,
+                    border: '1px solid rgba(51, 65, 85, 0.8)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Ritmo: {rhythmBadge.label}
+                </span>
+
+                {balanceBadge && (
+                  <span
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 7,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: balanceBadge.color,
+                      background: balanceBadge.bg,
+                      border: '1px solid rgba(51, 65, 85, 0.8)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {balanceBadge.label}
+                  </span>
+                )}
+              </div>
+
+              {showTechnicalDetails && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: '#cbd5e1',
+                    fontVariantNumeric: 'tabular-nums',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {liveAngleDeg !== null && <span style={{ color: '#38bdf8' }}>{liveAngleDeg}°</span>}
+                  <span style={{ color: '#f43f5e' }}>{powerScore} W</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div
             style={{
               marginTop: 10,
