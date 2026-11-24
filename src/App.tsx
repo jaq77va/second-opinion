@@ -1770,10 +1770,13 @@ export function App() {
     setSelectedExercise(EXERCISES[targetIndex].id);
   };
 
-  const handleSelectExerciseByIndex = (targetIndex: number) => {
+  const handleExerciseSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (areExerciseAndWeightLocked) return;
-    const clampedIndex = Math.max(0, Math.min(EXERCISES.length - 1, targetIndex));
-    setSelectedExercise(EXERCISES[clampedIndex].id);
+    const chosenId = e.target.value as Exercise;
+    const matched = EXERCISES.find((ex) => ex.id === chosenId);
+    if (matched) {
+      setSelectedExercise(matched.id);
+    }
   };
 
   const handleCarouselScroll = () => {
@@ -2568,6 +2571,8 @@ export function App() {
 
   const sideBarColor = symmetryDiffDeg === null ? '#475569' : asymColor;
 
+  const isGuideReplayDisabled = isProcessing || hasActiveOrCompletedSession;
+
   return (
     <>
       <AppBrandHeader
@@ -2594,7 +2599,7 @@ export function App() {
         <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <label style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
+            <label htmlFor="exercise-select-dropdown" style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
               1. Seleziona l'esercizio
             </label>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
@@ -2603,48 +2608,42 @@ export function App() {
           </div>
 
           <div
-            role="tablist"
-            aria-label="Indice esercizi"
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexWrap: 'wrap',
-              gap: 5,
               marginBottom: 10,
-              padding: '6px 8px',
-              borderRadius: 10,
-              background: 'rgba(15, 23, 42, 0.75)',
-              border: '1px solid #334155',
               opacity: areExerciseAndWeightLocked ? 0.65 : 1,
             }}
           >
-            {EXERCISES.map((ex, idx) => {
-              const isCurrent = idx === selectedExerciseIndex;
-              return (
-                <button
-                  key={ex.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={isCurrent}
-                  aria-label={`${idx + 1}. ${ex.label}`}
-                  title={ex.label}
-                  disabled={areExerciseAndWeightLocked}
-                  onClick={() => handleSelectExerciseByIndex(idx)}
-                  style={{
-                    width: isCurrent ? 18 : 7,
-                    height: 7,
-                    padding: 0,
-                    borderRadius: 999,
-                    border: 'none',
-                    background: isCurrent ? '#38bdf8' : '#475569',
-                    cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s ease',
-                    flexShrink: 0,
-                  }}
-                />
-              );
-            })}
+            <select
+              id="exercise-select-dropdown"
+              aria-label="Seleziona esercizio"
+              value={selectedExercise}
+              disabled={areExerciseAndWeightLocked}
+              onChange={handleExerciseSelectChange}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '11px 14px',
+                borderRadius: 10,
+                border: '1px solid #334155',
+                background: '#0f172a',
+                color: '#f8fafc',
+                fontSize: 14,
+                fontWeight: 700,
+                outline: 'none',
+                cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.25)',
+              }}
+            >
+              {EXERCISES.map((ex, idx) => {
+                const locked = !isExerciseUnlockedForPlan(currentPlan, ex.id, ex.isTrialAllowed);
+                return (
+                  <option key={ex.id} value={ex.id}>
+                    {idx + 1}. {ex.label}
+                    {locked ? ' 🔒' : ''}
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: areExerciseAndWeightLocked ? 0.65 : 1 }}>
@@ -2770,25 +2769,27 @@ export function App() {
               alignItems: 'center',
               gap: 8,
               flexWrap: 'wrap',
+              opacity: isGuideReplayDisabled ? 0.65 : 1,
             }}
           >
             <button
               type="button"
-              disabled={isProcessing}
+              disabled={isGuideReplayDisabled}
               onClick={() => {
+                if (isGuideReplayDisabled) return;
                 setGuideInitialExercise(selectedExercise as GuideExerciseId);
                 setIsGuidesOpen(true);
               }}
               style={{
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#38bdf8',
-                background: 'rgba(56,189,248,0.12)',
-                border: '1px solid rgba(56,189,248,0.4)',
+                color: isGuideReplayDisabled ? '#64748b' : '#38bdf8',
+                background: isGuideReplayDisabled ? '#0f172a' : 'rgba(56,189,248,0.12)',
+                border: isGuideReplayDisabled ? '1px solid #334155' : '1px solid rgba(56,189,248,0.4)',
                 padding: '7px 11px',
                 borderRadius: 8,
-                cursor: isProcessing ? 'not-allowed' : 'pointer',
-                opacity: isProcessing ? 0.5 : 1,
+                cursor: isGuideReplayDisabled ? 'not-allowed' : 'pointer',
+                opacity: isGuideReplayDisabled ? 0.6 : 1,
                 flexShrink: 0,
                 whiteSpace: 'nowrap',
               }}
