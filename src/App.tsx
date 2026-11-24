@@ -1101,6 +1101,7 @@ export function App() {
   const [rightAngleDeg, setRightAngleDeg] = useState<number | null>(null);
   const [symmetryDiffDeg, setSymmetryDiffDeg] = useState<number | null>(null);
   const [torsoTiltDeg, setTorsoTiltDeg] = useState<number | null>(null);
+  const [showTechnicalDetails, setShowTechnicalDetails] = useState<boolean>(false);
 
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [biomechSummary, setBiomechSummary] = useState<SessionBiomechanicsSummary | null>(null);
@@ -1263,6 +1264,7 @@ export function App() {
     setRightAngleDeg(null);
     setSymmetryDiffDeg(null);
     setTorsoTiltDeg(null);
+    setShowTechnicalDetails(false);
     setAnalysisResult(null);
     setBiomechSummary(null);
     setIsAnalysisOpen(false);
@@ -2299,9 +2301,101 @@ export function App() {
   };
 
   const getRomColor = (val: number) => {
-    if (val >= 90) return '#22c55e';
-    if (val >= 70) return '#eab308';
+    if (val >= 85) return '#22c55e';
+    if (val >= 65) return '#eab308';
     return '#ef4444';
+  };
+
+  const getRomLabel = (val: number, hasData: boolean) => {
+    if (!hasData && val === 0) return 'In attesa';
+    if (val >= 85) return 'Ampiezza ottima';
+    if (val >= 65) return 'Parziale';
+    return 'Ridotta';
+  };
+
+  const getRhythmBadge = (speedDegSec: number, hasData: boolean) => {
+    if (!hasData || speedDegSec <= 1) {
+      return {
+        label: 'In pausa',
+        detail: 'Fermo o stabile',
+        color: '#94a3b8',
+        bg: 'rgba(148, 163, 184, 0.14)',
+        percent: 15,
+      };
+    }
+    if (speedDegSec <= 220) {
+      return {
+        label: 'Controllato',
+        detail: 'Ritmo fluido',
+        color: '#22c55e',
+        bg: 'rgba(34, 197, 94, 0.14)',
+        percent: Math.min(72, Math.max(25, Math.round((speedDegSec / 220) * 70))),
+      };
+    }
+    return {
+      label: 'Un po’ veloce',
+      detail: 'Cerca più controllo',
+      color: '#eab308',
+      bg: 'rgba(234, 179, 8, 0.16)',
+      percent: 100,
+    };
+  };
+
+  const getBalanceBadge = (
+    asymDeg: number | null,
+    torsoDeg: number | null
+  ): { label: string; detail: string; color: string; bg: string } | null => {
+    if (asymDeg !== null) {
+      if (asymDeg <= 8) {
+        return {
+          label: 'Equilibrio ok',
+          detail: 'Lati allineati',
+          color: '#22c55e',
+          bg: 'rgba(34, 197, 94, 0.14)',
+        };
+      }
+      if (asymDeg <= 16) {
+        return {
+          label: 'Leggero sbilanciamento',
+          detail: 'Controlla i due lati',
+          color: '#eab308',
+          bg: 'rgba(234, 179, 8, 0.16)',
+        };
+      }
+      return {
+        label: 'Sbilanciamento',
+        detail: 'Un lato lavora di più',
+        color: '#ef4444',
+        bg: 'rgba(239, 68, 68, 0.16)',
+      };
+    }
+
+    if (torsoDeg !== null) {
+      if (torsoDeg <= 35) {
+        return {
+          label: 'Assetto composto',
+          detail: 'Busto ben tenuto',
+          color: '#22c55e',
+          bg: 'rgba(34, 197, 94, 0.14)',
+        };
+      }
+      if (torsoDeg <= 55) {
+        return {
+          label: 'Busto inclinato',
+          detail: 'Inclinazione moderata',
+          color: '#eab308',
+          bg: 'rgba(234, 179, 8, 0.16)',
+        };
+      }
+      return {
+        label: 'Molto inclinato',
+        detail: 'Attenzione alla schiena',
+        color: '#f97316',
+        bg: 'rgba(249, 115, 22, 0.16)',
+      };
+    }
+
+    return null;
   };
 
   const getTrafficLightColor = (code: 'idle' | 'processing' | 'success' | 'error') => {
@@ -2556,6 +2650,12 @@ export function App() {
     (user.user_metadata?.full_name as string | undefined) ||
     user.email ||
     '';
+
+  const hasTelemetryActivity = hasActiveOrCompletedSession && (liveAngleDeg !== null || romQuality > 0);
+  const romColor = getRomColor(romQuality);
+  const romLabel = getRomLabel(romQuality, hasTelemetryActivity);
+  const rhythmBadge = getRhythmBadge(angularSpeedDegSec, hasTelemetryActivity);
+  const balanceBadge = hasTelemetryActivity ? getBalanceBadge(symmetryDiffDeg, torsoTiltDeg) : null;
 
   const leftRomPct = angleToRomPercent(selectedExercise, leftAngleDeg);
   const rightRomPct = angleToRomPercent(selectedExercise, rightAngleDeg);
@@ -2900,174 +3000,306 @@ export function App() {
             </div>
           )}
 
+          {/* CARD LETTURA RAPIDA PER NOVIZIO + DETTAGLI TECNICI COLLASSABILI */}
           <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
-              <div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
-                  Angolo Articolare
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
+                Lettura Rapida Movimento
+              </span>
+              {statusCode === 'success' && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
+                  Sincronizzato al video
                 </span>
-                <span style={{ fontSize: 32, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>
-                  {liveAngleDeg !== null ? `${liveAngleDeg}°` : '—'}
+              )}
+            </div>
+
+            {/* 1. AMPIEZZA DEL MOVIMENTO (ROM %) */}
+            <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155', marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>
+                    Ampiezza del movimento
+                  </span>
+                  <span style={{ fontSize: 28, fontWeight: 900, color: hasTelemetryActivity ? romColor : '#94a3b8', lineHeight: 1.15 }}>
+                    {hasTelemetryActivity ? `${romQuality}%` : '—'}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    color: hasTelemetryActivity ? romColor : '#94a3b8',
+                    background: hasTelemetryActivity ? `${romColor}22` : 'rgba(148, 163, 184, 0.14)',
+                    border: `1px solid ${hasTelemetryActivity ? `${romColor}66` : '#334155'}`,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {romLabel}
                 </span>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
-                  Potenza Istantanea
-                </span>
-                <span style={{ fontSize: 24, fontWeight: 900, color: '#f43f5e', lineHeight: 1.1 }}>
-                  {powerScore} W
-                </span>
-                <span style={{ fontSize: 11, color: '#cbd5e1', display: 'block', marginTop: 2 }}>
-                  Picco: <strong style={{ color: '#fda4af' }}>{peakPowerScore} W</strong>
-                </span>
+
+              <div style={{ width: '100%', height: 10, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${hasTelemetryActivity ? romQuality : 0}%`,
+                    height: '100%',
+                    background: romColor,
+                    transition: 'width 0.12s ease, background 0.2s ease',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b', marginTop: 5 }}>
+                <span>Ridotta</span>
+                <span>Parziale (65%+)</span>
+                <span>Completa (85%+)</span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid #334155', paddingTop: 12 }}>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                  <span style={{ color: '#94a3b8' }}>
-                    ROM {liveAngleDeg !== null ? `(${liveAngleDeg}°)` : ''}
-                  </span>
-                  <span style={{ color: getRomColor(romQuality) }}>{romQuality}%</span>
-                </div>
-                <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+            {/* 2. RITMO / CONTROLLO + 3. ASSETTO / EQUILIBRIO (SE DISPONIBILE) */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: balanceBadge ? 'repeat(2, minmax(0, 1fr))' : '1fr',
+                gap: 10,
+              }}
+            >
+              <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', marginBottom: 6 }}>
+                  Ritmo esecuzione
+                </span>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    padding: '4px 9px',
+                    borderRadius: 7,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    color: rhythmBadge.color,
+                    background: rhythmBadge.bg,
+                    marginBottom: 6,
+                  }}
+                >
+                  {rhythmBadge.label}
+                </span>
+                <div style={{ width: '100%', height: 6, background: '#1e293b', borderRadius: 4, overflow: 'hidden', marginBottom: 5 }}>
                   <div
                     style={{
-                      width: `${romQuality}%`,
+                      width: `${rhythmBadge.percent}%`,
                       height: '100%',
-                      background: getRomColor(romQuality),
-                      transition: 'width 0.1s ease, background 0.2s ease',
+                      background: rhythmBadge.color,
+                      transition: 'width 0.15s ease, background 0.2s ease',
                     }}
                   />
                 </div>
+                <span style={{ fontSize: 11, color: '#94a3b8', display: 'block' }}>
+                  {rhythmBadge.detail}
+                </span>
               </div>
 
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                  <span style={{ color: '#94a3b8' }}>Andamento Potenza</span>
-                  <span style={{ color: '#f43f5e' }}>{powerScore} W / {Math.max(peakPowerScore, 100)} W</span>
-                </div>
-                <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
-                  <div
-                    style={{
-                      width: `${Math.max(0, Math.min(100, Math.round((powerScore / Math.max(peakPowerScore, 150)) * 100)))}%`,
-                      height: '100%',
-                      background: 'linear-gradient(90deg, #fb7185, #f43f5e)',
-                      transition: 'width 0.1s ease',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                  <span style={{ color: '#94a3b8' }}>Velocità Angolare / Ritmo</span>
-                  <span style={{ color: angularSpeedDegSec > 240 ? '#eab308' : '#38bdf8' }}>
-                    {angularSpeedDegSec} °/s
+              {balanceBadge && (
+                <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', marginBottom: 6 }}>
+                    Assetto / Equilibrio
                   </span>
-                </div>
-                <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
-                  <div
-                    style={{
-                      width: `${Math.max(0, Math.min(100, Math.round((angularSpeedDegSec / 300) * 100)))}%`,
-                      height: '100%',
-                      background: angularSpeedDegSec > 240 ? '#eab308' : '#38bdf8',
-                      transition: 'width 0.1s ease, background 0.2s ease',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
-                  <span style={{ color: '#94a3b8' }}>Simmetria SX / DX (ROM)</span>
-                  <span style={{ color: asymColor }}>
-                    {symmetryDiffDeg !== null ? `Asimmetria Δ ${symmetryDiffDeg}°` : 'Lato coperto / N/D'}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: '#cbd5e1', marginBottom: 2 }}>
-                      <span>SX</span>
-                      <span>
-                        {leftAngleDeg !== null && leftRomPct !== null
-                          ? `ROM ${leftRomPct}% (${leftAngleDeg}°)`
-                          : 'N/D'}
-                      </span>
-                    </div>
-                    <div style={{ width: '100%', height: 8, background: '#0f172a', borderRadius: 4, overflow: 'hidden', border: '1px solid #334155' }}>
-                      <div
-                        style={{
-                          width: `${leftRomPct !== null ? leftRomPct : 0}%`,
-                          height: '100%',
-                          background: sideBarColor,
-                          transition: 'width 0.1s ease, background 0.2s ease',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: '#cbd5e1', marginBottom: 2 }}>
-                      <span>DX</span>
-                      <span>
-                        {rightAngleDeg !== null && rightRomPct !== null
-                          ? `ROM ${rightRomPct}% (${rightAngleDeg}°)`
-                          : 'N/D'}
-                      </span>
-                    </div>
-                    <div style={{ width: '100%', height: 8, background: '#0f172a', borderRadius: 4, overflow: 'hidden', border: '1px solid #334155' }}>
-                      <div
-                        style={{
-                          width: `${rightRomPct !== null ? rightRomPct : 0}%`,
-                          height: '100%',
-                          background: sideBarColor,
-                          transition: 'width 0.1s ease, background 0.2s ease',
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                  <span style={{ color: '#94a3b8' }}>Inclinazione Busto (vs verticale)</span>
                   <span
                     style={{
-                      color:
-                        torsoTiltDeg === null
-                          ? '#64748b'
-                          : torsoTiltDeg <= 35
-                          ? '#22c55e'
-                          : torsoTiltDeg <= 55
-                          ? '#eab308'
-                          : '#f97316',
+                      display: 'inline-block',
+                      padding: '4px 9px',
+                      borderRadius: 7,
+                      fontSize: 13,
+                      fontWeight: 800,
+                      color: balanceBadge.color,
+                      background: balanceBadge.bg,
+                      marginBottom: 6,
                     }}
                   >
-                    {torsoTiltDeg !== null ? `${torsoTiltDeg}°` : 'N/D'}
+                    {balanceBadge.label}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', lineHeight: 1.35 }}>
+                    {balanceBadge.detail}
                   </span>
                 </div>
-                <div style={{ width: '100%', height: 10, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
-                  <div
-                    style={{
-                      width: `${torsoTiltDeg !== null ? Math.max(4, Math.min(100, Math.round((torsoTiltDeg / 90) * 100))) : 0}%`,
-                      height: '100%',
-                      background:
-                        torsoTiltDeg === null
-                          ? '#475569'
-                          : torsoTiltDeg <= 35
-                          ? '#22c55e'
-                          : torsoTiltDeg <= 55
-                          ? '#eab308'
-                          : '#f97316',
-                      transition: 'width 0.1s ease, background 0.2s ease',
-                    }}
-                  />
+              )}
+            </div>
+
+            {/* TOGGLE DETTAGLI TECNICI (CHIUSO DI DEFAULT) */}
+            <div style={{ marginTop: 12, borderTop: '1px solid #334155', paddingTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => setShowTechnicalDetails((prev) => !prev)}
+                aria-expanded={showTechnicalDetails}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  borderRadius: 8,
+                  border: '1px solid #334155',
+                  background: '#0f172a',
+                  color: '#cbd5e1',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <span>⚙️ Dettagli tecnici (angolo, W, °/s, assetto)</span>
+                <span style={{ color: '#38bdf8' }}>{showTechnicalDetails ? '▲ Nascondi' : '▼ Espandi'}</span>
+              </button>
+
+              {showTechnicalDetails && (
+                <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: 10, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <div>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                        Angolo Articolare
+                      </span>
+                      <span style={{ fontSize: 24, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>
+                        {liveAngleDeg !== null ? `${liveAngleDeg}°` : '—'}
+                      </span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                        Potenza Istantanea
+                      </span>
+                      <span style={{ fontSize: 20, fontWeight: 900, color: '#f43f5e', lineHeight: 1.1 }}>
+                        {powerScore} W
+                      </span>
+                      <span style={{ fontSize: 11, color: '#cbd5e1', display: 'block', marginTop: 2 }}>
+                        Picco: <strong style={{ color: '#fda4af' }}>{peakPowerScore} W</strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                      <span style={{ color: '#94a3b8' }}>Andamento Potenza</span>
+                      <span style={{ color: '#f43f5e' }}>{powerScore} W / {Math.max(peakPowerScore, 100)} W</span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                      <div
+                        style={{
+                          width: `${Math.max(0, Math.min(100, Math.round((powerScore / Math.max(peakPowerScore, 150)) * 100)))}%`,
+                          height: '100%',
+                          background: 'linear-gradient(90deg, #fb7185, #f43f5e)',
+                          transition: 'width 0.1s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                      <span style={{ color: '#94a3b8' }}>Velocità Angolare / Ritmo</span>
+                      <span style={{ color: angularSpeedDegSec > 240 ? '#eab308' : '#38bdf8' }}>
+                        {angularSpeedDegSec} °/s
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                      <div
+                        style={{
+                          width: `${Math.max(0, Math.min(100, Math.round((angularSpeedDegSec / 300) * 100)))}%`,
+                          height: '100%',
+                          background: angularSpeedDegSec > 240 ? '#eab308' : '#38bdf8',
+                          transition: 'width 0.1s ease, background 0.2s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
+                      <span style={{ color: '#94a3b8' }}>Simmetria SX / DX (ROM)</span>
+                      <span style={{ color: asymColor }}>
+                        {symmetryDiffDeg !== null ? `Asimmetria Δ ${symmetryDiffDeg}°` : 'Lato coperto / N/D'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: '#cbd5e1', marginBottom: 2 }}>
+                          <span>SX</span>
+                          <span>
+                            {leftAngleDeg !== null && leftRomPct !== null
+                              ? `ROM ${leftRomPct}% (${leftAngleDeg}°)`
+                              : 'N/D'}
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', height: 8, background: '#0f172a', borderRadius: 4, overflow: 'hidden', border: '1px solid #334155' }}>
+                          <div
+                            style={{
+                              width: `${leftRomPct !== null ? leftRomPct : 0}%`,
+                              height: '100%',
+                              background: sideBarColor,
+                              transition: 'width 0.1s ease, background 0.2s ease',
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: '#cbd5e1', marginBottom: 2 }}>
+                          <span>DX</span>
+                          <span>
+                            {rightAngleDeg !== null && rightRomPct !== null
+                              ? `ROM ${rightRomPct}% (${rightAngleDeg}°)`
+                              : 'N/D'}
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', height: 8, background: '#0f172a', borderRadius: 4, overflow: 'hidden', border: '1px solid #334155' }}>
+                          <div
+                            style={{
+                              width: `${rightRomPct !== null ? rightRomPct : 0}%`,
+                              height: '100%',
+                              background: sideBarColor,
+                              transition: 'width 0.1s ease, background 0.2s ease',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                      <span style={{ color: '#94a3b8' }}>Inclinazione Busto (vs verticale)</span>
+                      <span
+                        style={{
+                          color:
+                            torsoTiltDeg === null
+                              ? '#64748b'
+                              : torsoTiltDeg <= 35
+                              ? '#22c55e'
+                              : torsoTiltDeg <= 55
+                              ? '#eab308'
+                              : '#f97316',
+                        }}
+                      >
+                        {torsoTiltDeg !== null ? `${torsoTiltDeg}°` : 'N/D'}
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                      <div
+                        style={{
+                          width: `${torsoTiltDeg !== null ? Math.max(4, Math.min(100, Math.round((torsoTiltDeg / 90) * 100))) : 0}%`,
+                          height: '100%',
+                          background:
+                            torsoTiltDeg === null
+                              ? '#475569'
+                              : torsoTiltDeg <= 35
+                              ? '#22c55e'
+                              : torsoTiltDeg <= 55
+                              ? '#eab308'
+                              : '#f97316',
+                          transition: 'width 0.1s ease, background 0.2s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
