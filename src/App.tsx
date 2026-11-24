@@ -1417,15 +1417,21 @@ export function App() {
 
     video.playbackRate = replaySpeed;
     let rafId: number | null = null;
+    let lastUiSyncMs = 0;
+    let lastDrawnTime = -1;
 
     const syncDuration = () => {
       if (video.duration && isFinite(video.duration)) {
         setReplayDuration(video.duration);
       }
-      setReplayCurrentTime(video.currentTime || 0);
     };
 
-    const syncTelemetryAtTime = (timeSec: number) => {
+    const syncUiAndTelemetryAtTime = (timeSec: number, force = false) => {
+      const now = performance.now();
+      if (!force && now - lastUiSyncMs < 65) return;
+      lastUiSyncMs = now;
+
+      setReplayCurrentTime(timeSec);
       const point = interpolateTimedTelemetry(timedTelemetryRef.current, timeSec);
       if (!point) return;
       setLiveAngleDeg(point.angleDeg);
@@ -1438,42 +1444,53 @@ export function App() {
       setTorsoTiltDeg(point.torsoTiltDeg);
     };
 
-    const renderReplayFrame = () => {
+    const drawCurrentFrame = (forceSyncUi = false) => {
       const w = canvas.width || video.videoWidth || 480;
       const h = canvas.height || video.videoHeight || 360;
       if (canvas.width !== w) canvas.width = w;
       if (canvas.height !== h) canvas.height = h;
 
       const currentVideoTime = video.currentTime || 0;
-      const nearestLandmarks = interpolateTimedFrames(timedLandmarksRef.current, currentVideoTime);
       const exId = selectedExerciseRef.current;
       const withAngles = showAnglesOverlay;
 
       if (stickOnlyMode) {
+        const nearestLandmarks = interpolateTimedFrames(timedLandmarksRef.current, currentVideoTime);
         if (nearestLandmarks) {
           drawStickmanOverlay(ctx, exId, nearestLandmarks, w, h, true, withAngles);
         } else {
           ctx.fillStyle = '#000000';
           ctx.fillRect(0, 0, w, h);
         }
-      } else {
-        ctx.clearRect(0, 0, w, h);
-        if (video.readyState >= 2) {
+      } else if (video.readyState >= 2) {
+        // Disegna il fotogramma video e lo scheletro in un singolo ciclo leggero
+        if (Math.abs(currentVideoTime - lastDrawnTime) > 0.0005 || forceSyncUi || video.paused) {
+          lastDrawnTime = currentVideoTime;
           ctx.drawImage(video, 0, 0, w, h);
-        }
-        if (nearestLandmarks) {
-          drawStickmanOverlay(ctx, exId, nearestLandmarks, w, h, false, withAngles);
+          const nearestLandmarks = interpolateTimedFrames(timedLandmarksRef.current, currentVideoTime);
+          if (nearestLandmarks) {
+            drawStickmanOverlay(ctx, exId, nearestLandmarks, w, h, false, withAngles);
+          }
         }
       }
 
-      setReplayCurrentTime(currentVideoTime);
-      syncTelemetryAtTime(currentVideoTime);
+      syncUiAndTelemetryAtTime(currentVideoTime, forceSyncUi);
+    };
 
+    const tick = () => {
+      if (statusCode !== 'success') return;
+      drawCurrentFrame(false);
       if (!video.paused && !video.ended) {
-        rafId = requestAnimationFrame(renderReplayFrame);
+        rafId = requestAnimationFrame(tick);
       } else {
         setIsReplayPlaying(false);
+        drawCurrentFrame(true);
       }
+    };
+
+    const handleLoadedMetadata = () => {
+      syncDuration();
+      drawCurrentFrame(true);
     };
 
     const handlePlay = () => {
@@ -1481,7 +1498,7 @@ export function App() {
       setIsReplayPlaying(true);
       syncDuration();
       if (rafId !== null) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(renderReplayFrame);
+      rafId = requestAnimationFrame(tick);
     };
 
     const handlePauseOrEnded = () => {
@@ -1490,37 +1507,36 @@ export function App() {
         cancelAnimationFrame(rafId);
         rafId = null;
       }
-      renderReplayFrame();
+      drawCurrentFrame(true);
     };
 
     const handleSeeked = () => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
-      renderReplayFrame();
+      lastDrawnTime = -1;
+      drawCurrentFrame(true);
     };
 
     syncDuration();
-    renderReplayFrame();
+    drawCurrentFrame(true);
+    if (!video.paused && !video.ended) {
+      setIsReplayPlaying(true);
+      rafId = requestAnimationFrame(tick);
+    }
 
-    video.addEventListener('loadedmetadata', syncDuration);
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
     video.addEventListener('durationchange', syncDuration);
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePauseOrEnded);
     video.addEventListener('ended', handlePauseOrEnded);
     video.addEventListener('seeked', handleSeeked);
-    video.addEventListener('timeupdate', renderReplayFrame);
 
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
-      video.removeEventListener('loadedmetadata', syncDuration);
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       video.removeEventListener('durationchange', syncDuration);
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePauseOrEnded);
       video.removeEventListener('ended', handlePauseOrEnded);
       video.removeEventListener('seeked', handleSeeked);
-      video.removeEventListener('timeupdate', renderReplayFrame);
     };
   }, [statusCode, stickOnlyMode, replaySpeed, showAnglesOverlay]);
 
@@ -1978,6 +1994,10 @@ export function App() {
           rafId = null;
         }
 
+        video.pause();
+        video.playbackRate = 1;
+        video.muted = true;
+
         setIsProcessing(false);
         setProgressPercent(100);
         setPowerScore(0);
@@ -2317,6 +2337,7 @@ export function App() {
     if (!hasData || speedDegSec <= 1) {
       return {
         label: 'In pausa',
+        shortLabel: 'Pausa',
         detail: 'Fermo o stabile',
         color: '#94a3b8',
         bg: 'rgba(148, 163, 184, 0.14)',
@@ -2326,6 +2347,7 @@ export function App() {
     if (speedDegSec <= 220) {
       return {
         label: 'Controllato',
+        shortLabel: 'OK',
         detail: 'Ritmo fluido',
         color: '#22c55e',
         bg: 'rgba(34, 197, 94, 0.14)',
@@ -2334,6 +2356,7 @@ export function App() {
     }
     return {
       label: 'Un po’ veloce',
+      shortLabel: 'Veloce',
       detail: 'Cerca più controllo',
       color: '#eab308',
       bg: 'rgba(234, 179, 8, 0.16)',
@@ -2344,11 +2367,12 @@ export function App() {
   const getBalanceBadge = (
     asymDeg: number | null,
     torsoDeg: number | null
-  ): { label: string; detail: string; color: string; bg: string } | null => {
+  ): { label: string; shortLabel: string; detail: string; color: string; bg: string } | null => {
     if (asymDeg !== null) {
       if (asymDeg <= 8) {
         return {
           label: 'Equilibrio ok',
+          shortLabel: 'Equilibrio OK',
           detail: 'Lati allineati',
           color: '#22c55e',
           bg: 'rgba(34, 197, 94, 0.14)',
@@ -2357,6 +2381,7 @@ export function App() {
       if (asymDeg <= 16) {
         return {
           label: 'Leggero sbilanciamento',
+          shortLabel: 'Sbilanc. lieve',
           detail: 'Controlla i due lati',
           color: '#eab308',
           bg: 'rgba(234, 179, 8, 0.16)',
@@ -2364,6 +2389,7 @@ export function App() {
       }
       return {
         label: 'Sbilanciamento',
+        shortLabel: 'Sbilanciato',
         detail: 'Un lato lavora di più',
         color: '#ef4444',
         bg: 'rgba(239, 68, 68, 0.16)',
@@ -2374,6 +2400,7 @@ export function App() {
       if (torsoDeg <= 35) {
         return {
           label: 'Assetto composto',
+          shortLabel: 'Assetto OK',
           detail: 'Busto ben tenuto',
           color: '#22c55e',
           bg: 'rgba(34, 197, 94, 0.14)',
@@ -2382,6 +2409,7 @@ export function App() {
       if (torsoDeg <= 55) {
         return {
           label: 'Busto inclinato',
+          shortLabel: 'Busto inclin.',
           detail: 'Inclinazione moderata',
           color: '#eab308',
           bg: 'rgba(234, 179, 8, 0.16)',
@@ -2389,6 +2417,7 @@ export function App() {
       }
       return {
         label: 'Molto inclinato',
+        shortLabel: 'Busto alto',
         detail: 'Attenzione alla schiena',
         color: '#f97316',
         bg: 'rgba(249, 115, 22, 0.16)',
@@ -3701,7 +3730,7 @@ export function App() {
             </div>
           </div>
 
-          {/* MINI-BARRA COMPATTA STICKY SOPRA IL PLAYER DURANTE IL REPLAY */}
+          {/* MINI-BARRA COMPATTA STICKY SU UNA RIGA SOPRA IL PLAYER DURANTE IL REPLAY */}
           {statusCode === 'success' && (
             <div
               aria-label="Sintesi movimento durante il replay"
@@ -3710,84 +3739,84 @@ export function App() {
                 top: 8,
                 zIndex: 25,
                 marginTop: 10,
-                padding: '8px 10px',
+                padding: '7px 8px',
                 borderRadius: 10,
-                background: 'rgba(15, 23, 42, 0.94)',
+                background: 'rgba(15, 23, 42, 0.95)',
                 backdropFilter: 'blur(8px)',
                 border: '1px solid #38bdf8',
                 boxShadow: '0 8px 18px -4px rgba(0, 0, 0, 0.55)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: 8,
-                flexWrap: 'wrap',
+                gap: 6,
+                flexWrap: 'nowrap',
+                overflowX: 'auto',
+                scrollbarWidth: 'none',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
-                <span
-                  style={{
-                    padding: '3px 8px',
-                    borderRadius: 7,
-                    fontSize: 11,
-                    fontWeight: 800,
-                    color: hasTelemetryActivity ? romColor : '#94a3b8',
-                    background: hasTelemetryActivity ? `${romColor}22` : 'rgba(148, 163, 184, 0.14)',
-                    border: `1px solid ${hasTelemetryActivity ? `${romColor}66` : '#334155'}`,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  ROM {hasTelemetryActivity ? `${romQuality}%` : '—'} · {romLabel}
-                </span>
+              <span
+                style={{
+                  padding: '3px 7px',
+                  borderRadius: 7,
+                  fontSize: 10.5,
+                  fontWeight: 800,
+                  color: hasTelemetryActivity ? romColor : '#94a3b8',
+                  background: hasTelemetryActivity ? `${romColor}22` : 'rgba(148, 163, 184, 0.14)',
+                  border: `1px solid ${hasTelemetryActivity ? `${romColor}66` : '#334155'}`,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+              >
+                ROM {hasTelemetryActivity ? `${romQuality}%` : '—'}
+              </span>
 
+              <span
+                style={{
+                  padding: '3px 7px',
+                  borderRadius: 7,
+                  fontSize: 10.5,
+                  fontWeight: 800,
+                  color: rhythmBadge.color,
+                  background: rhythmBadge.bg,
+                  border: '1px solid rgba(51, 65, 85, 0.8)',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+              >
+                Ritmo: {rhythmBadge.shortLabel}
+              </span>
+
+              {balanceBadge && (
                 <span
                   style={{
-                    padding: '3px 8px',
+                    padding: '3px 7px',
                     borderRadius: 7,
-                    fontSize: 11,
+                    fontSize: 10.5,
                     fontWeight: 800,
-                    color: rhythmBadge.color,
-                    background: rhythmBadge.bg,
+                    color: balanceBadge.color,
+                    background: balanceBadge.bg,
                     border: '1px solid rgba(51, 65, 85, 0.8)',
                     whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
-                  Ritmo: {rhythmBadge.label}
+                  {balanceBadge.shortLabel}
                 </span>
-
-                {balanceBadge && (
-                  <span
-                    style={{
-                      padding: '3px 8px',
-                      borderRadius: 7,
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: balanceBadge.color,
-                      background: balanceBadge.bg,
-                      border: '1px solid rgba(51, 65, 85, 0.8)',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {balanceBadge.label}
-                  </span>
-                )}
-              </div>
+              )}
 
               {showTechnicalDetails && (
-                <div
+                <span
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontSize: 11,
+                    fontSize: 10.5,
                     fontWeight: 800,
-                    color: '#cbd5e1',
+                    color: '#38bdf8',
                     fontVariantNumeric: 'tabular-nums',
                     whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
-                  {liveAngleDeg !== null && <span style={{ color: '#38bdf8' }}>{liveAngleDeg}°</span>}
-                  <span style={{ color: '#f43f5e' }}>{powerScore} W</span>
-                </div>
+                  {liveAngleDeg !== null ? `${liveAngleDeg}°` : '—'} · <span style={{ color: '#f43f5e' }}>{powerScore}W</span>
+                </span>
               )}
             </div>
           )}
