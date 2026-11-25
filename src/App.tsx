@@ -1394,17 +1394,15 @@ export function App() {
       isProgrammaticScrollRef.current = true;
       container.scrollTo({
         left: targetLeft,
-        behavior: idx === 0 ? 'auto' : 'smooth',
+        behavior: 'auto',
       });
-      if (idx === 0) {
-        container.scrollLeft = 0;
-      }
+      container.scrollLeft = targetLeft;
       window.setTimeout(() => {
-        if (idx === 0 && carouselRef.current) {
-          carouselRef.current.scrollLeft = 0;
+        if (carouselRef.current) {
+          carouselRef.current.scrollLeft = targetLeft;
         }
         isProgrammaticScrollRef.current = false;
-      }, 350);
+      }, 60);
     }
   }, [selectedExercise, isGuidesOpen, isAnglesGuideOpen, sortedExercises]);
 
@@ -2808,7 +2806,7 @@ export function App() {
                 display: 'flex',
                 overflowX: areExerciseAndWeightLocked ? 'hidden' : 'auto',
                 scrollSnapType: 'x mandatory',
-                scrollBehavior: 'smooth',
+                scrollBehavior: 'auto',
                 scrollbarWidth: 'none',
                 borderRadius: 14,
               }}
