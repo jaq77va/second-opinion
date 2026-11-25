@@ -808,14 +808,6 @@ async function loadPoseLandmarkerWithRetry(maxAttempts = 3): Promise<PoseLandmar
   throw lastError;
 }
 
-function formatUploadErrorMessage(err: unknown): string {
-  const rawMessage = err instanceof Error ? err.message : String(err ?? '');
-  if (/failed to fetch|networkerror|load failed|fetch/i.test(rawMessage)) {
-    return 'Errore di rete (Failed to fetch) durante il caricamento del modello o del video. Verifica la connessione o che il video sia scaricato sul telefono, poi riprova.';
-  }
-  return `Errore caricamento modello: ${rawMessage || 'errore sconosciuto'}`;
-}
-
 function getPlanLabel(plan: PlanType): string {
   switch (plan) {
     case 'trial': return 'Trial 7 Giorni';
@@ -1082,13 +1074,14 @@ export function App() {
   const [isAnglesGuideOpen, setIsAnglesGuideOpen] = useState<boolean>(false);
   const [guideInitialExercise, setGuideInitialExercise] = useState<GuideExerciseId | undefined>(undefined);
 
+  const [isFormatsModalOpen, setIsFormatsModalOpen] = useState<boolean>(false);
+
   const [legalTab, setLegalTab] = useState<LegalDocTab | null>(null);
   const [cookieForceOpenKey, setCookieForceOpenKey] = useState<number>(0);
   const [analyticsConsent, setAnalyticsConsent] = useState<boolean>(false);
 
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
   const [weightKg, setWeightKg] = useState<number>(20);
-  const [status, setStatus] = useState<string>('Pronto per iniziare');
   const [statusCode, setStatusCode] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progressPercent, setProgressPercent] = useState<number>(0);
@@ -1251,7 +1244,6 @@ export function App() {
       setSelectedExercise('squat');
       setWeightKg(20);
     }
-    setStatus('Pronto per iniziare');
     setStatusCode('idle');
     setIsProcessing(false);
     setProgressPercent(0);
@@ -1463,7 +1455,6 @@ export function App() {
           ctx.fillRect(0, 0, w, h);
         }
       } else if (video.readyState >= 2) {
-        // Disegna il fotogramma video e lo scheletro in un singolo ciclo leggero
         if (Math.abs(currentVideoTime - lastDrawnTime) > 0.0005 || forceSyncUi || video.paused) {
           lastDrawnTime = currentVideoTime;
           ctx.drawImage(video, 0, 0, w, h);
@@ -1694,6 +1685,7 @@ export function App() {
     analysisSessionIdRef.current += 1;
     setIsGuidesOpen(false);
     setIsAnglesGuideOpen(false);
+    setIsFormatsModalOpen(false);
     setGuideInitialExercise(undefined);
     setLegalTab(null);
     setIsTester(false);
@@ -1898,7 +1890,6 @@ export function App() {
     if (file.size > MAX_VIDEO_SIZE_BYTES) {
       analysisSessionIdRef.current += 1;
       resetAnalysisSession({ preserveExerciseAndWeight: true });
-      setStatus('Il file video supera il limite massimo di 50 MB.');
       setStatusCode('error');
       e.target.value = '';
       return;
@@ -1913,13 +1904,9 @@ export function App() {
     let fileBuffer: ArrayBuffer;
     try {
       fileBuffer = await file.arrayBuffer();
-    } catch (readErr) {
+    } catch {
       if (analysisSessionIdRef.current !== currentSessionId) return;
-      const readMsg = readErr instanceof Error ? readErr.message : String(readErr ?? '');
       resetAnalysisSession({ preserveExerciseAndWeight: true });
-      setStatus(
-        `Impossibile leggere il file video in locale (${readMsg || 'accesso negato o riferimento scaduto'}). Se il video è su cloud o galleria remota, salvalo o scaricalo sul dispositivo e riprova.`
-      );
       setStatusCode('error');
       return;
     }
@@ -1935,7 +1922,6 @@ export function App() {
     setLastUploadedFile(persistentMemoryFile);
 
     setIsProcessing(true);
-    setStatus('Verifica file e caricamento modello AI in corso...');
     setStatusCode('processing');
 
     try {
@@ -2002,7 +1988,6 @@ export function App() {
         setProgressPercent(100);
         setPowerScore(0);
         setAngularSpeedDegSec(0);
-        setStatus('Analisi completata con successo');
         setStatusCode('success');
 
         const geomResult = analyzeExerciseGeometry(sessionExerciseId, landmarksBufferRef.current);
@@ -2088,7 +2073,6 @@ export function App() {
         canvas.width = targetWidth;
         canvas.height = targetHeight;
 
-        setStatus('Analisi biomeccanica, ROM e potenza in corso...');
         setStatusCode('processing');
 
         video.addEventListener('ended', finalizeAnalysis, { once: true });
@@ -2299,11 +2283,10 @@ export function App() {
           };
 
           rafId = requestAnimationFrame(processFrame);
-        }).catch((playErr) => {
+        }).catch(() => {
           if (analysisSessionIdRef.current !== currentSessionId) return;
           cleanupActiveRuntimeResources();
           setIsProcessing(false);
-          setStatus(`Errore riproduzione video: ${playErr instanceof Error ? playErr.message : String(playErr)}`);
           setStatusCode('error');
         });
       };
@@ -2311,11 +2294,10 @@ export function App() {
       video.onloadedmetadata = startProcessingWhenReady;
       video.oncanplay = startProcessingWhenReady;
       window.setTimeout(startProcessingWhenReady, 500);
-    } catch (err) {
+    } catch {
       cleanupActiveRuntimeResources();
       if (analysisSessionIdRef.current !== currentSessionId) return;
       setIsProcessing(false);
-      setStatus(formatUploadErrorMessage(err));
       setStatusCode('error');
     }
   };
@@ -2701,6 +2683,7 @@ export function App() {
   const sideBarColor = symmetryDiffDeg === null ? '#475569' : asymColor;
 
   const isGuideReplayDisabled = isProcessing || hasActiveOrCompletedSession;
+  const trafficLightColor = getTrafficLightColor(statusCode);
 
   return (
     <>
@@ -2719,14 +2702,24 @@ export function App() {
         }}
         onLogout={handleLogout}
       />
-      <div style={{
-        minHeight: 'calc(100vh - 107px)',
-        background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)',
-        color: '#f8fafc',
-        paddingBottom: 40,
-      }}>
-        <div style={{ maxWidth: 500, margin: '0 auto', padding: 20, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
 
+      <div
+        style={{
+          minHeight: 'calc(100vh - 107px)',
+          background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)',
+          color: '#f8fafc',
+          paddingBottom: 40,
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 500,
+            margin: '0 auto',
+            padding: 20,
+            fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          }}
+        >
+          {/* 1. SELEZIONA L'ESERCIZIO */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <label htmlFor="exercise-select-dropdown" style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
               1. Seleziona l'esercizio
@@ -2927,7 +2920,19 @@ export function App() {
             </button>
           </div>
 
-          <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 10, background: '#1e293b', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: areExerciseAndWeightLocked ? 0.65 : 1 }}>
+          <div
+            style={{
+              marginTop: 14,
+              padding: '14px 16px',
+              borderRadius: 10,
+              background: '#1e293b',
+              border: '1px solid #334155',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              opacity: areExerciseAndWeightLocked ? 0.65 : 1,
+            }}
+          >
             <div>
               <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Carico utilizzato</span>
               <span style={{ fontSize: 11, color: '#94a3b8' }}>
@@ -2973,675 +2978,131 @@ export function App() {
             </div>
           </div>
 
-          <label style={{ display: 'block', marginTop: 22, marginBottom: 8, fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>2. Carica video</label>
-
-          <input
-            type="file"
-            accept="video/*"
-            ref={fileInputRef}
-            onChange={handleVideoUpload}
-            style={{ display: 'none' }}
-          />
-          <div
-            onClick={() => !hasActiveOrCompletedSession && !isExerciseLocked && fileInputRef.current?.click()}
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '22px 16px',
-              borderRadius: 12,
-              border: isExerciseLocked || hasActiveOrCompletedSession ? '2px dashed #64748b' : '2px dashed #38bdf8',
-              background: isExerciseLocked ? '#0f172a' : isProcessing ? '#1e293b' : 'rgba(56, 189, 248, 0.05)',
-              color: '#f8fafc',
-              textAlign: 'center',
-              cursor: hasActiveOrCompletedSession || isExerciseLocked ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 8,
-              opacity: hasActiveOrCompletedSession && !isProcessing ? 0.65 : 1,
-            }}
-          >
-            <span style={{ fontSize: 32, lineHeight: 1 }}>{isExerciseLocked ? '🔒' : '📤'}</span>
-            <span style={{ fontSize: 15, fontWeight: 700, color: isExerciseLocked ? '#94a3b8' : '#38bdf8' }}>
-              {isExerciseLocked
-                ? 'Esercizio bloccato per questo piano'
-                : isProcessing
-                ? 'Elaborazione in corso...'
-                : hasActiveOrCompletedSession
-                ? 'Usa "Nuova analisi" per caricare un altro video'
-                : 'Seleziona file video'}
-            </span>
-            <span style={{ fontSize: 12, color: '#94a3b8' }}>
-              Formati supportati: MP4, MOV, WebM (max 50 MB)
-            </span>
-          </div>
-
-          {isProcessing && (
-            <div style={{ marginTop: 16, padding: 14, background: '#1e293b', borderRadius: 10, border: '1px solid #334155', color: '#fff' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-                <span style={{ color: '#94a3b8' }}>Avanzamento analisi:</span>
-                <span style={{ fontWeight: 800, color: '#38bdf8' }}>{progressPercent}%</span>
-              </div>
-              <div style={{ width: '100%', background: '#0f172a', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-                <div style={{ width: `${progressPercent}%`, background: '#38bdf8', height: '100%', transition: 'width 0.1s linear' }} />
-              </div>
-            </div>
-          )}
-
-          {/* CARD LETTURA RAPIDA PER NOVIZIO + DETTAGLI TECNICI COLLASSABILI */}
-          <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
-                Lettura Rapida Movimento
-              </span>
-              {statusCode === 'success' && (
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
-                  Sincronizzato al video
-                </span>
-              )}
-            </div>
-
-            {/* 1. AMPIEZZA DEL MOVIMENTO (ROM %) */}
-            <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155', marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>
-                    Ampiezza del movimento
-                  </span>
-                  <span style={{ fontSize: 28, fontWeight: 900, color: hasTelemetryActivity ? romColor : '#94a3b8', lineHeight: 1.15 }}>
-                    {hasTelemetryActivity ? `${romQuality}%` : '—'}
-                  </span>
-                </div>
-                <span
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 999,
-                    fontSize: 12,
-                    fontWeight: 800,
-                    color: hasTelemetryActivity ? romColor : '#94a3b8',
-                    background: hasTelemetryActivity ? `${romColor}22` : 'rgba(148, 163, 184, 0.14)',
-                    border: `1px solid ${hasTelemetryActivity ? `${romColor}66` : '#334155'}`,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {romLabel}
-                </span>
-              </div>
-
-              <div style={{ width: '100%', height: 10, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
-                <div
-                  style={{
-                    width: `${hasTelemetryActivity ? romQuality : 0}%`,
-                    height: '100%',
-                    background: romColor,
-                    transition: 'width 0.12s ease, background 0.2s ease',
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b', marginTop: 5 }}>
-                <span>Ridotta</span>
-                <span>Parziale (65%+)</span>
-                <span>Completa (85%+)</span>
-              </div>
-            </div>
-
-            {/* 2. RITMO / CONTROLLO + 3. ASSETTO / EQUILIBRIO (SE DISPONIBILE) */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: balanceBadge ? 'repeat(2, minmax(0, 1fr))' : '1fr',
-                gap: 10,
-              }}
-            >
-              <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', marginBottom: 6 }}>
-                  Ritmo esecuzione
-                </span>
-                <span
-                  style={{
-                    display: 'inline-block',
-                    padding: '4px 9px',
-                    borderRadius: 7,
-                    fontSize: 13,
-                    fontWeight: 800,
-                    color: rhythmBadge.color,
-                    background: rhythmBadge.bg,
-                    marginBottom: 6,
-                  }}
-                >
-                  {rhythmBadge.label}
-                </span>
-                <div style={{ width: '100%', height: 6, background: '#1e293b', borderRadius: 4, overflow: 'hidden', marginBottom: 5 }}>
-                  <div
-                    style={{
-                      width: `${rhythmBadge.percent}%`,
-                      height: '100%',
-                      background: rhythmBadge.color,
-                      transition: 'width 0.15s ease, background 0.2s ease',
-                    }}
-                  />
-                </div>
-                <span style={{ fontSize: 11, color: '#94a3b8', display: 'block' }}>
-                  {rhythmBadge.detail}
-                </span>
-              </div>
-
-              {balanceBadge && (
-                <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', marginBottom: 6 }}>
-                    Assetto / Equilibrio
-                  </span>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '4px 9px',
-                      borderRadius: 7,
-                      fontSize: 13,
-                      fontWeight: 800,
-                      color: balanceBadge.color,
-                      background: balanceBadge.bg,
-                      marginBottom: 6,
-                    }}
-                  >
-                    {balanceBadge.label}
-                  </span>
-                  <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', lineHeight: 1.35 }}>
-                    {balanceBadge.detail}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* TOGGLE DETTAGLI TECNICI (CHIUSO DI DEFAULT) */}
-            <div style={{ marginTop: 12, borderTop: '1px solid #334155', paddingTop: 10 }}>
-              <button
-                type="button"
-                onClick={() => setShowTechnicalDetails((prev) => !prev)}
-                aria-expanded={showTechnicalDetails}
-                style={{
-                  width: '100%',
-                  padding: '8px 10px',
-                  borderRadius: 8,
-                  border: '1px solid #334155',
-                  background: '#0f172a',
-                  color: '#cbd5e1',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <span>⚙️ Dettagli tecnici (angolo, W, °/s, assetto)</span>
-                <span style={{ color: '#38bdf8' }}>{showTechnicalDetails ? '▲ Nascondi' : '▼ Espandi'}</span>
-              </button>
-
-              {showTechnicalDetails && (
-                <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: 10, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
-                    <div>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-                        Angolo Articolare
-                      </span>
-                      <span style={{ fontSize: 24, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>
-                        {liveAngleDeg !== null ? `${liveAngleDeg}°` : '—'}
-                      </span>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-                        Potenza Istantanea
-                      </span>
-                      <span style={{ fontSize: 20, fontWeight: 900, color: '#f43f5e', lineHeight: 1.1 }}>
-                        {powerScore} W
-                      </span>
-                      <span style={{ fontSize: 11, color: '#cbd5e1', display: 'block', marginTop: 2 }}>
-                        Picco: <strong style={{ color: '#fda4af' }}>{peakPowerScore} W</strong>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                      <span style={{ color: '#94a3b8' }}>Andamento Potenza</span>
-                      <span style={{ color: '#f43f5e' }}>{powerScore} W / {Math.max(peakPowerScore, 100)} W</span>
-                    </div>
-                    <div style={{ width: '100%', height: 9, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
-                      <div
-                        style={{
-                          width: `${Math.max(0, Math.min(100, Math.round((powerScore / Math.max(peakPowerScore, 150)) * 100)))}%`,
-                          height: '100%',
-                          background: 'linear-gradient(90deg, #fb7185, #f43f5e)',
-                          transition: 'width 0.1s ease',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                      <span style={{ color: '#94a3b8' }}>Velocità Angolare / Ritmo</span>
-                      <span style={{ color: angularSpeedDegSec > 240 ? '#eab308' : '#38bdf8' }}>
-                        {angularSpeedDegSec} °/s
-                      </span>
-                    </div>
-                    <div style={{ width: '100%', height: 9, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
-                      <div
-                        style={{
-                          width: `${Math.max(0, Math.min(100, Math.round((angularSpeedDegSec / 300) * 100)))}%`,
-                          height: '100%',
-                          background: angularSpeedDegSec > 240 ? '#eab308' : '#38bdf8',
-                          transition: 'width 0.1s ease, background 0.2s ease',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
-                      <span style={{ color: '#94a3b8' }}>Simmetria SX / DX (ROM)</span>
-                      <span style={{ color: asymColor }}>
-                        {symmetryDiffDeg !== null ? `Asimmetria Δ ${symmetryDiffDeg}°` : 'Lato coperto / N/D'}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: '#cbd5e1', marginBottom: 2 }}>
-                          <span>SX</span>
-                          <span>
-                            {leftAngleDeg !== null && leftRomPct !== null
-                              ? `ROM ${leftRomPct}% (${leftAngleDeg}°)`
-                              : 'N/D'}
-                          </span>
-                        </div>
-                        <div style={{ width: '100%', height: 8, background: '#0f172a', borderRadius: 4, overflow: 'hidden', border: '1px solid #334155' }}>
-                          <div
-                            style={{
-                              width: `${leftRomPct !== null ? leftRomPct : 0}%`,
-                              height: '100%',
-                              background: sideBarColor,
-                              transition: 'width 0.1s ease, background 0.2s ease',
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: '#cbd5e1', marginBottom: 2 }}>
-                          <span>DX</span>
-                          <span>
-                            {rightAngleDeg !== null && rightRomPct !== null
-                              ? `ROM ${rightRomPct}% (${rightAngleDeg}°)`
-                              : 'N/D'}
-                          </span>
-                        </div>
-                        <div style={{ width: '100%', height: 8, background: '#0f172a', borderRadius: 4, overflow: 'hidden', border: '1px solid #334155' }}>
-                          <div
-                            style={{
-                              width: `${rightRomPct !== null ? rightRomPct : 0}%`,
-                              height: '100%',
-                              background: sideBarColor,
-                              transition: 'width 0.1s ease, background 0.2s ease',
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-                      <span style={{ color: '#94a3b8' }}>Inclinazione Busto (vs verticale)</span>
-                      <span
-                        style={{
-                          color:
-                            torsoTiltDeg === null
-                              ? '#64748b'
-                              : torsoTiltDeg <= 35
-                              ? '#22c55e'
-                              : torsoTiltDeg <= 55
-                              ? '#eab308'
-                              : '#f97316',
-                        }}
-                      >
-                        {torsoTiltDeg !== null ? `${torsoTiltDeg}°` : 'N/D'}
-                      </span>
-                    </div>
-                    <div style={{ width: '100%', height: 9, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
-                      <div
-                        style={{
-                          width: `${torsoTiltDeg !== null ? Math.max(4, Math.min(100, Math.round((torsoTiltDeg / 90) * 100))) : 0}%`,
-                          height: '100%',
-                          background:
-                            torsoTiltDeg === null
-                              ? '#475569'
-                              : torsoTiltDeg <= 35
-                              ? '#22c55e'
-                              : torsoTiltDeg <= 55
-                              ? '#eab308'
-                              : '#f97316',
-                          transition: 'width 0.1s ease, background 0.2s ease',
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={{ marginTop: 16, padding: 14, border: '1px solid #334155', borderRadius: 10, background: '#1e293b', fontSize: 14, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: '50%',
-                backgroundColor: getTrafficLightColor(statusCode),
-                boxShadow: `0 0 8px ${getTrafficLightColor(statusCode)}`,
-                flexShrink: 0,
-                display: 'inline-block'
-              }}
-            />
-            <div>
-              <strong style={{ color: '#38bdf8' }}>Stato Video:</strong> <span style={{ color: statusCode === 'error' ? '#f43f5e' : '#f8fafc' }}>{status}</span>
-            </div>
-          </div>
-
-          {isProcessing && (
-            <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={handleInterruptAnalysis}
-                style={{
-                  padding: '9px 14px',
-                  borderRadius: 8,
-                  border: '1px solid #f43f5e',
-                  background: 'rgba(244, 63, 94, 0.12)',
-                  color: '#fda4af',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                ⏹ Interrompi analisi
-              </button>
-            </div>
-          )}
-
-          {analysisResult && (
-            <div style={{ marginTop: 20, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-              <div
-                onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
-                style={{
-                  padding: '16px 18px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  background: '#1e293b',
-                  userSelect: 'none'
-                }}
-              >
-                <h3 style={{ margin: 0, color: '#38bdf8', fontSize: 16, fontWeight: 800 }}>
-                  📊 Riepilogo Biomeccanico di Sessione
-                </h3>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
-                  {isAnalysisOpen ? '▲ Chiudi' : '▼ Espandi'}
-                </span>
-              </div>
-
-              {isAnalysisOpen && (
-                <div style={{ padding: '0 18px 18px 18px', borderTop: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <p style={{ margin: '12px 0 0 0', fontSize: 13, color: '#cbd5e1', lineHeight: 1.45 }}>
-                    {analysisResult.trendSummary}
-                  </p>
-
-                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Escursione Angolare & ROM</span>
-                      <span style={{ color: getRomColor(biomechSummary?.peakRomPercent ?? 0) }}>
-                        ROM Max {biomechSummary?.peakRomPercent ?? 0}% · Media {biomechSummary?.avgRomPercent ?? 0}%
-                      </span>
-                    </div>
-                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden', marginBottom: 8 }}>
-                      <div
-                        style={{
-                          width: `${biomechSummary?.peakRomPercent ?? 0}%`,
-                          height: '100%',
-                          background: getRomColor(biomechSummary?.peakRomPercent ?? 0),
-                        }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, fontSize: 12, color: '#cbd5e1' }}>
-                      <span>Min / Max: <strong>{biomechSummary?.minAngle ?? analysisResult.minAngle}° / {biomechSummary?.maxAngle ?? analysisResult.maxAngle}°</strong></span>
-                      <span>Ampiezza (°): <strong>{biomechSummary?.romSpanDeg ?? Math.abs(analysisResult.maxAngle - analysisResult.minAngle)}°</strong></span>
-                    </div>
-                  </div>
-
-                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Potenza di Sessione</span>
-                      <span style={{ color: '#f43f5e' }}>
-                        Picco {biomechSummary?.peakPowerW ?? 0} W · Media {biomechSummary?.avgPowerW ?? 0} W
-                      </span>
-                    </div>
-                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${Math.max(4, Math.min(100, Math.round(((biomechSummary?.peakPowerW ?? 0) / 850) * 100)))}%`,
-                          height: '100%',
-                          background: '#f43f5e',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Ritmo & Velocità Angolare</span>
-                      <span style={{ color: '#38bdf8' }}>
-                        Picco {biomechSummary?.peakAngularSpeedDegSec ?? 0} °/s · Media {biomechSummary?.avgAngularSpeedDegSec ?? 0} °/s
-                      </span>
-                    </div>
-                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${Math.max(4, Math.min(100, Math.round(((biomechSummary?.peakAngularSpeedDegSec ?? 0) / 300) * 100)))}%`,
-                          height: '100%',
-                          background: '#38bdf8',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Simmetria Sinistra / Destra</span>
-                      <span style={{ color: '#22c55e' }}>
-                        {biomechSummary?.maxAsymmetryDeg !== null && biomechSummary?.maxAsymmetryDeg !== undefined
-                          ? `Max Δ ${biomechSummary.maxAsymmetryDeg}° · Media Δ ${biomechSummary.avgAsymmetryDeg}°`
-                          : 'Lati non simultanei'}
-                      </span>
-                    </div>
-                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${biomechSummary?.maxAsymmetryDeg !== null && biomechSummary?.maxAsymmetryDeg !== undefined ? Math.max(4, Math.min(100, Math.round((biomechSummary.maxAsymmetryDeg / 25) * 100))) : 0}%`,
-                          height: '100%',
-                          background: '#22c55e',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Stabilità & Inclinazione Busto</span>
-                      <span style={{ color: '#eab308' }}>
-                        {biomechSummary?.minTorsoDeg !== null && biomechSummary?.minTorsoDeg !== undefined
-                          ? `Range ${biomechSummary.minTorsoDeg}°–${biomechSummary.maxTorsoDeg}° (Oscillazione Δ ${biomechSummary.torsoOscillationDeg}°)`
-                          : 'Busto non rilevato'}
-                      </span>
-                    </div>
-                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${biomechSummary?.torsoOscillationDeg !== null && biomechSummary?.torsoOscillationDeg !== undefined ? Math.max(4, Math.min(100, Math.round((biomechSummary.torsoOscillationDeg / 45) * 100))) : 0}%`,
-                          height: '100%',
-                          background: '#eab308',
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div style={{ marginTop: 16, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: '50%',
-                    backgroundColor: getTrafficLightColor(aiStatusCode),
-                    boxShadow: `0 0 8px ${getTrafficLightColor(aiStatusCode)}`,
-                    display: 'inline-block',
-                    flexShrink: 0
-                  }}
-                />
-                <h4 style={{ margin: 0, color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>AI Coach</h4>
-              </div>
-
-              <span style={{ fontSize: 13, color: '#94a3b8' }}>
-                {aiStatusCode === 'idle' && isProcessing
-                  ? 'In attesa del completamento analisi video...'
-                  : aiStatusMessage}
-              </span>
-            </div>
-
-            {aiStatusCode === 'idle' && (
-              <p style={{ margin: 0, fontSize: 13, color: '#94a3b8' }}>
-                {isProcessing
-                  ? 'Analisi video in corso: il feedback AI Coach partirà al termine dell’analisi.'
-                  : 'Avvia l’analisi di un video per ricevere il feedback dell’AI Coach.'}
-              </p>
-            )}
-
-            {aiStatusCode === 'processing' && (
-              <p style={{ margin: 0, fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Elaborazione feedback IA in corso...</p>
-            )}
-
-            {aiStatusCode === 'success' && (
-              <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #f43f5e', border: '1px solid #334155' }}>
-                <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: '#f8fafc' }}>{aiFeedback}</p>
-              </div>
-            )}
-
-            {aiStatusCode === 'error' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #ef4444', border: '1px solid #334155' }}>
-                  <p style={{ margin: 0, fontSize: 14, color: '#f43f5e' }}>{aiFeedback}</p>
-                </div>
+          {/* 2. CARICA VIDEO (CON HELP FORMATI, SEMAFORO SENZA LABEL E SENZA LABEL FORMATI INLINE) */}
+          <div style={{ marginTop: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
+                  2. Carica video
+                </label>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (lastGeomResultRef.current) {
-                      triggerAiCoach(
-                        lastGeomResultRef.current.result,
-                        lastGeomResultRef.current.exercise,
-                        analysisSessionIdRef.current,
-                        {
-                          weightKg,
-                          isDumbbell: selectedExerciseObj.isDumbbell,
-                          peakRomPercent: biomechSummary?.peakRomPercent ?? 0,
-                          avgRomPercent: biomechSummary?.avgRomPercent ?? 0,
-                          peakPowerW: biomechSummary?.peakPowerW ?? 0,
-                          avgPowerW: biomechSummary?.avgPowerW ?? 0,
-                          maxAsymmetryDeg: biomechSummary?.maxAsymmetryDeg ?? null,
-                          torsoOscillationDeg: biomechSummary?.torsoOscillationDeg ?? null,
-                        }
-                      );
-                    }
-                  }}
+                  aria-label="Informazioni formati video supportati"
+                  onClick={() => setIsFormatsModalOpen(true)}
                   style={{
-                    padding: '10px 16px',
-                    background: '#ef4444',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 8,
-                    fontWeight: 700,
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    border: '1px solid #38bdf8',
+                    background: 'rgba(56, 189, 248, 0.14)',
+                    color: '#38bdf8',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    lineHeight: 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     cursor: 'pointer',
-                    alignSelf: 'flex-start',
-                    boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.3)',
+                    padding: 0,
                   }}
                 >
-                  🔄 Riprova IA
+                  ?
                 </button>
+              </div>
+
+              <span
+                aria-label="Semaforo analisi video"
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  backgroundColor: trafficLightColor,
+                  boxShadow: `0 0 8px ${trafficLightColor}`,
+                  flexShrink: 0,
+                  display: 'inline-block',
+                }}
+              />
+            </div>
+
+            <input
+              type="file"
+              accept="video/*"
+              ref={fileInputRef}
+              onChange={handleVideoUpload}
+              style={{ display: 'none' }}
+            />
+            <div
+              onClick={() => !hasActiveOrCompletedSession && !isExerciseLocked && fileInputRef.current?.click()}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '22px 16px',
+                borderRadius: 12,
+                border: isExerciseLocked || hasActiveOrCompletedSession ? '2px dashed #64748b' : '2px dashed #38bdf8',
+                background: isExerciseLocked ? '#0f172a' : isProcessing ? '#1e293b' : 'rgba(56, 189, 248, 0.05)',
+                color: '#f8fafc',
+                textAlign: 'center',
+                cursor: hasActiveOrCompletedSession || isExerciseLocked ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 8,
+                opacity: hasActiveOrCompletedSession && !isProcessing ? 0.65 : 1,
+              }}
+            >
+              <span style={{ fontSize: 32, lineHeight: 1 }}>{isExerciseLocked ? '🔒' : '📤'}</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: isExerciseLocked ? '#94a3b8' : '#38bdf8' }}>
+                {isExerciseLocked
+                  ? 'Esercizio bloccato per questo piano'
+                  : isProcessing
+                  ? 'Elaborazione in corso...'
+                  : hasActiveOrCompletedSession
+                  ? 'Usa "Nuova analisi" per caricare un altro video'
+                  : 'Seleziona file video'}
+              </span>
+            </div>
+
+            {isProcessing && (
+              <div style={{ marginTop: 14, padding: 14, background: '#1e293b', borderRadius: 10, border: '1px solid #334155', color: '#fff' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+                  <span style={{ color: '#94a3b8' }}>Avanzamento analisi:</span>
+                  <span style={{ fontWeight: 800, color: '#38bdf8' }}>{progressPercent}%</span>
+                </div>
+                <div style={{ width: '100%', background: '#0f172a', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${progressPercent}%`, background: '#38bdf8', height: '100%', transition: 'width 0.1s linear' }} />
+                </div>
               </div>
             )}
           </div>
 
-          <div style={{ marginTop: 18 }}>
+          {/* 3. TASTO INTERROMPI ANALISI (SEMPRE VISIBILE, ABILITATO SOLO DURANTE L'ANALISI) */}
+          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
             <button
               type="button"
-              disabled={!isNewAnalysisEnabled}
-              onClick={handleStartNewAnalysis}
+              disabled={!isProcessing}
+              onClick={handleInterruptAnalysis}
               style={{
-                width: '100%',
-                padding: '12px 16px',
-                borderRadius: 10,
-                border: isNewAnalysisEnabled ? '1px solid #22c55e' : '1px solid #334155',
-                background: isNewAnalysisEnabled ? 'rgba(34, 197, 94, 0.16)' : '#0f172a',
-                color: isNewAnalysisEnabled ? '#86efac' : '#64748b',
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: isNewAnalysisEnabled ? 'pointer' : 'not-allowed',
+                padding: '9px 14px',
+                borderRadius: 8,
+                border: isProcessing ? '1px solid #f43f5e' : '1px solid #334155',
+                background: isProcessing ? 'rgba(244, 63, 94, 0.12)' : '#0f172a',
+                color: isProcessing ? '#fda4af' : '#64748b',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: isProcessing ? 'pointer' : 'not-allowed',
+                opacity: isProcessing ? 1 : 0.65,
                 transition: 'all 0.2s ease',
               }}
             >
-              🔁 Nuova analisi
+              ⏹ Interrompi analisi
             </button>
           </div>
 
-          {isTester && (
-            <TesterFeedbackPanel
-              key={`${analysisSessionIdRef.current}-${aiStatusCode}`}
-              userId={user.id}
-              defaultVideoFile={lastUploadedFile}
-              attachVideoByDefault={Boolean(lastUploadedFile)}
-              initialExpanded={false}
-              disabled={
-                isProcessing ||
-                statusCode !== 'success' ||
-                !analysisResult ||
-                aiStatusCode !== 'success' ||
-                !aiFeedback.trim()
-              }
-              sessionContext={{
-                exerciseId: selectedExercise,
-                exerciseLabel: selectedExerciseObj.label,
-                weightKg,
-                liveAngleDeg,
-                angularSpeedDegSec,
-                symmetryDiffDeg,
-                torsoTiltDeg,
-                romQuality,
-                powerScore,
-                minAngle: analysisResult?.minAngle,
-                maxAngle: analysisResult?.maxAngle,
-                trendSummary: analysisResult?.trendSummary,
-              }}
-            />
-          )}
-
+          {/* 4. VISTA PLAYER (ANGOLI / VIDEO + HS / SOLO HS) */}
           <div
             style={{
-              marginTop: 18,
+              marginTop: 16,
               padding: '10px 12px',
               background: '#1e293b',
               borderRadius: 10,
@@ -3708,7 +3169,7 @@ export function App() {
                   transition: 'all 0.15s ease',
                 }}
               >
-                🎥 Video + Scheletro
+                🎥 Video + Hs
               </button>
               <button
                 type="button"
@@ -3725,12 +3186,12 @@ export function App() {
                   transition: 'all 0.15s ease',
                 }}
               >
-                🦴 Solo Human Stick
+                🦴 Solo Hs
               </button>
             </div>
           </div>
 
-          {/* MINI-BARRA COMPATTA STICKY SU UNA RIGA SOPRA IL PLAYER DURANTE IL REPLAY */}
+          {/* 5. SEZIONE VIDEO E VELOCITÀ */}
           {statusCode === 'success' && (
             <div
               aria-label="Sintesi movimento durante il replay"
@@ -4005,6 +3466,582 @@ export function App() {
             )}
           </div>
 
+          {/* 6. LETTURA RAPIDA MOVIMENTO (SUBITO SOTTO IL VIDEO) */}
+          <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
+                Lettura Rapida Movimento
+              </span>
+              {statusCode === 'success' && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
+                  Sincronizzato al video
+                </span>
+              )}
+            </div>
+
+            {/* 1. AMPIEZZA DEL MOVIMENTO (ROM %) */}
+            <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155', marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase' }}>
+                    Ampiezza del movimento
+                  </span>
+                  <span style={{ fontSize: 28, fontWeight: 900, color: hasTelemetryActivity ? romColor : '#94a3b8', lineHeight: 1.15 }}>
+                    {hasTelemetryActivity ? `${romQuality}%` : '—'}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    color: hasTelemetryActivity ? romColor : '#94a3b8',
+                    background: hasTelemetryActivity ? `${romColor}22` : 'rgba(148, 163, 184, 0.14)',
+                    border: `1px solid ${hasTelemetryActivity ? `${romColor}66` : '#334155'}`,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {romLabel}
+                </span>
+              </div>
+
+              <div style={{ width: '100%', height: 10, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${hasTelemetryActivity ? romQuality : 0}%`,
+                    height: '100%',
+                    background: romColor,
+                    transition: 'width 0.12s ease, background 0.2s ease',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b', marginTop: 5 }}>
+                <span>Ridotta</span>
+                <span>Parziale (65%+)</span>
+                <span>Completa (85%+)</span>
+              </div>
+            </div>
+
+            {/* 2. RITMO / CONTROLLO + 3. ASSETTO / EQUILIBRIO */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: balanceBadge ? 'repeat(2, minmax(0, 1fr))' : '1fr',
+                gap: 10,
+              }}
+            >
+              <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', marginBottom: 6 }}>
+                  Ritmo esecuzione
+                </span>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    padding: '4px 9px',
+                    borderRadius: 7,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    color: rhythmBadge.color,
+                    background: rhythmBadge.bg,
+                    marginBottom: 6,
+                  }}
+                >
+                  {rhythmBadge.label}
+                </span>
+                <div style={{ width: '100%', height: 6, background: '#1e293b', borderRadius: 4, overflow: 'hidden', marginBottom: 5 }}>
+                  <div
+                    style={{
+                      width: `${rhythmBadge.percent}%`,
+                      height: '100%',
+                      background: rhythmBadge.color,
+                      transition: 'width 0.15s ease, background 0.2s ease',
+                    }}
+                  />
+                </div>
+                <span style={{ fontSize: 11, color: '#94a3b8', display: 'block' }}>
+                  {rhythmBadge.detail}
+                </span>
+              </div>
+
+              {balanceBadge && (
+                <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', marginBottom: 6 }}>
+                    Assetto / Equilibrio
+                  </span>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '4px 9px',
+                      borderRadius: 7,
+                      fontSize: 13,
+                      fontWeight: 800,
+                      color: balanceBadge.color,
+                      background: balanceBadge.bg,
+                      marginBottom: 6,
+                    }}
+                  >
+                    {balanceBadge.label}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', lineHeight: 1.35 }}>
+                    {balanceBadge.detail}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* TOGGLE DETTAGLI TECNICI */}
+            <div style={{ marginTop: 12, borderTop: '1px solid #334155', paddingTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => setShowTechnicalDetails((prev) => !prev)}
+                aria-expanded={showTechnicalDetails}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  borderRadius: 8,
+                  border: '1px solid #334155',
+                  background: '#0f172a',
+                  color: '#cbd5e1',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <span>⚙️ Dettagli tecnici (angolo, W, °/s, assetto)</span>
+                <span style={{ color: '#38bdf8' }}>{showTechnicalDetails ? '▲ Nascondi' : '▼ Espandi'}</span>
+              </button>
+
+              {showTechnicalDetails && (
+                <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: 10, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <div>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                        Angolo Articolare
+                      </span>
+                      <span style={{ fontSize: 24, fontWeight: 900, color: '#38bdf8', lineHeight: 1.1 }}>
+                        {liveAngleDeg !== null ? `${liveAngleDeg}°` : '—'}
+                      </span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', display: 'block', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                        Potenza Istantanea
+                      </span>
+                      <span style={{ fontSize: 20, fontWeight: 900, color: '#f43f5e', lineHeight: 1.1 }}>
+                        {powerScore} W
+                      </span>
+                      <span style={{ fontSize: 11, color: '#cbd5e1', display: 'block', marginTop: 2 }}>
+                        Picco: <strong style={{ color: '#fda4af' }}>{peakPowerScore} W</strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                      <span style={{ color: '#94a3b8' }}>Andamento Potenza</span>
+                      <span style={{ color: '#f43f5e' }}>{powerScore} W / {Math.max(peakPowerScore, 100)} W</span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                      <div
+                        style={{
+                          width: `${Math.max(0, Math.min(100, Math.round((powerScore / Math.max(peakPowerScore, 150)) * 100)))}%`,
+                          height: '100%',
+                          background: 'linear-gradient(90deg, #fb7185, #f43f5e)',
+                          transition: 'width 0.1s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                      <span style={{ color: '#94a3b8' }}>Velocità Angolare / Ritmo</span>
+                      <span style={{ color: angularSpeedDegSec > 240 ? '#eab308' : '#38bdf8' }}>
+                        {angularSpeedDegSec} °/s
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                      <div
+                        style={{
+                          width: `${Math.max(0, Math.min(100, Math.round((angularSpeedDegSec / 300) * 100)))}%`,
+                          height: '100%',
+                          background: angularSpeedDegSec > 240 ? '#eab308' : '#38bdf8',
+                          transition: 'width 0.1s ease, background 0.2s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
+                      <span style={{ color: '#94a3b8' }}>Simmetria SX / DX (ROM)</span>
+                      <span style={{ color: asymColor }}>
+                        {symmetryDiffDeg !== null ? `Asimmetria Δ ${symmetryDiffDeg}°` : 'Lato coperto / N/D'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: '#cbd5e1', marginBottom: 2 }}>
+                          <span>SX</span>
+                          <span>
+                            {leftAngleDeg !== null && leftRomPct !== null
+                              ? `ROM ${leftRomPct}% (${leftAngleDeg}°)`
+                              : 'N/D'}
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', height: 8, background: '#0f172a', borderRadius: 4, overflow: 'hidden', border: '1px solid #334155' }}>
+                          <div
+                            style={{
+                              width: `${leftRomPct !== null ? leftRomPct : 0}%`,
+                              height: '100%',
+                              background: sideBarColor,
+                              transition: 'width 0.1s ease, background 0.2s ease',
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: '#cbd5e1', marginBottom: 2 }}>
+                          <span>DX</span>
+                          <span>
+                            {rightAngleDeg !== null && rightRomPct !== null
+                              ? `ROM ${rightRomPct}% (${rightAngleDeg}°)`
+                              : 'N/D'}
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', height: 8, background: '#0f172a', borderRadius: 4, overflow: 'hidden', border: '1px solid #334155' }}>
+                          <div
+                            style={{
+                              width: `${rightRomPct !== null ? rightRomPct : 0}%`,
+                              height: '100%',
+                              background: sideBarColor,
+                              transition: 'width 0.1s ease, background 0.2s ease',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                      <span style={{ color: '#94a3b8' }}>Inclinazione Busto (vs verticale)</span>
+                      <span
+                        style={{
+                          color:
+                            torsoTiltDeg === null
+                              ? '#64748b'
+                              : torsoTiltDeg <= 35
+                              ? '#22c55e'
+                              : torsoTiltDeg <= 55
+                              ? '#eab308'
+                              : '#f97316',
+                        }}
+                      >
+                        {torsoTiltDeg !== null ? `${torsoTiltDeg}°` : 'N/D'}
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#0f172a', borderRadius: 5, overflow: 'hidden', border: '1px solid #334155' }}>
+                      <div
+                        style={{
+                          width: `${torsoTiltDeg !== null ? Math.max(4, Math.min(100, Math.round((torsoTiltDeg / 90) * 100))) : 0}%`,
+                          height: '100%',
+                          background:
+                            torsoTiltDeg === null
+                              ? '#475569'
+                              : torsoTiltDeg <= 35
+                              ? '#22c55e'
+                              : torsoTiltDeg <= 55
+                              ? '#eab308'
+                              : '#f97316',
+                          transition: 'width 0.1s ease, background 0.2s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 7. AI COACH */}
+          <div style={{ marginTop: 16, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    backgroundColor: getTrafficLightColor(aiStatusCode),
+                    boxShadow: `0 0 8px ${getTrafficLightColor(aiStatusCode)}`,
+                    display: 'inline-block',
+                    flexShrink: 0,
+                  }}
+                />
+                <h4 style={{ margin: 0, color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>AI Coach</h4>
+              </div>
+
+              <span style={{ fontSize: 13, color: '#94a3b8' }}>
+                {aiStatusCode === 'idle' && isProcessing
+                  ? 'In attesa del completamento analisi video...'
+                  : aiStatusMessage}
+              </span>
+            </div>
+
+            {aiStatusCode === 'idle' && (
+              <p style={{ margin: 0, fontSize: 13, color: '#94a3b8' }}>
+                {isProcessing
+                  ? 'Analisi video in corso: il feedback AI Coach partirà al termine dell’analisi.'
+                  : 'Avvia l’analisi di un video per ricevere il feedback dell’AI Coach.'}
+              </p>
+            )}
+
+            {aiStatusCode === 'processing' && (
+              <p style={{ margin: 0, fontSize: 14, fontStyle: 'italic', color: '#94a3b8' }}>Elaborazione feedback IA in corso...</p>
+            )}
+
+            {aiStatusCode === 'success' && (
+              <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #f43f5e', border: '1px solid #334155' }}>
+                <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: '#f8fafc' }}>{aiFeedback}</p>
+              </div>
+            )}
+
+            {aiStatusCode === 'error' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #ef4444', border: '1px solid #334155' }}>
+                  <p style={{ margin: 0, fontSize: 14, color: '#f43f5e' }}>{aiFeedback}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (lastGeomResultRef.current) {
+                      triggerAiCoach(
+                        lastGeomResultRef.current.result,
+                        lastGeomResultRef.current.exercise,
+                        analysisSessionIdRef.current,
+                        {
+                          weightKg,
+                          isDumbbell: selectedExerciseObj.isDumbbell,
+                          peakRomPercent: biomechSummary?.peakRomPercent ?? 0,
+                          avgRomPercent: biomechSummary?.avgRomPercent ?? 0,
+                          peakPowerW: biomechSummary?.peakPowerW ?? 0,
+                          avgPowerW: biomechSummary?.avgPowerW ?? 0,
+                          maxAsymmetryDeg: biomechSummary?.maxAsymmetryDeg ?? null,
+                          torsoOscillationDeg: biomechSummary?.torsoOscillationDeg ?? null,
+                        }
+                      );
+                    }
+                  }}
+                  style={{
+                    padding: '10px 16px',
+                    background: '#ef4444',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    alignSelf: 'flex-start',
+                    boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.3)',
+                  }}
+                >
+                  🔄 Riprova IA
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 8. RIEPILOGO BIOMECCANICO DI SESSIONE */}
+          {analysisResult && (
+            <div style={{ marginTop: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+              <div
+                onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
+                style={{
+                  padding: '16px 18px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  background: '#1e293b',
+                  userSelect: 'none',
+                }}
+              >
+                <h3 style={{ margin: 0, color: '#38bdf8', fontSize: 16, fontWeight: 800 }}>
+                  📊 Riepilogo Biomeccanico di Sessione
+                </h3>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
+                  {isAnalysisOpen ? '▲ Chiudi' : '▼ Espandi'}
+                </span>
+              </div>
+
+              {isAnalysisOpen && (
+                <div style={{ padding: '0 18px 18px 18px', borderTop: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <p style={{ margin: '12px 0 0 0', fontSize: 13, color: '#cbd5e1', lineHeight: 1.45 }}>
+                    {analysisResult.trendSummary}
+                  </p>
+
+                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Escursione Angolare & ROM</span>
+                      <span style={{ color: getRomColor(biomechSummary?.peakRomPercent ?? 0) }}>
+                        ROM Max {biomechSummary?.peakRomPercent ?? 0}% · Media {biomechSummary?.avgRomPercent ?? 0}%
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden', marginBottom: 8 }}>
+                      <div
+                        style={{
+                          width: `${biomechSummary?.peakRomPercent ?? 0}%`,
+                          height: '100%',
+                          background: getRomColor(biomechSummary?.peakRomPercent ?? 0),
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, fontSize: 12, color: '#cbd5e1' }}>
+                      <span>Min / Max: <strong>{biomechSummary?.minAngle ?? analysisResult.minAngle}° / {biomechSummary?.maxAngle ?? analysisResult.maxAngle}°</strong></span>
+                      <span>Ampiezza (°): <strong>{biomechSummary?.romSpanDeg ?? Math.abs(analysisResult.maxAngle - analysisResult.minAngle)}°</strong></span>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Potenza di Sessione</span>
+                      <span style={{ color: '#f43f5e' }}>
+                        Picco {biomechSummary?.peakPowerW ?? 0} W · Media {biomechSummary?.avgPowerW ?? 0} W
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${Math.max(4, Math.min(100, Math.round(((biomechSummary?.peakPowerW ?? 0) / 850) * 100)))}%`,
+                          height: '100%',
+                          background: '#f43f5e',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Ritmo & Velocità Angolare</span>
+                      <span style={{ color: '#38bdf8' }}>
+                        Picco {biomechSummary?.peakAngularSpeedDegSec ?? 0} °/s · Media {biomechSummary?.avgAngularSpeedDegSec ?? 0} °/s
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${Math.max(4, Math.min(100, Math.round(((biomechSummary?.peakAngularSpeedDegSec ?? 0) / 300) * 100)))}%`,
+                          height: '100%',
+                          background: '#38bdf8',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Simmetria Sinistra / Destra</span>
+                      <span style={{ color: '#22c55e' }}>
+                        {biomechSummary?.maxAsymmetryDeg !== null && biomechSummary?.maxAsymmetryDeg !== undefined
+                          ? `Max Δ ${biomechSummary.maxAsymmetryDeg}° · Media Δ ${biomechSummary.avgAsymmetryDeg}°`
+                          : 'Lati non simultanei'}
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${biomechSummary?.maxAsymmetryDeg !== null && biomechSummary?.maxAsymmetryDeg !== undefined ? Math.max(4, Math.min(100, Math.round((biomechSummary.maxAsymmetryDeg / 25) * 100))) : 0}%`,
+                          height: '100%',
+                          background: '#22c55e',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ padding: 12, background: '#0f172a', borderRadius: 10, border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      <span style={{ color: '#94a3b8', textTransform: 'uppercase' }}>Stabilità & Inclinazione Busto</span>
+                      <span style={{ color: '#eab308' }}>
+                        {biomechSummary?.minTorsoDeg !== null && biomechSummary?.minTorsoDeg !== undefined
+                          ? `Range ${biomechSummary.minTorsoDeg}°–${biomechSummary.maxTorsoDeg}° (Oscillazione Δ ${biomechSummary.torsoOscillationDeg}°)`
+                          : 'Busto non rilevato'}
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 9, background: '#1e293b', borderRadius: 5, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${biomechSummary?.torsoOscillationDeg !== null && biomechSummary?.torsoOscillationDeg !== undefined ? Math.max(4, Math.min(100, Math.round((biomechSummary.torsoOscillationDeg / 45) * 100))) : 0}%`,
+                          height: '100%',
+                          background: '#eab308',
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 9. SEGNALA PROBLEMATICA ANALISI */}
+          {isTester && (
+            <TesterFeedbackPanel
+              key={`${analysisSessionIdRef.current}-${aiStatusCode}`}
+              userId={user.id}
+              defaultVideoFile={lastUploadedFile}
+              attachVideoByDefault={Boolean(lastUploadedFile)}
+              initialExpanded={false}
+              disabled={
+                isProcessing ||
+                statusCode !== 'success' ||
+                !analysisResult ||
+                aiStatusCode !== 'success' ||
+                !aiFeedback.trim()
+              }
+              sessionContext={{
+                exerciseId: selectedExercise,
+                exerciseLabel: selectedExerciseObj.label,
+                weightKg,
+                liveAngleDeg,
+                angularSpeedDegSec,
+                symmetryDiffDeg,
+                torsoTiltDeg,
+                romQuality,
+                powerScore,
+                minAngle: analysisResult?.minAngle,
+                maxAngle: analysisResult?.maxAngle,
+                trendSummary: analysisResult?.trendSummary,
+              }}
+            />
+          )}
+
+          {/* 10. TASTO NUOVA ANALISI */}
+          <div style={{ marginTop: 18 }}>
+            <button
+              type="button"
+              disabled={!isNewAnalysisEnabled}
+              onClick={handleStartNewAnalysis}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: 10,
+                border: isNewAnalysisEnabled ? '1px solid #22c55e' : '1px solid #334155',
+                background: isNewAnalysisEnabled ? 'rgba(34, 197, 94, 0.16)' : '#0f172a',
+                color: isNewAnalysisEnabled ? '#86efac' : '#64748b',
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: isNewAnalysisEnabled ? 'pointer' : 'not-allowed',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              🔁 Nuova analisi
+            </button>
+          </div>
+
           <footer
             style={{
               marginTop: 24,
@@ -4046,6 +4083,68 @@ export function App() {
           </footer>
         </div>
       </div>
+
+      {/* MODALE FORMATI VIDEO SUPPORTATI */}
+      {isFormatsModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Formati video supportati"
+          onClick={() => setIsFormatsModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            background: 'rgba(2, 6, 23, 0.78)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 380,
+              background: '#1e293b',
+              color: '#f8fafc',
+              borderRadius: 12,
+              border: '1px solid #38bdf8',
+              padding: 18,
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#38bdf8' }}>
+                Formati video supportati
+              </h3>
+              <button
+                type="button"
+                aria-label="Chiudi modale formati"
+                onClick={() => setIsFormatsModalOpen(false)}
+                style={{
+                  background: '#0f172a',
+                  border: '1px solid #334155',
+                  color: '#cbd5e1',
+                  borderRadius: 6,
+                  padding: '3px 8px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: '#e2e8f0', lineHeight: 1.5 }}>
+              Formati supportati: MP4, MOV, WebM (max 50 MB)
+            </p>
+          </div>
+        </div>
+      )}
+
       {renderLegalOverlays()}
     </>
   );
