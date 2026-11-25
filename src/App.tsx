@@ -2690,7 +2690,6 @@ export function App() {
 
   const sideBarColor = symmetryDiffDeg === null ? '#475569' : asymColor;
 
-  const isGuideReplayDisabled = isProcessing || hasActiveOrCompletedSession;
   const trafficLightColor = getTrafficLightColor(statusCode);
 
   return (
@@ -2883,46 +2882,6 @@ export function App() {
               }}
             >
               ▶
-            </button>
-          </div>
-
-          <div
-            style={{
-              marginTop: 14,
-              padding: '12px 16px',
-              borderRadius: 10,
-              background: '#1e293b',
-              border: '1px solid #334155',
-              display: 'flex',
-              justifyContent: 'flex-start',
-              alignItems: 'center',
-              gap: 8,
-              flexWrap: 'wrap',
-              opacity: isGuideReplayDisabled ? 0.65 : 1,
-            }}
-          >
-            <button
-              type="button"
-              disabled={isGuideReplayDisabled}
-              onClick={() => {
-                if (isGuideReplayDisabled) return;
-                setIsGuidesOpen(true);
-              }}
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: isGuideReplayDisabled ? '#64748b' : '#38bdf8',
-                background: isGuideReplayDisabled ? '#0f172a' : 'rgba(56,189,248,0.12)',
-                border: isGuideReplayDisabled ? '1px solid #334155' : '1px solid rgba(56,189,248,0.4)',
-                padding: '7px 11px',
-                borderRadius: 8,
-                cursor: isGuideReplayDisabled ? 'not-allowed' : 'pointer',
-                opacity: isGuideReplayDisabled ? 0.6 : 1,
-                flexShrink: 0,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              📷 Guida ripresa
             </button>
           </div>
 
