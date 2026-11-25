@@ -753,7 +753,7 @@ export function CameraGuidesView({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <button
             type="button"
-            onClick={() => onClose(readOnlySelection ? undefined : selectedExerciseId)}
+            onClick={() => onClose(readOnlySelection ? undefined : (selectedExerciseId ?? initialExerciseId))}
             style={{
               padding: '8px 12px',
               borderRadius: 8,

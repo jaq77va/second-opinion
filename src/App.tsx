@@ -1072,7 +1072,6 @@ export function App() {
 
   const [isGuidesOpen, setIsGuidesOpen] = useState<boolean>(false);
   const [isAnglesGuideOpen, setIsAnglesGuideOpen] = useState<boolean>(false);
-  const [guideInitialExercise, setGuideInitialExercise] = useState<GuideExerciseId | undefined>(undefined);
 
   const [isFormatsModalOpen, setIsFormatsModalOpen] = useState<boolean>(false);
 
@@ -1085,7 +1084,9 @@ export function App() {
     []
   );
 
-  const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
+  const defaultFirstExerciseId: Exercise = sortedExercises[0]?.id ?? 'affondi';
+
+  const [selectedExercise, setSelectedExercise] = useState<Exercise>(defaultFirstExerciseId);
   const [weightKg, setWeightKg] = useState<number>(20);
   const [statusCode, setStatusCode] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -1126,7 +1127,7 @@ export function App() {
   const timedTelemetryRef = useRef<TimedTelemetryPoint[]>([]);
   const stickOnlyModeRef = useRef<boolean>(false);
   const showAnglesOverlayRef = useRef<boolean>(true);
-  const selectedExerciseRef = useRef<Exercise>('squat');
+  const selectedExerciseRef = useRef<Exercise>(defaultFirstExerciseId);
   const carouselRef = useRef<HTMLDivElement | null>(null);
   const scrollSyncTimeoutRef = useRef<number | null>(null);
   const lastGeomResultRef = useRef<{ exercise: Exercise; result: AnalysisResult } | null>(null);
@@ -1246,7 +1247,8 @@ export function App() {
   const resetAnalysisSession = (options?: { preserveExerciseAndWeight?: boolean }) => {
     cleanupActiveRuntimeResources();
     if (!options?.preserveExerciseAndWeight) {
-      setSelectedExercise('squat');
+      setSelectedExercise(defaultFirstExerciseId);
+      selectedExerciseRef.current = defaultFirstExerciseId;
       setWeightKg(20);
     }
     setStatusCode('idle');
@@ -1369,7 +1371,9 @@ export function App() {
 
   useEffect(() => {
     analysisSessionIdRef.current += 1;
-    resetAnalysisSession();
+    setSelectedExercise(defaultFirstExerciseId);
+    selectedExerciseRef.current = defaultFirstExerciseId;
+    resetAnalysisSession({ preserveExerciseAndWeight: true });
     if (carouselRef.current) {
       isProgrammaticScrollRef.current = true;
       carouselRef.current.scrollLeft = 0;
@@ -1377,7 +1381,7 @@ export function App() {
         isProgrammaticScrollRef.current = false;
       }, 150);
     }
-  }, [user?.id]);
+  }, [user?.id, defaultFirstExerciseId]);
 
   useEffect(() => {
     if (isGuidesOpen || isAnglesGuideOpen || !carouselRef.current) return;
@@ -1691,7 +1695,6 @@ export function App() {
     setIsGuidesOpen(false);
     setIsAnglesGuideOpen(false);
     setIsFormatsModalOpen(false);
-    setGuideInitialExercise(undefined);
     setLegalTab(null);
     setIsTester(false);
     setIsPasswordRecovery(false);
@@ -2609,7 +2612,7 @@ export function App() {
       <>
         <AppBrandHeader />
         <CameraGuidesView
-          initialExerciseId={guideInitialExercise}
+          initialExerciseId={selectedExercise as GuideExerciseId}
           readOnlySelection={areExerciseAndWeightLocked}
           onSelectExercise={(exId) => {
             const matched = sortedExercises.find((ex) => ex.id === exId);
@@ -2620,7 +2623,7 @@ export function App() {
           onClose={(chosenExerciseId) => {
             setIsGuidesOpen(false);
             if (!areExerciseAndWeightLocked) {
-              const targetId = chosenExerciseId ?? guideInitialExercise;
+              const targetId = chosenExerciseId ?? selectedExercise;
               const matched = sortedExercises.find((ex) => ex.id === targetId);
               if (matched) {
                 setSelectedExercise(matched.id);
@@ -2699,7 +2702,6 @@ export function App() {
         userDisplayName={loggedUserLabel}
         areGuidesDisabled={isProcessing}
         onOpenGuides={() => {
-          setGuideInitialExercise(undefined);
           setIsGuidesOpen(true);
         }}
         onOpenAnglesGuide={() => {
@@ -2904,7 +2906,6 @@ export function App() {
               disabled={isGuideReplayDisabled}
               onClick={() => {
                 if (isGuideReplayDisabled) return;
-                setGuideInitialExercise(selectedExercise as GuideExerciseId);
                 setIsGuidesOpen(true);
               }}
               style={{

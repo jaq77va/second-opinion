@@ -541,552 +541,550 @@ function HumanStickAngleSvg({
   let labelDeg = 53;
 
   switch (exerciseId) {
-    case 'squat':
-    case 'goblet_squat':
+    case 'squat': {
+      if (isEcc) {
+        head = { x: 74, y: 34 }; neck = { x: 76, y: 44 }; sh = { x: 77, y: 48 };
+        hip = { x: 64, y: 74 }; knee = { x: 92, y: 82 }; ankle = { x: 84, y: 114 };
+        elbow = { x: 85, y: 60 }; wrist = { x: 98, y: 62 };
+        propEl = <line x1={68} y1={45} x2={86} y2={45} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />;
+        apex = knee; startDeg = -152; endDeg = -76; rSector = 16; labelDeg = -114;
+      } else {
+        head = { x: 80, y: 18 }; neck = { x: 80, y: 29 }; sh = { x: 80, y: 34 };
+        hip = { x: 80, y: 65 }; knee = { x: 82, y: 90 }; ankle = { x: 82, y: 114 };
+        elbow = { x: 84, y: 50 }; wrist = { x: 88, y: 64 };
+        propEl = <line x1={72} y1={32} x2={88} y2={32} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />;
+        apex = knee; startDeg = -92; endDeg = -22; rSector = 15; labelDeg = -57;
+      }
+      break;
+    }
     case 'front_squat': {
       if (isEcc) {
-        head = { x: 74, y: 34 };
-        neck = { x: 76, y: 44 };
-        sh = { x: 77, y: 48 };
-        hip = { x: 64, y: 74 };
-        knee = { x: 92, y: 82 };
-        ankle = { x: 84, y: 114 };
-        elbow = { x: 85, y: 60 };
-        wrist = { x: 98, y: 62 };
-        apex = knee;
-        startDeg = -152;
-        endDeg = -76;
-        rSector = 16;
-        labelDeg = -114;
+        head = { x: 76, y: 35 }; neck = { x: 78, y: 45 }; sh = { x: 80, y: 49 };
+        hip = { x: 66, y: 75 }; knee = { x: 94, y: 82 }; ankle = { x: 84, y: 114 };
+        elbow = { x: 102, y: 47 }; wrist = { x: 86, y: 43 };
+        propEl = <circle cx={86} cy={43} r={3.5} fill="#cbd5e1" />;
+        apex = knee; startDeg = -152; endDeg = -76; rSector = 16; labelDeg = -114;
       } else {
-        head = { x: 80, y: 18 };
-        neck = { x: 80, y: 29 };
-        sh = { x: 80, y: 34 };
-        hip = { x: 80, y: 65 };
-        knee = { x: 82, y: 90 };
-        ankle = { x: 82, y: 114 };
-        elbow = { x: 84, y: 50 };
-        wrist = { x: 88, y: 64 };
-        apex = knee;
-        startDeg = -92;
-        endDeg = -22;
-        rSector = 15;
-        labelDeg = -57;
+        head = { x: 80, y: 18 }; neck = { x: 80, y: 29 }; sh = { x: 80, y: 34 };
+        hip = { x: 80, y: 65 }; knee = { x: 82, y: 90 }; ankle = { x: 82, y: 114 };
+        elbow = { x: 100, y: 34 }; wrist = { x: 86, y: 30 };
+        propEl = <circle cx={86} cy={30} r={3.5} fill="#cbd5e1" />;
+        apex = knee; startDeg = -92; endDeg = -22; rSector = 15; labelDeg = -57;
       }
       break;
     }
-
-    case 'stacco':
-    case 'sumo_deadlift':
-    case 'hyperextension': {
+    case 'goblet_squat': {
       if (isEcc) {
-        head = { x: 96, y: 44 };
-        neck = { x: 90, y: 52 };
-        sh = { x: 88, y: 56 };
-        hip = { x: 64, y: 74 };
-        knee = { x: 84, y: 92 };
-        ankle = { x: 78, y: 114 };
-        elbow = { x: 86, y: 76 };
-        wrist = { x: 86, y: 96 };
-        apex = hip;
-        startDeg = -32;
-        endDeg = 32;
-        rSector = 15;
-        labelDeg = 0;
+        head = { x: 76, y: 35 }; neck = { x: 78, y: 45 }; sh = { x: 80, y: 49 };
+        hip = { x: 66, y: 75 }; knee = { x: 92, y: 82 }; ankle = { x: 84, y: 114 };
+        elbow = { x: 86, y: 64 }; wrist = { x: 96, y: 58 };
+        propEl = <rect x={95} y={52} width={8} height={11} rx={2} fill="#f59e0b" />;
+        apex = knee; startDeg = -150; endDeg = -76; rSector = 16; labelDeg = -113;
       } else {
-        head = { x: 80, y: 18 };
-        neck = { x: 80, y: 29 };
-        sh = { x: 80, y: 34 };
-        hip = { x: 80, y: 65 };
-        knee = { x: 81, y: 90 };
-        ankle = { x: 81, y: 114 };
-        elbow = { x: 82, y: 52 };
-        wrist = { x: 82, y: 72 };
-        apex = hip;
-        startDeg = -90;
-        endDeg = -15;
-        rSector = 14;
-        labelDeg = -52;
+        head = { x: 80, y: 18 }; neck = { x: 80, y: 29 }; sh = { x: 80, y: 34 };
+        hip = { x: 80, y: 65 }; knee = { x: 82, y: 90 }; ankle = { x: 82, y: 114 };
+        elbow = { x: 84, y: 50 }; wrist = { x: 92, y: 46 };
+        propEl = <rect x={91} y={40} width={8} height={11} rx={2} fill="#f59e0b" />;
+        apex = knee; startDeg = -92; endDeg = -22; rSector = 15; labelDeg = -57;
       }
       break;
     }
-
+    case 'stacco': {
+      if (isEcc) {
+        head = { x: 96, y: 44 }; neck = { x: 90, y: 52 }; sh = { x: 88, y: 56 };
+        hip = { x: 64, y: 74 }; knee = { x: 84, y: 92 }; ankle = { x: 78, y: 114 };
+        elbow = { x: 88, y: 78 }; wrist = { x: 92, y: 102 };
+        propEl = <line x1={76} y1={104} x2={106} y2={104} stroke="#94a3b8" strokeWidth={2.5} />;
+        apex = hip; startDeg = -32; endDeg = 32; rSector = 15; labelDeg = 0;
+      } else {
+        head = { x: 80, y: 18 }; neck = { x: 80, y: 29 }; sh = { x: 80, y: 34 };
+        hip = { x: 80, y: 65 }; knee = { x: 81, y: 90 }; ankle = { x: 81, y: 114 };
+        elbow = { x: 82, y: 52 }; wrist = { x: 82, y: 74 };
+        propEl = <line x1={68} y1={74} x2={96} y2={74} stroke="#94a3b8" strokeWidth={2.5} />;
+        apex = hip; startDeg = -90; endDeg = -15; rSector = 14; labelDeg = -52;
+      }
+      break;
+    }
+    case 'sumo_deadlift': {
+      if (isEcc) {
+        head = { x: 80, y: 40 }; neck = { x: 80, y: 49 }; sh = { x: 80, y: 53 };
+        hip = { x: 80, y: 74 }; knee = { x: 56, y: 92 }; ankle = { x: 48, y: 114 };
+        backKnee = { x: 104, y: 92 }; backAnkle = { x: 112, y: 114 };
+        elbow = { x: 74, y: 76 }; wrist = { x: 74, y: 98 };
+        propEl = <line x1={54} y1={100} x2={106} y2={100} stroke="#94a3b8" strokeWidth={2.5} />;
+        apex = hip; startDeg = 22; endDeg = 90; rSector = 15; labelDeg = 56;
+      } else {
+        head = { x: 80, y: 18 }; neck = { x: 80, y: 29 }; sh = { x: 80, y: 34 };
+        hip = { x: 80, y: 65 }; knee = { x: 64, y: 90 }; ankle = { x: 56, y: 114 };
+        backKnee = { x: 96, y: 90 }; backAnkle = { x: 104, y: 114 };
+        elbow = { x: 74, y: 52 }; wrist = { x: 74, y: 74 };
+        propEl = <line x1={58} y1={74} x2={102} y2={74} stroke="#94a3b8" strokeWidth={2.5} />;
+        apex = hip; startDeg = 45; endDeg = 90; rSector = 14; labelDeg = 67;
+      }
+      break;
+    }
     case 'stacco_rumeno': {
       if (isEcc) {
-        head = { x: 102, y: 48 };
-        neck = { x: 94, y: 54 };
-        sh = { x: 91, y: 58 };
-        hip = { x: 64, y: 66 };
-        knee = { x: 74, y: 90 };
-        ankle = { x: 74, y: 114 };
-        elbow = { x: 88, y: 76 };
-        wrist = { x: 86, y: 94 };
-        apex = hip;
-        startDeg = -18;
-        endDeg = 66;
-        rSector = 15;
-        labelDeg = 24;
+        head = { x: 102, y: 48 }; neck = { x: 94, y: 54 }; sh = { x: 91, y: 58 };
+        hip = { x: 64, y: 66 }; knee = { x: 74, y: 90 }; ankle = { x: 74, y: 114 };
+        elbow = { x: 88, y: 76 }; wrist = { x: 86, y: 94 };
+        apex = hip; startDeg = -18; endDeg = 66; rSector = 15; labelDeg = 24;
       } else {
-        head = { x: 80, y: 18 };
-        neck = { x: 80, y: 29 };
-        sh = { x: 80, y: 34 };
-        hip = { x: 80, y: 65 };
-        knee = { x: 81, y: 90 };
-        ankle = { x: 81, y: 114 };
-        elbow = { x: 82, y: 52 };
-        wrist = { x: 82, y: 72 };
-        apex = hip;
-        startDeg = -90;
-        endDeg = -15;
-        rSector = 14;
-        labelDeg = -52;
+        head = { x: 80, y: 18 }; neck = { x: 80, y: 29 }; sh = { x: 80, y: 34 };
+        hip = { x: 80, y: 65 }; knee = { x: 81, y: 90 }; ankle = { x: 81, y: 114 };
+        elbow = { x: 82, y: 52 }; wrist = { x: 82, y: 72 };
+        apex = hip; startDeg = -90; endDeg = -15; rSector = 14; labelDeg = -52;
       }
       break;
     }
-
-    case 'panca_piana':
+    case 'hyperextension': {
+      propEl = <rect x={54} y={66} width={34} height={9} rx={3} fill="#334155" />;
+      ankle = { x: 42, y: 106 }; knee = { x: 58, y: 86 }; hip = { x: 76, y: 68 };
+      if (isEcc) {
+        sh = { x: 102, y: 86 }; neck = { x: 106, y: 90 }; head = { x: 114, y: 96 };
+        elbow = { x: 96, y: 98 }; wrist = { x: 90, y: 106 };
+        apex = hip; startDeg = -45; endDeg = 42; rSector = 15; labelDeg = 0;
+      } else {
+        sh = { x: 78, y: 36 }; neck = { x: 78, y: 31 }; head = { x: 78, y: 20 };
+        elbow = { x: 84, y: 48 }; wrist = { x: 80, y: 40 };
+        apex = hip; startDeg = -92; endDeg = -35; rSector = 14; labelDeg = -63;
+      }
+      break;
+    }
+    case 'hip_thrust': {
+      propEl = <rect x={24} y={62} width={22} height={52} rx={3} fill="#334155" />;
+      sh = { x: 48, y: 66 }; neck = { x: 44, y: 62 }; head = { x: 36, y: 58 }; ankle = { x: 116, y: 112 };
+      if (isEcc) {
+        hip = { x: 78, y: 92 }; knee = { x: 102, y: 88 }; elbow = { x: 64, y: 80 }; wrist = { x: 78, y: 92 };
+        apex = hip; startDeg = -12; endDeg = 18; rSector = 14; labelDeg = 3;
+      } else {
+        hip = { x: 82, y: 66 }; knee = { x: 104, y: 86 }; elbow = { x: 66, y: 74 }; wrist = { x: 82, y: 66 };
+        apex = hip; startDeg = 0; endDeg = 42; rSector = 14; labelDeg = 21;
+      }
+      break;
+    }
+    case 'panca_piana': {
+      propEl = <rect x={26} y={76} width={108} height={7} rx={3} fill="#334155" />;
+      head = { x: 38, y: 67 }; neck = { x: 48, y: 71 }; sh = { x: 54, y: 72 };
+      hip = { x: 96, y: 72 }; knee = { x: 118, y: 88 }; ankle = { x: 122, y: 112 };
+      if (isEcc) {
+        elbow = { x: 50, y: 54 }; wrist = { x: 68, y: 58 };
+        apex = elbow; startDeg = -12; endDeg = 76; rSector = 13; labelDeg = 32;
+      } else {
+        elbow = { x: 56, y: 47 }; wrist = { x: 60, y: 26 };
+        apex = elbow; startDeg = -84; endDeg = 14; rSector = 13; labelDeg = -35;
+      }
+      break;
+    }
     case 'panca_inclinata': {
-      propEl = <rect x={26} y={76} width={108} height={7} rx={3} fill="#334155" />;
-      head = { x: 38, y: 67 };
-      neck = { x: 48, y: 71 };
-      sh = { x: 54, y: 72 };
-      hip = { x: 96, y: 72 };
-      knee = { x: 118, y: 88 };
-      ankle = { x: 122, y: 112 };
+      propEl = <polygon points="28,84 96,74 102,82 32,92" fill="#334155" />;
+      head = { x: 38, y: 58 }; neck = { x: 48, y: 64 }; sh = { x: 55, y: 67 };
+      hip = { x: 92, y: 74 }; knee = { x: 116, y: 88 }; ankle = { x: 120, y: 112 };
       if (isEcc) {
-        elbow = { x: 50, y: 54 };
-        wrist = { x: 68, y: 58 };
-        apex = elbow;
-        startDeg = -12;
-        endDeg = 76;
-        rSector = 13;
-        labelDeg = 32;
+        elbow = { x: 52, y: 48 }; wrist = { x: 70, y: 50 };
+        apex = elbow; startDeg = -8; endDeg = 74; rSector = 13; labelDeg = 33;
       } else {
-        elbow = { x: 56, y: 47 };
-        wrist = { x: 60, y: 26 };
-        apex = elbow;
-        startDeg = -84;
-        endDeg = 14;
-        rSector = 13;
-        labelDeg = -35;
+        elbow = { x: 60, y: 40 }; wrist = { x: 68, y: 20 };
+        apex = elbow; startDeg = -74; endDeg = 22; rSector = 13; labelDeg = -26;
       }
       break;
     }
-
-    case 'french_press':
+    case 'french_press': {
+      propEl = <rect x={26} y={76} width={108} height={7} rx={3} fill="#334155" />;
+      head = { x: 38, y: 67 }; neck = { x: 48, y: 71 }; sh = { x: 54, y: 72 };
+      hip = { x: 96, y: 72 }; knee = { x: 118, y: 88 }; ankle = { x: 122, y: 112 };
+      if (isEcc) {
+        elbow = { x: 64, y: 46 }; wrist = { x: 44, y: 52 };
+        apex = elbow; startDeg = 18; endDeg = 166; rSector = 13; labelDeg = 92;
+      } else {
+        elbow = { x: 64, y: 48 }; wrist = { x: 68, y: 24 };
+        apex = elbow; startDeg = -82; endDeg = 18; rSector = 13; labelDeg = -32;
+      }
+      break;
+    }
     case 'estensioni_tricipiti_sopra_testa': {
-      propEl = <rect x={26} y={76} width={108} height={7} rx={3} fill="#334155" />;
-      head = { x: 38, y: 67 };
-      neck = { x: 48, y: 71 };
-      sh = { x: 54, y: 72 };
-      hip = { x: 96, y: 72 };
-      knee = { x: 118, y: 88 };
-      ankle = { x: 122, y: 112 };
+      head = { x: 80, y: 26 }; neck = { x: 80, y: 36 }; sh = { x: 80, y: 41 };
+      hip = { x: 80, y: 70 }; knee = { x: 80, y: 92 }; ankle = { x: 80, y: 114 };
       if (isEcc) {
-        elbow = { x: 64, y: 46 };
-        wrist = { x: 44, y: 52 };
-        apex = elbow;
-        startDeg = 18;
-        endDeg = 166;
-        rSector = 13;
-        labelDeg = 92;
+        elbow = { x: 92, y: 24 }; wrist = { x: 76, y: 16 };
+        apex = elbow; startDeg = 42; endDeg = 158; rSector = 13; labelDeg = 100;
       } else {
-        elbow = { x: 64, y: 48 };
-        wrist = { x: 68, y: 24 };
-        apex = elbow;
-        startDeg = -82;
-        endDeg = 18;
-        rSector = 13;
-        labelDeg = -32;
+        elbow = { x: 86, y: 22 }; wrist = { x: 88, y: 6 };
+        apex = elbow; startDeg = -84; endDeg = 68; rSector = 13; labelDeg = -8;
       }
       break;
     }
-
-    case 'alzate_laterali':
+    case 'alzate_laterali': {
+      head = { x: 80, y: 20 }; neck = { x: 80, y: 31 }; sh = { x: 80, y: 36 };
+      hip = { x: 80, y: 68 }; knee = { x: 76, y: 92 }; ankle = { x: 76, y: 114 };
+      if (isEcc) {
+        elbow = { x: 93, y: 52 }; wrist = { x: 95, y: 66 };
+        apex = sh; startDeg = 22; endDeg = 90; rSector = 14; labelDeg = 56;
+      } else {
+        elbow = { x: 108, y: 36 }; wrist = { x: 124, y: 36 };
+        apex = sh; startDeg = 0; endDeg = 90; rSector = 15; labelDeg = 45;
+      }
+      break;
+    }
     case 'front_raises': {
-      head = { x: 80, y: 20 };
-      neck = { x: 80, y: 31 };
-      sh = { x: 80, y: 36 };
-      hip = { x: 80, y: 68 };
-      knee = { x: 74, y: 92 };
-      ankle = { x: 72, y: 114 };
-      backKnee = { x: 86, y: 92 };
-      backAnkle = { x: 88, y: 114 };
+      head = { x: 78, y: 20 }; neck = { x: 78, y: 31 }; sh = { x: 78, y: 36 };
+      hip = { x: 78, y: 68 }; knee = { x: 78, y: 92 }; ankle = { x: 78, y: 114 };
       if (isEcc) {
-        elbow = { x: 93, y: 52 };
-        wrist = { x: 95, y: 66 };
-        apex = sh;
-        startDeg = 22;
-        endDeg = 90;
-        rSector = 14;
-        labelDeg = 56;
+        elbow = { x: 82, y: 52 }; wrist = { x: 84, y: 68 };
+        apex = sh; startDeg = 65; endDeg = 90; rSector = 14; labelDeg = 77;
       } else {
-        elbow = { x: 108, y: 36 };
-        wrist = { x: 124, y: 36 };
-        apex = sh;
-        startDeg = 0;
-        endDeg = 90;
-        rSector = 15;
-        labelDeg = 45;
+        elbow = { x: 102, y: 36 }; wrist = { x: 122, y: 36 };
+        apex = sh; startDeg = 0; endDeg = 90; rSector = 15; labelDeg = 45;
       }
       break;
     }
-
-    case 'affondi':
-    case 'affondi_laterali':
+    case 'affondi': {
+      head = { x: 78, y: 24 }; neck = { x: 78, y: 34 }; sh = { x: 78, y: 39 };
+      hip = { x: 76, y: 68 }; backKnee = { x: 52, y: 94 }; backAnkle = { x: 42, y: 114 };
+      elbow = { x: 82, y: 54 }; wrist = { x: 84, y: 68 };
+      if (isEcc) {
+        knee = { x: 100, y: 84 }; ankle = { x: 104, y: 114 };
+        apex = knee; startDeg = -148; endDeg = -84; rSector = 14; labelDeg = -116;
+      } else {
+        knee = { x: 92, y: 88 }; ankle = { x: 96, y: 114 };
+        apex = knee; startDeg = -115; endDeg = -72; rSector = 14; labelDeg = -93;
+      }
+      break;
+    }
+    case 'affondi_laterali': {
+      head = { x: 78, y: 26 }; neck = { x: 78, y: 36 }; sh = { x: 78, y: 41 };
+      hip = { x: 86, y: 68 }; backKnee = { x: 54, y: 88 }; backAnkle = { x: 36, y: 112 };
+      elbow = { x: 84, y: 54 }; wrist = { x: 90, y: 66 };
+      if (isEcc) {
+        knee = { x: 106, y: 88 }; ankle = { x: 116, y: 112 };
+        apex = knee; startDeg = -126; endDeg = -68; rSector = 14; labelDeg = -97;
+      } else {
+        knee = { x: 98, y: 90 }; ankle = { x: 108, y: 112 };
+        apex = knee; startDeg = -108; endDeg = -64; rSector = 14; labelDeg = -86;
+      }
+      break;
+    }
     case 'step_up': {
-      head = { x: 78, y: 24 };
-      neck = { x: 78, y: 34 };
-      sh = { x: 78, y: 39 };
-      hip = { x: 76, y: 68 };
-      backKnee = { x: 52, y: 94 };
-      backAnkle = { x: 42, y: 114 };
-      elbow = { x: 82, y: 54 };
-      wrist = { x: 84, y: 68 };
+      propEl = <rect x={92} y={92} width={34} height={22} rx={3} fill="#334155" />;
+      backKnee = { x: 58, y: 92 }; backAnkle = { x: 52, y: 114 };
+      elbow = { x: 80, y: 54 }; wrist = { x: 82, y: 68 };
       if (isEcc) {
-        knee = { x: 100, y: 84 };
-        ankle = { x: 104, y: 114 };
-        apex = knee;
-        startDeg = -148;
-        endDeg = -84;
-        rSector = 14;
-        labelDeg = -116;
+        head = { x: 76, y: 24 }; neck = { x: 76, y: 34 }; sh = { x: 76, y: 39 }; hip = { x: 76, y: 68 };
+        knee = { x: 96, y: 74 }; ankle = { x: 104, y: 92 };
+        apex = knee; startDeg = -132; endDeg = -64; rSector = 14; labelDeg = -98;
       } else {
-        knee = { x: 92, y: 88 };
-        ankle = { x: 96, y: 114 };
-        apex = knee;
-        startDeg = -115;
-        endDeg = -72;
-        rSector = 14;
-        labelDeg = -93;
+        head = { x: 88, y: 16 }; neck = { x: 88, y: 26 }; sh = { x: 88, y: 31 }; hip = { x: 90, y: 60 };
+        knee = { x: 98, y: 76 }; ankle = { x: 104, y: 92 };
+        apex = knee; startDeg = -112; endDeg = -72; rSector = 14; labelDeg = -92;
       }
       break;
     }
-
     case 'bulgarian_squat': {
       propEl = <rect x={24} y={84} width={22} height={30} rx={3} fill="#334155" />;
-      head = { x: 74, y: 26 };
-      neck = { x: 75, y: 36 };
-      sh = { x: 76, y: 41 };
-      hip = { x: 74, y: 68 };
-      backKnee = { x: 54, y: 78 };
-      backAnkle = { x: 36, y: 84 };
-      elbow = { x: 80, y: 55 };
-      wrist = { x: 82, y: 68 };
+      head = { x: 74, y: 26 }; neck = { x: 75, y: 36 }; sh = { x: 76, y: 41 }; hip = { x: 74, y: 68 };
+      backKnee = { x: 54, y: 78 }; backAnkle = { x: 36, y: 84 };
+      elbow = { x: 80, y: 55 }; wrist = { x: 82, y: 68 };
       if (isEcc) {
-        knee = { x: 102, y: 84 };
-        ankle = { x: 104, y: 114 };
-        apex = knee;
-        startDeg = -146;
-        endDeg = -86;
-        rSector = 14;
-        labelDeg = -116;
+        knee = { x: 102, y: 84 }; ankle = { x: 104, y: 114 };
+        apex = knee; startDeg = -146; endDeg = -86; rSector = 14; labelDeg = -116;
       } else {
-        knee = { x: 92, y: 88 };
-        ankle = { x: 96, y: 114 };
-        apex = knee;
-        startDeg = -114;
-        endDeg = -74;
-        rSector = 14;
-        labelDeg = -94;
+        knee = { x: 92, y: 88 }; ankle = { x: 96, y: 114 };
+        apex = knee; startDeg = -114; endDeg = -74; rSector = 14; labelDeg = -94;
       }
       break;
     }
-
-    case 'push_up':
-    case 'ab_coaster_crunch': {
+    case 'push_up': {
       propEl = <line x1={22} y1={104} x2={138} y2={104} stroke="#475569" strokeWidth={2.5} />;
-      ankle = { x: 32, y: 102 };
-      knee = { x: 58, y: 92 };
-      hip = { x: 84, y: 82 };
-      sh = { x: 112, y: 74 };
-      neck = { x: 118, y: 72 };
-      head = { x: 128, y: 72 };
+      ankle = { x: 32, y: 102 }; knee = { x: 58, y: 92 }; hip = { x: 84, y: 82 };
+      sh = { x: 112, y: 74 }; neck = { x: 118, y: 72 }; head = { x: 128, y: 72 };
       if (isEcc) {
-        elbow = { x: 104, y: 90 };
-        wrist = { x: 118, y: 102 };
-        apex = elbow;
-        startDeg = -132;
-        endDeg = -46;
-        rSector = 13;
-        labelDeg = -89;
+        elbow = { x: 104, y: 90 }; wrist = { x: 118, y: 102 };
+        apex = elbow; startDeg = -132; endDeg = -46; rSector = 13; labelDeg = -89;
       } else {
-        elbow = { x: 114, y: 89 };
-        wrist = { x: 116, y: 102 };
-        apex = elbow;
-        startDeg = -112;
-        endDeg = -76;
-        rSector = 13;
-        labelDeg = -94;
+        elbow = { x: 114, y: 89 }; wrist = { x: 116, y: 102 };
+        apex = elbow; startDeg = -112; endDeg = -76; rSector = 13; labelDeg = -94;
       }
       break;
     }
-
-    case 'military_press':
+    case 'ab_coaster_crunch': {
+      propEl = <path d="M 38 106 Q 76 92 114 68" fill="none" stroke="#64748b" strokeWidth={2.5} strokeDasharray="3 2" />;
+      ankle = { x: 38, y: 106 }; knee = { x: 64, y: 96 };
+      if (isEcc) {
+        hip = { x: 78, y: 84 }; sh = { x: 104, y: 76 }; neck = { x: 110, y: 73 }; head = { x: 118, y: 70 };
+        elbow = { x: 96, y: 88 }; wrist = { x: 84, y: 86 };
+        apex = hip; startDeg = -22; endDeg = 42; rSector = 14; labelDeg = 10;
+      } else {
+        hip = { x: 76, y: 88 }; sh = { x: 84, y: 60 }; neck = { x: 86, y: 54 }; head = { x: 90, y: 46 };
+        elbow = { x: 96, y: 72 }; wrist = { x: 86, y: 64 };
+        apex = hip; startDeg = -74; endDeg = -22; rSector = 14; labelDeg = -48;
+      }
+      break;
+    }
+    case 'military_press': {
+      head = { x: 80, y: 24 }; neck = { x: 80, y: 34 }; sh = { x: 80, y: 39 };
+      hip = { x: 80, y: 68 }; knee = { x: 80, y: 92 }; ankle = { x: 80, y: 114 };
+      if (isEcc) {
+        elbow = { x: 94, y: 52 }; wrist = { x: 96, y: 34 };
+        propEl = <line x1={74} y1={34} x2={112} y2={34} stroke="#94a3b8" strokeWidth={2.5} />;
+        apex = elbow; startDeg = -78; endDeg = 68; rSector = 13; labelDeg = -5;
+      } else {
+        elbow = { x: 86, y: 24 }; wrist = { x: 88, y: 8 };
+        propEl = <line x1={68} y1={8} x2={108} y2={8} stroke="#94a3b8" strokeWidth={2.5} />;
+        apex = elbow; startDeg = -84; endDeg = 68; rSector = 13; labelDeg = -8;
+      }
+      break;
+    }
     case 'arnold_press': {
-      head = { x: 80, y: 24 };
-      neck = { x: 80, y: 34 };
-      sh = { x: 80, y: 39 };
-      hip = { x: 80, y: 68 };
-      knee = { x: 76, y: 92 };
-      ankle = { x: 76, y: 114 };
+      head = { x: 80, y: 24 }; neck = { x: 80, y: 34 }; sh = { x: 80, y: 39 };
+      hip = { x: 80, y: 68 }; knee = { x: 80, y: 92 }; ankle = { x: 80, y: 114 };
       if (isEcc) {
-        elbow = { x: 96, y: 46 };
-        wrist = { x: 92, y: 28 };
-        apex = elbow;
-        startDeg = 18;
-        endDeg = 112;
-        rSector = 13;
-        labelDeg = 65;
+        elbow = { x: 92, y: 54 }; wrist = { x: 88, y: 38 };
+        propEl = <rect x={85} y={32} width={7} height={10} rx={2} fill="#f59e0b" />;
+        apex = sh; startDeg = 28; endDeg = 90; rSector = 14; labelDeg = 59;
       } else {
-        elbow = { x: 92, y: 28 };
-        wrist = { x: 92, y: 12 };
-        apex = elbow;
-        startDeg = 88;
-        endDeg = 156;
-        rSector = 12;
-        labelDeg = 122;
+        elbow = { x: 92, y: 24 }; wrist = { x: 96, y: 8 };
+        propEl = <rect x={93} y={3} width={7} height={10} rx={2} fill="#38bdf8" />;
+        apex = sh; startDeg = -64; endDeg = 90; rSector = 14; labelDeg = 13;
       }
       break;
     }
-
-    case 'curl_bicipiti':
-    case 'hammer_curl':
+    case 'shoulder_press': {
+      propEl = <rect x={54} y={68} width={14} height={46} rx={3} fill="#334155" />;
+      head = { x: 80, y: 22 }; neck = { x: 80, y: 32 }; sh = { x: 80, y: 37 };
+      hip = { x: 78, y: 68 }; knee = { x: 94, y: 88 }; ankle = { x: 92, y: 112 };
+      if (isEcc) {
+        elbow = { x: 94, y: 50 }; wrist = { x: 96, y: 32 };
+        apex = elbow; startDeg = -78; endDeg = 68; rSector = 13; labelDeg = -5;
+      } else {
+        elbow = { x: 86, y: 22 }; wrist = { x: 88, y: 6 };
+        apex = elbow; startDeg = -84; endDeg = 68; rSector = 13; labelDeg = -8;
+      }
+      break;
+    }
+    case 'chest_press': {
+      propEl = <rect x={54} y={68} width={14} height={46} rx={3} fill="#334155" />;
+      head = { x: 78, y: 24 }; neck = { x: 78, y: 34 }; sh = { x: 78, y: 39 };
+      hip = { x: 76, y: 68 }; knee = { x: 94, y: 88 }; ankle = { x: 92, y: 112 };
+      if (isEcc) {
+        elbow = { x: 84, y: 54 }; wrist = { x: 98, y: 52 };
+        apex = elbow; startDeg = -6; endDeg = 76; rSector = 13; labelDeg = 35;
+      } else {
+        elbow = { x: 96, y: 44 }; wrist = { x: 116, y: 44 };
+        apex = elbow; startDeg = 0; endDeg = 152; rSector = 13; labelDeg = 76;
+      }
+      break;
+    }
+    case 'curl_bicipiti': {
+      head = { x: 78, y: 20 }; neck = { x: 78, y: 31 }; sh = { x: 78, y: 36 };
+      hip = { x: 78, y: 68 }; knee = { x: 78, y: 92 }; ankle = { x: 78, y: 114 };
+      if (isEcc) {
+        elbow = { x: 82, y: 54 }; wrist = { x: 84, y: 74 };
+        apex = elbow; startDeg = 76; endDeg = 104; rSector = 13; labelDeg = 90;
+      } else {
+        elbow = { x: 82, y: 54 }; wrist = { x: 92, y: 36 };
+        apex = elbow; startDeg = -56; endDeg = 104; rSector = 13; labelDeg = 24;
+      }
+      break;
+    }
+    case 'hammer_curl': {
+      head = { x: 78, y: 20 }; neck = { x: 78, y: 31 }; sh = { x: 78, y: 36 };
+      hip = { x: 78, y: 68 }; knee = { x: 78, y: 92 }; ankle = { x: 78, y: 114 };
+      if (isEcc) {
+        elbow = { x: 82, y: 54 }; wrist = { x: 84, y: 74 };
+        propEl = <rect x={81} y={72} width={6} height={10} rx={2} fill="#f59e0b" />;
+        apex = elbow; startDeg = 76; endDeg = 104; rSector = 13; labelDeg = 90;
+      } else {
+        elbow = { x: 82, y: 54 }; wrist = { x: 94, y: 38 };
+        propEl = <rect x={92} y={32} width={6} height={10} rx={2} fill="#38bdf8" />;
+        apex = elbow; startDeg = -48; endDeg = 104; rSector = 13; labelDeg = 28;
+      }
+      break;
+    }
     case 'curl_panca_scott': {
-      head = { x: 76, y: 20 };
-      neck = { x: 77, y: 31 };
-      sh = { x: 78, y: 36 };
-      hip = { x: 78, y: 68 };
-      knee = { x: 78, y: 92 };
-      ankle = { x: 78, y: 114 };
-      elbow = { x: 80, y: 60 };
+      propEl = <polygon points="78,52 108,74 102,80 74,58" fill="#334155" />;
+      head = { x: 64, y: 26 }; neck = { x: 70, y: 34 }; sh = { x: 74, y: 38 };
+      hip = { x: 94, y: 68 }; knee = { x: 108, y: 88 }; ankle = { x: 106, y: 112 };
       if (isEcc) {
-        wrist = { x: 84, y: 82 };
-        apex = elbow;
-        startDeg = -94;
-        endDeg = -64;
-        rSector = 14;
-        labelDeg = -79;
+        elbow = { x: 90, y: 56 }; wrist = { x: 104, y: 68 };
+        apex = elbow; startDeg = 42; endDeg = 128; rSector = 13; labelDeg = 85;
       } else {
-        wrist = { x: 94, y: 42 };
-        apex = elbow;
-        startDeg = -94;
-        endDeg = 28;
-        rSector = 14;
-        labelDeg = -33;
+        elbow = { x: 90, y: 56 }; wrist = { x: 96, y: 36 };
+        apex = elbow; startDeg = -72; endDeg = 128; rSector = 13; labelDeg = 28;
       }
       break;
     }
-
-    case 'rematore_bilanciere':
+    case 'rematore_bilanciere': {
+      head = { x: 104, y: 48 }; neck = { x: 96, y: 54 }; sh = { x: 92, y: 58 };
+      hip = { x: 66, y: 68 }; knee = { x: 76, y: 90 }; ankle = { x: 74, y: 114 };
+      if (isEcc) {
+        elbow = { x: 90, y: 78 }; wrist = { x: 92, y: 98 };
+        propEl = <line x1={76} y1={98} x2={106} y2={98} stroke="#94a3b8" strokeWidth={2.5} />;
+        apex = elbow; startDeg = -72; endDeg = 82; rSector = 13; labelDeg = 5;
+      } else {
+        elbow = { x: 84, y: 72 }; wrist = { x: 96, y: 66 };
+        propEl = <line x1={82} y1={66} x2={110} y2={66} stroke="#38bdf8" strokeWidth={2.5} />;
+        apex = elbow; startDeg = -28; endDeg = 152; rSector = 13; labelDeg = 62;
+      }
+      break;
+    }
     case 'rematore_manubrio': {
-      head = { x: 102, y: 48 };
-      neck = { x: 94, y: 54 };
-      sh = { x: 90, y: 58 };
-      hip = { x: 64, y: 68 };
-      knee = { x: 76, y: 91 };
-      ankle = { x: 76, y: 114 };
+      ankle = { x: 42, y: 112 }; knee = { x: 56, y: 90 }; backKnee = { x: 88, y: 71 }; backAnkle = { x: 88, y: 112 };
+      hip = { x: 64, y: 64 }; sh = { x: 96, y: 58 }; neck = { x: 102, y: 54 }; head = { x: 110, y: 50 };
       if (isEcc) {
-        elbow = { x: 88, y: 78 };
-        wrist = { x: 88, y: 96 };
-        apex = elbow;
-        startDeg = -92;
-        endDeg = -18;
-        rSector = 13;
-        labelDeg = -55;
+        elbow = { x: 94, y: 78 }; wrist = { x: 96, y: 96 };
+        propEl = (<><rect x={54} y={64} width={44} height={7} rx={3} fill="#334155" /><rect x={92} y={94} width={8} height={9} rx={2} fill="#f59e0b" /></>);
+        apex = elbow; startDeg = -76; endDeg = 82; rSector = 13; labelDeg = 3;
       } else {
-        elbow = { x: 82, y: 64 };
-        wrist = { x: 92, y: 54 };
-        apex = elbow;
-        startDeg = -28;
-        endDeg = 46;
-        rSector = 13;
-        labelDeg = 9;
+        elbow = { x: 88, y: 72 }; wrist = { x: 98, y: 64 };
+        propEl = (<><rect x={54} y={64} width={44} height={7} rx={3} fill="#334155" /><rect x={95} y={59} width={8} height={9} rx={2} fill="#38bdf8" /></>);
+        apex = elbow; startDeg = -36; endDeg = 146; rSector = 13; labelDeg = 55;
       }
       break;
     }
-
-    case 'lat_machine':
-    case 'lat_machine_presa_inversa':
+    case 'lat_machine': {
+      propEl = <line x1={62} y1={12} x2={114} y2={12} stroke="#94a3b8" strokeWidth={2.5} />;
+      head = { x: 80, y: 34 }; neck = { x: 80, y: 44 }; sh = { x: 80, y: 48 };
+      hip = { x: 80, y: 76 }; knee = { x: 92, y: 92 }; ankle = { x: 90, y: 112 };
+      if (isEcc) {
+        elbow = { x: 92, y: 30 }; wrist = { x: 96, y: 12 };
+        apex = elbow; startDeg = -76; endDeg = 112; rSector = 13; labelDeg = 18;
+      } else {
+        elbow = { x: 96, y: 58 }; wrist = { x: 88, y: 44 };
+        propEl = <line x1={66} y1={44} x2={106} y2={44} stroke="#38bdf8" strokeWidth={2.5} />;
+        apex = elbow; startDeg = -58; endDeg = 68; rSector = 13; labelDeg = 5;
+      }
+      break;
+    }
+    case 'lat_machine_presa_inversa': {
+      propEl = <line x1={68} y1={12} x2={106} y2={12} stroke="#94a3b8" strokeWidth={2.5} />;
+      head = { x: 80, y: 34 }; neck = { x: 80, y: 44 }; sh = { x: 80, y: 48 };
+      hip = { x: 80, y: 76 }; knee = { x: 92, y: 92 }; ankle = { x: 90, y: 112 };
+      if (isEcc) {
+        elbow = { x: 88, y: 30 }; wrist = { x: 90, y: 12 };
+        apex = elbow; startDeg = -82; endDeg = 108; rSector = 13; labelDeg = 13;
+      } else {
+        elbow = { x: 84, y: 62 }; wrist = { x: 88, y: 44 };
+        propEl = <line x1={70} y1={44} x2={104} y2={44} stroke="#38bdf8" strokeWidth={2.5} />;
+        apex = elbow; startDeg = -68; endDeg = 78; rSector = 13; labelDeg = 5;
+      }
+      break;
+    }
     case 'face_pull': {
-      head = { x: 80, y: 34 };
-      neck = { x: 80, y: 43 };
-      sh = { x: 80, y: 47 };
-      hip = { x: 78, y: 75 };
-      knee = { x: 96, y: 84 };
-      ankle = { x: 96, y: 112 };
+      head = { x: 78, y: 24 }; neck = { x: 78, y: 34 }; sh = { x: 78, y: 39 };
+      hip = { x: 78, y: 68 }; knee = { x: 78, y: 92 }; ankle = { x: 78, y: 114 };
       if (isEcc) {
-        elbow = { x: 86, y: 34 };
-        wrist = { x: 82, y: 22 };
-        apex = elbow;
-        startDeg = 22;
-        endDeg = 128;
-        rSector = 13;
-        labelDeg = 75;
+        elbow = { x: 98, y: 38 }; wrist = { x: 118, y: 34 };
+        apex = elbow; startDeg = -14; endDeg = 148; rSector = 13; labelDeg = 67;
       } else {
-        elbow = { x: 96, y: 56 };
-        wrist = { x: 84, y: 42 };
-        apex = elbow;
-        startDeg = -132;
-        endDeg = -46;
-        rSector = 13;
-        labelDeg = -89;
+        elbow = { x: 98, y: 42 }; wrist = { x: 92, y: 26 };
+        apex = elbow; startDeg = -68; endDeg = 48; rSector = 13; labelDeg = -10;
       }
       break;
     }
-
-    case 'pulley_basso':
+    case 'pulley_basso': {
+      propEl = <line x1={54} y1={96} x2={118} y2={96} stroke="#475569" strokeWidth={2.5} />;
+      head = { x: 76, y: 26 }; neck = { x: 76, y: 36 }; sh = { x: 76, y: 41 };
+      hip = { x: 74, y: 74 }; knee = { x: 98, y: 74 }; ankle = { x: 102, y: 95 };
+      if (isEcc) {
+        elbow = { x: 84, y: 58 }; wrist = { x: 104, y: 64 };
+        apex = elbow; startDeg = 16; endDeg = 104; rSector = 13; labelDeg = 60;
+      } else {
+        elbow = { x: 78, y: 58 }; wrist = { x: 90, y: 52 };
+        apex = elbow; startDeg = -28; endDeg = 96; rSector = 13; labelDeg = 34;
+      }
+      break;
+    }
     case 'pullover_cavi': {
-      head = { x: 78, y: 28 };
-      neck = { x: 78, y: 38 };
-      sh = { x: 78, y: 42 };
-      hip = { x: 76, y: 74 };
-      knee = { x: 98, y: 82 };
-      ankle = { x: 102, y: 112 };
+      propEl = <rect x={34} y={76} width={72} height={7} rx={3} fill="#334155" />;
+      head = { x: 44, y: 67 }; neck = { x: 54, y: 71 }; sh = { x: 60, y: 72 };
+      hip = { x: 94, y: 72 }; knee = { x: 112, y: 88 }; ankle = { x: 114, y: 112 };
       if (isEcc) {
-        elbow = { x: 96, y: 56 };
-        wrist = { x: 114, y: 66 };
-        apex = elbow;
-        startDeg = -146;
-        endDeg = -32;
-        rSector = 13;
-        labelDeg = -89;
+        elbow = { x: 48, y: 56 }; wrist = { x: 34, y: 46 };
+        apex = sh; startDeg = -146; endDeg = 0; rSector = 14; labelDeg = -73;
       } else {
-        elbow = { x: 74, y: 58 };
-        wrist = { x: 90, y: 52 };
-        apex = elbow;
-        startDeg = -18;
-        endDeg = 76;
-        rSector = 13;
-        labelDeg = 29;
+        elbow = { x: 66, y: 52 }; wrist = { x: 76, y: 36 };
+        apex = sh; startDeg = -58; endDeg = 0; rSector = 14; labelDeg = -29;
       }
       break;
     }
-
     case 'leg_extension': {
-      head = { x: 64, y: 26 };
-      neck = { x: 66, y: 36 };
-      sh = { x: 67, y: 41 };
-      hip = { x: 72, y: 66 };
-      knee = { x: 92, y: 68 };
-      elbow = { x: 74, y: 54 };
-      wrist = { x: 80, y: 66 };
+      propEl = <rect x={54} y={66} width={28} height={38} rx={3} fill="#334155" />;
+      head = { x: 66, y: 24 }; neck = { x: 68, y: 34 }; sh = { x: 68, y: 39 };
+      hip = { x: 68, y: 68 }; knee = { x: 82, y: 74 }; elbow = { x: 74, y: 54 }; wrist = { x: 82, y: 66 };
       if (isEcc) {
-        ankle = { x: 92, y: 98 };
-        apex = knee;
-        startDeg = -176;
-        endDeg = -92;
-        rSector = 14;
-        labelDeg = -134;
+        ankle = { x: 86, y: 98 };
+        apex = knee; startDeg = 76; endDeg = 162; rSector = 14; labelDeg = 119;
       } else {
-        ankle = { x: 124, y: 68 };
-        apex = knee;
-        startDeg = -176;
-        endDeg = 0;
-        rSector = 14;
-        labelDeg = -88;
+        ankle = { x: 116, y: 74 };
+        apex = knee; startDeg = 0; endDeg = 162; rSector = 14; labelDeg = 81;
       }
       break;
     }
-
     case 'leg_curl': {
-      propEl = <rect x={36} y={66} width={76} height={8} rx={3} fill="#334155" />;
-      head = { x: 108, y: 58 };
-      neck = { x: 98, y: 62 };
-      sh = { x: 94, y: 64 };
-      hip = { x: 64, y: 64 };
-      knee = { x: 44, y: 64 };
-      elbow = { x: 90, y: 74 };
-      wrist = { x: 104, y: 74 };
+      propEl = <rect x={52} y={76} width={54} height={7} rx={3} fill="#334155" />;
+      head = { x: 40, y: 74 }; neck = { x: 48, y: 72 }; sh = { x: 54, y: 72 };
+      hip = { x: 92, y: 72 }; knee = { x: 112, y: 76 }; elbow = { x: 68, y: 84 }; wrist = { x: 82, y: 82 };
       if (isEcc) {
-        ankle = { x: 20, y: 68 };
-        apex = knee;
-        startDeg = -6;
-        endDeg = 166;
-        rSector = 13;
-        labelDeg = 80;
+        ankle = { x: 126, y: 88 };
+        apex = knee; startDeg = 32; endDeg = 168; rSector = 14; labelDeg = 100;
       } else {
-        ankle = { x: 46, y: 88 };
-        apex = knee;
-        startDeg = -6;
-        endDeg = 82;
-        rSector = 13;
-        labelDeg = 38;
+        ankle = { x: 112, y: 54 };
+        apex = knee; startDeg = -90; endDeg = 168; rSector = 14; labelDeg = 39;
       }
       break;
     }
-
-    case 'chest_press':
-    case 'shoulder_press':
-    case 'hip_thrust': {
-      head = { x: 78, y: 28 };
-      neck = { x: 78, y: 38 };
-      sh = { x: 78, y: 42 };
-      hip = { x: 76, y: 72 };
-      knee = { x: 96, y: 82 };
-      ankle = { x: 98, y: 112 };
+    case 'pushdown_cavi': {
+      head = { x: 78, y: 22 }; neck = { x: 78, y: 32 }; sh = { x: 78, y: 37 };
+      hip = { x: 78, y: 68 }; knee = { x: 78, y: 92 }; ankle = { x: 78, y: 114 };
       if (isEcc) {
-        elbow = { x: 74, y: 56 };
-        wrist = { x: 92, y: 52 };
-        apex = elbow;
-        startDeg = -16;
-        endDeg = 76;
-        rSector = 13;
-        labelDeg = 30;
+        elbow = { x: 82, y: 54 }; wrist = { x: 96, y: 42 };
+        apex = elbow; startDeg = -42; endDeg = 104; rSector = 13; labelDeg = 31;
       } else {
-        elbow = { x: 96, y: 50 };
-        wrist = { x: 114, y: 50 };
-        apex = elbow;
-        startDeg = -176;
-        endDeg = -2;
-        rSector = 13;
-        labelDeg = -89;
+        elbow = { x: 82, y: 54 }; wrist = { x: 92, y: 74 };
+        apex = elbow; startDeg = 64; endDeg = 104; rSector = 13; labelDeg = 84;
       }
       break;
     }
-
-    case 'pushdown_cavi':
-    case 'chest_dips':
+    case 'chest_dips': {
+      propEl = <rect x={68} y={76} width={28} height={5} rx={2} fill="#64748b" />;
+      head = { x: 84, y: 26 }; neck = { x: 82, y: 36 }; sh = { x: 80, y: 41 };
+      hip = { x: 72, y: 70 }; knee = { x: 64, y: 90 }; ankle = { x: 62, y: 110 };
+      if (isEcc) {
+        elbow = { x: 92, y: 60 }; wrist = { x: 82, y: 76 };
+        apex = elbow; startDeg = -58; endDeg = 114; rSector = 13; labelDeg = 28;
+      } else {
+        elbow = { x: 84, y: 60 }; wrist = { x: 82, y: 76 };
+        apex = elbow; startDeg = 76; endDeg = 104; rSector = 13; labelDeg = 90;
+      }
+      break;
+    }
     case 'calf_raise_in_piedi': {
-      head = { x: 78, y: 22 };
-      neck = { x: 78, y: 32 };
-      sh = { x: 78, y: 37 };
-      hip = { x: 78, y: 68 };
-      knee = { x: 78, y: 92 };
-      ankle = { x: 78, y: 114 };
-      elbow = { x: 80, y: 56 };
+      head = { x: 80, y: 18 }; neck = { x: 80, y: 29 }; sh = { x: 80, y: 34 };
+      hip = { x: 80, y: 65 }; knee = { x: 80, y: 90 }; wrist = { x: 82, y: 68 }; elbow = { x: 82, y: 52 };
       if (isEcc) {
-        wrist = { x: 96, y: 46 };
-        apex = elbow;
-        startDeg = -92;
-        endDeg = -22;
-        rSector = 13;
-        labelDeg = -57;
+        ankle = { x: 80, y: 112 };
+        propEl = <line x1={74} y1={114} x2={94} y2={114} stroke="#facc15" strokeWidth={2.5} />;
+        apex = ankle; startDeg = -90; endDeg = 0; rSector = 13; labelDeg = -45;
       } else {
-        wrist = { x: 84, y: 78 };
-        apex = elbow;
-        startDeg = -92;
-        endDeg = -72;
-        rSector = 13;
-        labelDeg = -82;
+        ankle = { x: 80, y: 104 };
+        propEl = <line x1={80} y1={114} x2={96} y2={114} stroke="#38bdf8" strokeWidth={2.5} />;
+        apex = ankle; startDeg = -90; endDeg = 28; rSector = 13; labelDeg = -31;
       }
       break;
     }
-
     case 'trazioni_sbarra': {
-      head = { x: 80, y: 40 };
-      neck = { x: 80, y: 49 };
-      sh = { x: 80, y: 53 };
-      hip = { x: 80, y: 80 };
-      knee = { x: 78, y: 98 };
-      ankle = { x: 78, y: 114 };
-      elbow = { x: 90, y: 34 };
-      wrist = { x: 86, y: 14 };
-      apex = elbow;
-      startDeg = 18;
-      endDeg = 126;
-      rSector = 13;
-      labelDeg = 72;
+      propEl = <line x1={54} y1={12} x2={116} y2={12} stroke="#94a3b8" strokeWidth={2.5} />;
+      if (isEcc) {
+        head = { x: 80, y: 42 }; neck = { x: 80, y: 51 }; sh = { x: 80, y: 55 };
+        hip = { x: 80, y: 82 }; knee = { x: 78, y: 100 }; ankle = { x: 78, y: 115 };
+        elbow = { x: 88, y: 34 }; wrist = { x: 86, y: 12 };
+        apex = elbow; startDeg = 24; endDeg = 122; rSector = 13; labelDeg = 73;
+      } else {
+        head = { x: 80, y: 24 }; neck = { x: 80, y: 33 }; sh = { x: 80, y: 37 };
+        hip = { x: 80, y: 66 }; knee = { x: 78, y: 88 }; ankle = { x: 78, y: 108 };
+        elbow = { x: 96, y: 26 }; wrist = { x: 86, y: 12 };
+        apex = elbow; startDeg = -38; endDeg = 148; rSector = 13; labelDeg = 55;
+      }
       break;
     }
   }
