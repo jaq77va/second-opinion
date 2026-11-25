@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
@@ -1080,6 +1080,11 @@ export function App() {
   const [cookieForceOpenKey, setCookieForceOpenKey] = useState<number>(0);
   const [analyticsConsent, setAnalyticsConsent] = useState<boolean>(false);
 
+  const sortedExercises = useMemo(
+    () => [...EXERCISES].sort((a, b) => a.label.localeCompare(b.label, 'it', { sensitivity: 'base' })),
+    []
+  );
+
   const [selectedExercise, setSelectedExercise] = useState<Exercise>('squat');
   const [weightKg, setWeightKg] = useState<number>(20);
   const [statusCode, setStatusCode] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
@@ -1376,7 +1381,7 @@ export function App() {
 
   useEffect(() => {
     if (isGuidesOpen || isAnglesGuideOpen || !carouselRef.current) return;
-    const idx = EXERCISES.findIndex((ex) => ex.id === selectedExercise);
+    const idx = sortedExercises.findIndex((ex) => ex.id === selectedExercise);
     if (idx < 0) return;
 
     const container = carouselRef.current;
@@ -1397,7 +1402,7 @@ export function App() {
         isProgrammaticScrollRef.current = false;
       }, 350);
     }
-  }, [selectedExercise, isGuidesOpen, isAnglesGuideOpen]);
+  }, [selectedExercise, isGuidesOpen, isAnglesGuideOpen, sortedExercises]);
 
   useEffect(() => {
     if (statusCode !== 'success') return;
@@ -1757,9 +1762,9 @@ export function App() {
 
   const selectedExerciseIndex = Math.max(
     0,
-    EXERCISES.findIndex((ex) => ex.id === selectedExercise)
+    sortedExercises.findIndex((ex) => ex.id === selectedExercise)
   );
-  const selectedExerciseObj: ExerciseConfig = EXERCISES[selectedExerciseIndex] || EXERCISES[0];
+  const selectedExerciseObj: ExerciseConfig = sortedExercises[selectedExerciseIndex] || sortedExercises[0];
   const isExerciseLocked = !isExerciseUnlockedForPlan(
     currentPlan,
     selectedExerciseObj.id,
@@ -1776,14 +1781,14 @@ export function App() {
   const scrollCarousel = (direction: 'left' | 'right') => {
     if (!carouselRef.current || areExerciseAndWeightLocked) return;
     const delta = direction === 'left' ? -1 : 1;
-    const targetIndex = Math.max(0, Math.min(EXERCISES.length - 1, selectedExerciseIndex + delta));
-    setSelectedExercise(EXERCISES[targetIndex].id);
+    const targetIndex = Math.max(0, Math.min(sortedExercises.length - 1, selectedExerciseIndex + delta));
+    setSelectedExercise(sortedExercises[targetIndex].id);
   };
 
   const handleExerciseSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (areExerciseAndWeightLocked) return;
     const chosenId = e.target.value as Exercise;
-    const matched = EXERCISES.find((ex) => ex.id === chosenId);
+    const matched = sortedExercises.find((ex) => ex.id === chosenId);
     if (matched) {
       setSelectedExercise(matched.id);
     }
@@ -1802,8 +1807,8 @@ export function App() {
       const itemWidth = container.clientWidth;
       if (itemWidth <= 0) return;
       const idx = Math.round(container.scrollLeft / itemWidth);
-      const clampedIdx = Math.max(0, Math.min(EXERCISES.length - 1, idx));
-      const targetExercise = EXERCISES[clampedIdx]?.id;
+      const clampedIdx = Math.max(0, Math.min(sortedExercises.length - 1, idx));
+      const targetExercise = sortedExercises[clampedIdx]?.id;
       if (targetExercise && targetExercise !== selectedExercise) {
         setSelectedExercise(targetExercise);
       }
@@ -2607,7 +2612,7 @@ export function App() {
           initialExerciseId={guideInitialExercise}
           readOnlySelection={areExerciseAndWeightLocked}
           onSelectExercise={(exId) => {
-            const matched = EXERCISES.find((ex) => ex.id === exId);
+            const matched = sortedExercises.find((ex) => ex.id === exId);
             if (matched && !areExerciseAndWeightLocked) {
               setSelectedExercise(matched.id);
             }
@@ -2616,7 +2621,7 @@ export function App() {
             setIsGuidesOpen(false);
             if (!areExerciseAndWeightLocked) {
               const targetId = chosenExerciseId ?? guideInitialExercise;
-              const matched = EXERCISES.find((ex) => ex.id === targetId);
+              const matched = sortedExercises.find((ex) => ex.id === targetId);
               if (matched) {
                 setSelectedExercise(matched.id);
               }
@@ -2636,7 +2641,7 @@ export function App() {
           initialExerciseId={selectedExercise as GuideExerciseId}
           readOnlySelection={areExerciseAndWeightLocked}
           onSelectExercise={(exId: GuideExerciseId) => {
-            const matched = EXERCISES.find((ex) => ex.id === exId);
+            const matched = sortedExercises.find((ex) => ex.id === exId);
             if (matched && !areExerciseAndWeightLocked) {
               setSelectedExercise(matched.id);
             }
@@ -2644,7 +2649,7 @@ export function App() {
           onClose={(chosenExerciseId) => {
             setIsAnglesGuideOpen(false);
             if (!areExerciseAndWeightLocked && chosenExerciseId) {
-              const matched = EXERCISES.find((ex) => ex.id === chosenExerciseId);
+              const matched = sortedExercises.find((ex) => ex.id === chosenExerciseId);
               if (matched) {
                 setSelectedExercise(matched.id);
               }
@@ -2725,7 +2730,7 @@ export function App() {
               1. Seleziona l'esercizio
             </label>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
-              {selectedExerciseIndex + 1} / {EXERCISES.length}
+              {selectedExerciseIndex + 1} / {sortedExercises.length}
             </span>
           </div>
 
@@ -2756,7 +2761,7 @@ export function App() {
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.25)',
               }}
             >
-              {EXERCISES.map((ex, idx) => {
+              {sortedExercises.map((ex, idx) => {
                 const locked = !isExerciseUnlockedForPlan(currentPlan, ex.id, ex.isTrialAllowed);
                 return (
                   <option key={ex.id} value={ex.id}>
@@ -2807,7 +2812,7 @@ export function App() {
                 borderRadius: 14,
               }}
             >
-              {EXERCISES.map((ex) => {
+              {sortedExercises.map((ex) => {
                 const isSelected = selectedExercise === ex.id;
                 const locked = !isExerciseUnlockedForPlan(currentPlan, ex.id, ex.isTrialAllowed);
                 return (
