@@ -80,6 +80,16 @@ export interface AnalysisResult {
   trendSummary: string;
 }
 
+export type VideoMismatchCode = 'no_person' | 'no_joint_movement' | 'missing_key_joints';
+
+export interface ExerciseVideoValidationResult {
+  isValid: boolean;
+  code?: VideoMismatchCode;
+  detectedSubject: string;
+  reason: string;
+  realPoseRatio: number;
+}
+
 export const EXERCISES: ExerciseConfig[] = [
   // --- 20 ESERCIZI BASE ---
   {
@@ -688,7 +698,6 @@ export function getTripletAngleSafe(
   if (hasVisibleJoints(landmarks, triplet, minVis, rejectInferred)) {
     return computeAngle(landmarks[triplet[0]], landmarks[triplet[1]], landmarks[triplet[2]]);
   }
-  // Fallback su tallone/piede per caviglia (31/32 -> 29/30)
   if (triplet[2] === 31 || triplet[2] === 32) {
     const altIdx = triplet[2] === 31 ? 29 : 30;
     const altTriplet: [number, number, number] = [triplet[0], triplet[1], altIdx];
@@ -745,6 +754,61 @@ export function computeRomPercent(exercise: ExerciseId, angleDeg: number | null)
   }
 
   return Math.max(0, Math.min(100, Math.round(rom)));
+}
+
+export function validateExerciseMotionAndPose(
+  exercise: ExerciseId,
+  framesLandmarks: JointPoint[][],
+  sampledFramesCount: number,
+  rawDetectedFramesCount: number
+): ExerciseVideoValidationResult {
+  const cfg = getExerciseConfig(exercise);
+  const totalSamples = Math.max(sampledFramesCount, framesLandmarks.length, 1);
+  const realPoseRatio = Math.max(0, Math.min(1, rawDetectedFramesCount / totalSamples));
+
+  if (rawDetectedFramesCount === 0 || realPoseRatio < 0.22) {
+    return {
+      isValid: false,
+      code: 'no_person',
+      detectedSubject: 'Soggetto non umano o persona non rilevata',
+      reason: `Nel video non è stata rilevata una figura umana coerente con l'esercizio "${cfg.label}". Assicurati di caricare un filmato in cui la persona sia ben visibile.`,
+      realPoseRatio,
+    };
+  }
+
+  const angles: number[] = [];
+  for (const lm of framesLandmarks) {
+    const val = extractExerciseAngleValue(exercise, lm, 0.45);
+    if (val !== null) angles.push(val);
+  }
+
+  if (angles.length < 2) {
+    return {
+      isValid: false,
+      code: 'missing_key_joints',
+      detectedSubject: 'Articolazioni chiave non visibili',
+      reason: `Le articolazioni principali per "${cfg.label}" non sono risultate visibili in modo affidabile nel video (${cfg.viewHint.toLowerCase()}).`,
+      realPoseRatio,
+    };
+  }
+
+  const excursion = Math.max(...angles) - Math.min(...angles);
+  if (excursion < 10) {
+    return {
+      isValid: false,
+      code: 'no_joint_movement',
+      detectedSubject: 'Movimento articolare assente o non coerente',
+      reason: `Non è stata rilevata un'escursione articolare significativa per "${cfg.label}" (escursione di soli ${excursion}°). Verifica che il video mostri davvero l'esecuzione dell'esercizio selezionato.`,
+      realPoseRatio,
+    };
+  }
+
+  return {
+    isValid: true,
+    detectedSubject: cfg.label,
+    reason: 'Rilevazione scheletrica e movimento coerenti.',
+    realPoseRatio,
+  };
 }
 
 export function analyzeExerciseGeometry(

@@ -7,15 +7,24 @@ export interface CoachTelemetryContext {
   avgPowerW?: number;
   maxAsymmetryDeg?: number | null;
   torsoOscillationDeg?: number | null;
+  keyframes?: string[];
+  validateExerciseMatch?: boolean;
 }
 
-export async function getGeminiFeedback(
+export interface CoachFeedbackResponse {
+  feedback: string;
+  isExerciseMatch: boolean;
+  detectedSubject?: string;
+  mismatchReason?: string;
+}
+
+export async function requestGeminiCoachAnalysis(
   exercise: string,
   minAngle: number,
   maxAngle: number,
   angleTrendSummary: string,
   telemetry?: CoachTelemetryContext
-): Promise<string> {
+): Promise<CoachFeedbackResponse> {
   try {
     const response = await fetch('/api/coach', {
       method: 'POST',
@@ -28,6 +37,8 @@ export async function getGeminiFeedback(
         maxAngle,
         trendSummary: angleTrendSummary,
         telemetry,
+        keyframes: telemetry?.keyframes,
+        validateExerciseMatch: Boolean(telemetry?.validateExerciseMatch),
       }),
     });
 
@@ -37,8 +48,50 @@ export async function getGeminiFeedback(
     }
 
     const data = await response.json();
-    return data.feedback;
+
+    if (data && data.isExerciseMatch === false) {
+      return {
+        feedback: '',
+        isExerciseMatch: false,
+        detectedSubject:
+          typeof data.detectedSubject === 'string' && data.detectedSubject.trim()
+            ? data.detectedSubject.trim()
+            : 'Contenuto non corrispondente',
+        mismatchReason:
+          typeof data.mismatchReason === 'string' && data.mismatchReason.trim()
+            ? data.mismatchReason.trim()
+            : `Il video caricato non sembra mostrare l'esercizio "${exercise}".`,
+      };
+    }
+
+    return {
+      feedback: typeof data?.feedback === 'string' ? data.feedback : '',
+      isExerciseMatch: true,
+      detectedSubject: typeof data?.detectedSubject === 'string' ? data.detectedSubject : undefined,
+    };
   } catch (err) {
-    return `Errore di comunicazione con il coach IA: ${(err as Error).message}`;
+    throw new Error(`Errore di comunicazione con il coach IA: ${(err as Error).message}`);
   }
+}
+
+export async function getGeminiFeedback(
+  exercise: string,
+  minAngle: number,
+  maxAngle: number,
+  angleTrendSummary: string,
+  telemetry?: CoachTelemetryContext
+): Promise<string> {
+  const res = await requestGeminiCoachAnalysis(
+    exercise,
+    minAngle,
+    maxAngle,
+    angleTrendSummary,
+    telemetry
+  );
+  if (!res.isExerciseMatch) {
+    throw new Error(
+      res.mismatchReason || `Il video non corrisponde all'esercizio selezionato (${exercise}).`
+    );
+  }
+  return res.feedback;
 }

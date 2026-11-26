@@ -16,11 +16,12 @@ import {
   extractExerciseAngleValue,
   computeRomPercent,
   analyzeExerciseGeometry,
+  validateExerciseMotionAndPose,
   type ExerciseId,
   type ExerciseConfig,
   type AnalysisResult,
 } from './biomechanicsEngine';
-import { getGeminiFeedback } from './geminiCoach';
+import { requestGeminiCoachAnalysis } from './geminiCoach';
 import { logUserActivity } from './utils/activityLogger';
 
 type Exercise = ExerciseId;
@@ -47,6 +48,12 @@ interface TimedTelemetryPoint {
   torsoTiltDeg: number | null;
 }
 
+interface VideoMismatchAlert {
+  title: string;
+  message: string;
+  detectedSubject?: string;
+}
+
 const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 
 const REPLAY_SPEEDS: PlaybackSpeed[] = [1, 0.5, 0.25];
@@ -66,6 +73,30 @@ const FALLBACK_EXERCISE_CONFIG: ExerciseConfig = {
     right: [24, 26, 28],
   },
 };
+
+function captureKeyFrameDataUrl(
+  video: HTMLVideoElement,
+  maxWidth = 320,
+  quality = 0.55
+): string | null {
+  try {
+    if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+      return null;
+    }
+    const scale = Math.min(1, maxWidth / video.videoWidth);
+    const w = Math.max(64, Math.round(video.videoWidth * scale));
+    const h = Math.max(64, Math.round(video.videoHeight * scale));
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = w;
+    tempCanvas.height = h;
+    const tCtx = tempCanvas.getContext('2d');
+    if (!tCtx) return null;
+    tCtx.drawImage(video, 0, 0, w, h);
+    return tempCanvas.toDataURL('image/jpeg', quality);
+  } catch {
+    return null;
+  }
+}
 
 function getWorkingAngleTriplets(
   exercise: Exercise
@@ -1142,6 +1173,7 @@ export function App() {
   const [biomechSummary, setBiomechSummary] = useState<SessionBiomechanicsSummary | null>(null);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState<boolean>(false);
   const [lastUploadedFile, setLastUploadedFile] = useState<File | null>(null);
+  const [videoMismatchAlert, setVideoMismatchAlert] = useState<VideoMismatchAlert | null>(null);
 
   const [stickOnlyMode, setStickOnlyMode] = useState<boolean>(false);
   const [showAnglesOverlay, setShowAnglesOverlay] = useState<boolean>(true);
@@ -1298,6 +1330,7 @@ export function App() {
       setBiomechSummary(null);
       setIsAnalysisOpen(false);
       setLastUploadedFile(null);
+      setVideoMismatchAlert(null);
       setIsReplayPlaying(false);
       setReplayCurrentTime(0);
       setReplayDuration(0);
@@ -1934,6 +1967,8 @@ export function App() {
       avgPowerW: number;
       maxAsymmetryDeg: number | null;
       torsoOscillationDeg: number | null;
+      keyframes?: string[];
+      validateExerciseMatch?: boolean;
     }
   ) => {
     if (sessionIdAtStart !== undefined && analysisSessionIdRef.current !== sessionIdAtStart) {
@@ -1945,25 +1980,44 @@ export function App() {
 
     const exerciseLabel = getExerciseConfig(exerciseForCoach).label;
 
-    getGeminiFeedback(
+    requestGeminiCoachAnalysis(
       exerciseLabel,
       geomResult.minAngle,
       geomResult.maxAngle,
       geomResult.trendSummary,
       telemetryPayload
     )
-      .then(async (feedback) => {
+      .then(async (res) => {
         if (sessionIdAtStart !== undefined && analysisSessionIdRef.current !== sessionIdAtStart) {
           return;
         }
-        setAiFeedback(feedback);
+
+        if (!res.isExerciseMatch) {
+          const reasonMsg =
+            res.mismatchReason ||
+            `Il video caricato non corrisponde all'esercizio selezionato (${exerciseLabel}).`;
+          setVideoMismatchAlert({
+            title: `Video non coerente con "${exerciseLabel}"`,
+            message: reasonMsg,
+            detectedSubject: res.detectedSubject,
+          });
+          setAnalysisResult(null);
+          setBiomechSummary(null);
+          setStatusCode('error');
+          setAiFeedback(reasonMsg);
+          setAiStatusCode('error');
+          setAiStatusMessage('Video non coerente con l’esercizio selezionato');
+          return;
+        }
+
+        setAiFeedback(res.feedback);
         setAiStatusCode('success');
         setAiStatusMessage('Risposta generata con successo');
 
         await logUserActivity({
           eventType: 'exercise_analysis',
           exerciseAnalyzed: exerciseForCoach,
-          aiResponse: feedback,
+          aiResponse: res.feedback,
         });
       })
       .catch((err) => {
@@ -2053,6 +2107,9 @@ export function App() {
       const MAX_WIDTH = 480;
       const FRAME_SKIP = 3;
       let frameCounter = 0;
+      let sampledFramesCount = 0;
+      let rawDetectedFramesCount = 0;
+      const capturedKeyFrames: string[] = [];
       let targetWidth = 640;
       let targetHeight = 480;
       let rafId: number | null = null;
@@ -2084,6 +2141,11 @@ export function App() {
           rafId = null;
         }
 
+        const endFrame = captureKeyFrameDataUrl(video);
+        if (endFrame && capturedKeyFrames.length < 3) {
+          capturedKeyFrames.push(endFrame);
+        }
+
         video.pause();
         video.muted = true;
         video.playbackRate = 1;
@@ -2093,6 +2155,34 @@ export function App() {
         setReplayCurrentTime(0);
         if (video.duration && isFinite(video.duration)) {
           setReplayDuration(video.duration);
+        }
+
+        const validation = validateExerciseMotionAndPose(
+          sessionExerciseId,
+          landmarksBufferRef.current,
+          sampledFramesCount,
+          rawDetectedFramesCount
+        );
+
+        if (activeLandmarkerRef.current === landmarker) {
+          activeLandmarkerRef.current = null;
+          closeLandmarkerSafely(landmarker);
+        }
+
+        setIsProcessing(false);
+        setProgressPercent(100);
+
+        if (!validation.isValid) {
+          setVideoMismatchAlert({
+            title: `Video non coerente con "${sessionExerciseConfig.label}"`,
+            message: validation.reason,
+            detectedSubject: validation.detectedSubject,
+          });
+          setStatusCode('error');
+          setAiStatusCode('error');
+          setAiStatusMessage('Video non coerente con l’esercizio selezionato');
+          setAiFeedback(validation.reason);
+          return;
         }
 
         const startTelemetry = interpolateTimedTelemetry(timedTelemetryRef.current, 0);
@@ -2145,8 +2235,6 @@ export function App() {
           }
         }
 
-        setIsProcessing(false);
-        setProgressPercent(100);
         setStatusCode('success');
 
         const geomResult = analyzeExerciseGeometry(sessionExerciseId, landmarksBufferRef.current);
@@ -2202,12 +2290,9 @@ export function App() {
           avgPowerW: avgPow,
           maxAsymmetryDeg: maxAsym,
           torsoOscillationDeg: torsoOsc,
+          keyframes: capturedKeyFrames,
+          validateExerciseMatch: true,
         });
-
-        if (activeLandmarkerRef.current === landmarker) {
-          activeLandmarkerRef.current = null;
-          closeLandmarkerSafely(landmarker);
-        }
       };
 
       const startProcessingWhenReady = () => {
@@ -2246,6 +2331,10 @@ export function App() {
             if (video.duration && isFinite(video.duration) && video.duration > 0) {
               const currentProgress = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
               setProgressPercent(currentProgress);
+              if (currentProgress >= 35 && currentProgress <= 65 && capturedKeyFrames.length < 2) {
+                const midFrame = captureKeyFrameDataUrl(video);
+                if (midFrame) capturedKeyFrames.push(midFrame);
+              }
             }
 
             if (video.ended) {
@@ -2262,11 +2351,21 @@ export function App() {
             let currentLandmarks: any = null;
 
             if (frameCounter % FRAME_SKIP === 0) {
+              sampledFramesCount++;
+              if (sampledFramesCount === 1 && capturedKeyFrames.length === 0) {
+                const startFrame = captureKeyFrameDataUrl(video);
+                if (startFrame) capturedKeyFrames.push(startFrame);
+              }
+
               try {
                 const nowMs = performance.now();
                 const result = landmarker.detectForVideo(video, nowMs);
                 const rawPose =
                   result.landmarks && result.landmarks.length > 0 ? result.landmarks[0] : null;
+                if (rawPose) {
+                  rawDetectedFramesCount++;
+                }
+
                 const deducedLandmarks = deduceMissingBodyLandmarks(
                   rawPose || latestKnownLandmarks || [],
                   latestKnownLandmarks,
@@ -2887,6 +2986,77 @@ export function App() {
             fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           }}
         >
+          {videoMismatchAlert && (
+            <div
+              role="alert"
+              style={{
+                padding: 14,
+                marginBottom: 14,
+                borderRadius: 10,
+                background: 'rgba(239, 68, 68, 0.14)',
+                border: '1px solid #ef4444',
+                color: '#fecaca',
+                fontSize: 13,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                boxShadow: '0 8px 16px -4px rgba(239, 68, 68, 0.25)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <strong style={{ fontSize: 14, color: '#f87171' }}>
+                  ⚠️ {videoMismatchAlert.title}
+                </strong>
+                <button
+                  type="button"
+                  onClick={() => setVideoMismatchAlert(null)}
+                  aria-label="Chiudi avviso incoerenza video"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#fca5a5',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              {videoMismatchAlert.detectedSubject && (
+                <div style={{ fontSize: 11.5, color: '#fda4af', fontWeight: 700 }}>
+                  Rilevato: {videoMismatchAlert.detectedSubject}
+                </div>
+              )}
+              <p style={{ margin: 0, lineHeight: 1.45, color: '#fee2e2' }}>
+                {videoMismatchAlert.message}
+              </p>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    analysisSessionIdRef.current += 1;
+                    resetAnalysisSession({ preserveExerciseAndWeight: true });
+                    window.setTimeout(() => {
+                      fileInputRef.current?.click();
+                    }, 50);
+                  }}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: 7,
+                    border: '1px solid #f87171',
+                    background: 'rgba(248, 113, 113, 0.18)',
+                    color: '#fff',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  📤 Carica un altro video
+                </button>
+              </div>
+            </div>
+          )}
+
           {planError && (
             <div
               style={{
@@ -4048,41 +4218,43 @@ export function App() {
                 <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #ef4444', border: '1px solid #334155' }}>
                   <p style={{ margin: 0, fontSize: 14, color: '#f43f5e' }}>{aiFeedback}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (lastGeomResultRef.current) {
-                      triggerAiCoach(
-                        lastGeomResultRef.current.result,
-                        lastGeomResultRef.current.exercise,
-                        analysisSessionIdRef.current,
-                        {
-                          weightKg,
-                          isDumbbell: selectedExerciseObj.isDumbbell,
-                          peakRomPercent: biomechSummary?.peakRomPercent ?? 0,
-                          avgRomPercent: biomechSummary?.avgRomPercent ?? 0,
-                          peakPowerW: biomechSummary?.peakPowerW ?? 0,
-                          avgPowerW: biomechSummary?.avgPowerW ?? 0,
-                          maxAsymmetryDeg: biomechSummary?.maxAsymmetryDeg ?? null,
-                          torsoOscillationDeg: biomechSummary?.torsoOscillationDeg ?? null,
-                        }
-                      );
-                    }
-                  }}
-                  style={{
-                    padding: '10px 16px',
-                    background: '#ef4444',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 8,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    alignSelf: 'flex-start',
-                    boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.3)',
-                  }}
-                >
-                  🔄 Riprova IA
-                </button>
+                {!videoMismatchAlert && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (lastGeomResultRef.current) {
+                        triggerAiCoach(
+                          lastGeomResultRef.current.result,
+                          lastGeomResultRef.current.exercise,
+                          analysisSessionIdRef.current,
+                          {
+                            weightKg,
+                            isDumbbell: selectedExerciseObj.isDumbbell,
+                            peakRomPercent: biomechSummary?.peakRomPercent ?? 0,
+                            avgRomPercent: biomechSummary?.avgRomPercent ?? 0,
+                            peakPowerW: biomechSummary?.peakPowerW ?? 0,
+                            avgPowerW: biomechSummary?.avgPowerW ?? 0,
+                            maxAsymmetryDeg: biomechSummary?.maxAsymmetryDeg ?? null,
+                            torsoOscillationDeg: biomechSummary?.torsoOscillationDeg ?? null,
+                          }
+                        );
+                      }
+                    }}
+                    style={{
+                      padding: '10px 16px',
+                      background: '#ef4444',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 8,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      alignSelf: 'flex-start',
+                      boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.3)',
+                    }}
+                  >
+                    🔄 Riprova IA
+                  </button>
+                )}
               </div>
             )}
           </div>
