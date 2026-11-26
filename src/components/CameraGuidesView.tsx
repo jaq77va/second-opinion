@@ -345,7 +345,7 @@ export const EXERCISE_GUIDES: ExerciseGuideItem[] = [
   },
   {
     id: 'sumo_deadlift',
-    label: 'Sumo deadlift',
+    label: 'Stacco sumo',
     imagePath: '/images/sumo_deadlift.png',
     guideImagePath: '/images/guides/sumo_deadlift.png',
     cameraAngleBadge: 'Obliqua 45° (o Frontale)',
@@ -384,7 +384,7 @@ export const EXERCISE_GUIDES: ExerciseGuideItem[] = [
   },
   {
     id: 'chest_dips',
-    label: 'Chest dips',
+    label: 'Dip alle parallele',
     imagePath: '/images/chest_dips.png',
     guideImagePath: '/images/guides/chest_dips.png',
     cameraAngleBadge: 'Obliqua 45° (o Laterale 90°)',
@@ -410,7 +410,7 @@ export const EXERCISE_GUIDES: ExerciseGuideItem[] = [
   },
   {
     id: 'front_raises',
-    label: 'Front raises',
+    label: 'Alzate frontali',
     imagePath: '/images/front_raises.png',
     guideImagePath: '/images/guides/front_raises.png',
     cameraAngleBadge: 'Laterale 90° (o Obliqua 45°)',
@@ -710,9 +710,6 @@ export function CameraGuidesView({
   onClose,
 }: CameraGuidesViewProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedFilterId, setSelectedFilterId] = useState<GuideExerciseId | 'all'>(
-    initialExerciseId || 'all'
-  );
   const [selectedExerciseId, setSelectedExerciseId] = useState<GuideExerciseId | undefined>(
     initialExerciseId
   );
@@ -721,15 +718,15 @@ export function CameraGuidesView({
 
   useEffect(() => {
     setSelectedExerciseId(initialExerciseId);
-    setSelectedFilterId(initialExerciseId || 'all');
   }, [initialExerciseId]);
 
   const filteredGuides = EXERCISE_GUIDES.filter((item) => {
-    const matchesSelected = selectedFilterId === 'all' || item.id === selectedFilterId;
-    const matchesSearch =
-      item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.cameraAngleBadge.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSelected && matchesSearch;
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      item.label.toLowerCase().includes(q) ||
+      item.cameraAngleBadge.toLowerCase().includes(q)
+    );
   });
 
   const handleChooseGuide = (exerciseId: GuideExerciseId) => {
@@ -789,15 +786,26 @@ export function CameraGuidesView({
             marginBottom: 16,
           }}
         >
-          <div
+          <button
+            type="button"
             onClick={() => setShowGeneralRules(!showGeneralRules)}
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+            aria-expanded={showGeneralRules}
+            style={{
+              width: '100%',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              cursor: 'pointer',
+            }}
           >
             <strong style={{ fontSize: 13, color: '#22c55e', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
               3 Regole d'oro per tutti i video
             </strong>
             <span style={{ fontSize: 12, color: '#94a3b8' }}>{showGeneralRules ? '▲' : '▼'}</span>
-          </div>
+          </button>
 
           {showGeneralRules && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10, fontSize: 13, color: '#cbd5e1' }}>
@@ -808,15 +816,12 @@ export function CameraGuidesView({
           )}
         </div>
 
-        {/* BARRA RICERCA E FILTRO ESERCIZIO */}
+        {/* BARRA RICERCA */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              if (selectedFilterId !== 'all') setSelectedFilterId('all');
-            }}
+            onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Cerca esercizio (es. Squat, Hip thrust, Bulgarian...)"
             style={{
               flex: 1,
@@ -829,10 +834,10 @@ export function CameraGuidesView({
               outline: 'none',
             }}
           />
-          {selectedFilterId !== 'all' && (
+          {searchQuery.trim() !== '' && (
             <button
               type="button"
-              onClick={() => setSelectedFilterId('all')}
+              onClick={() => setSearchQuery('')}
               style={{
                 padding: '0 12px',
                 borderRadius: 8,

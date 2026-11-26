@@ -51,6 +51,22 @@ const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 
 const REPLAY_SPEEDS: PlaybackSpeed[] = [1, 0.5, 0.25];
 
+const FALLBACK_EXERCISE_CONFIG: ExerciseConfig = {
+  id: 'affondi' as Exercise,
+  label: 'Affondi',
+  imagePath: '/images/logo_icon.png',
+  viewHint: 'Inquadratura laterale a figura intera',
+  isDumbbell: false,
+  isTrialAllowed: true,
+  mode: 'extension_flexion',
+  romMinAngle: 70,
+  romMaxAngle: 155,
+  primaryTriplet: {
+    left: [23, 25, 27],
+    right: [24, 26, 28],
+  },
+};
+
 function getWorkingAngleTriplets(
   exercise: Exercise
 ): Array<{ label: string; triplet: [number, number, number]; fill: string; stroke: string }> {
@@ -808,6 +824,24 @@ async function loadPoseLandmarkerWithRetry(maxAttempts = 3): Promise<PoseLandmar
   throw lastError;
 }
 
+function closeLandmarkerSafely(landmarker: PoseLandmarker | null | undefined) {
+  if (!landmarker) return;
+  try {
+    landmarker.close();
+  } catch {
+    // Ignora eventuali errori di chiusura su istanze già chiuse
+  }
+}
+
+function revokeBlobUrlSafely(url: string | null | undefined) {
+  if (!url) return;
+  try {
+    URL.revokeObjectURL(url);
+  } catch {
+    // Ignora eventuali URL già revocati
+  }
+}
+
 function getPlanLabel(plan: PlanType): string {
   switch (plan) {
     case 'trial': return 'Trial 7 Giorni';
@@ -1086,7 +1120,7 @@ export function App() {
     []
   );
 
-  const defaultFirstExerciseId: Exercise = sortedExercises[0]?.id ?? 'affondi';
+  const defaultFirstExerciseId: Exercise = sortedExercises[0]?.id ?? FALLBACK_EXERCISE_CONFIG.id;
 
   const [selectedExercise, setSelectedExercise] = useState<Exercise>(defaultFirstExerciseId);
   const [weightKg, setWeightKg] = useState<number>(20);
@@ -1177,21 +1211,24 @@ export function App() {
     }
   }, [replaySpeed, statusCode]);
 
+  const cleanupActiveRuntimeResources = useCallback(() => {
+    const landmarker = activeLandmarkerRef.current;
+    activeLandmarkerRef.current = null;
+    closeLandmarkerSafely(landmarker);
+
+    const blobUrl = activeBlobUrlRef.current;
+    activeBlobUrlRef.current = null;
+    revokeBlobUrlSafely(blobUrl);
+  }, []);
+
   useEffect(() => {
     return () => {
       if (scrollSyncTimeoutRef.current !== null) {
         window.clearTimeout(scrollSyncTimeoutRef.current);
       }
-      if (activeLandmarkerRef.current) {
-        try { activeLandmarkerRef.current.close(); } catch {}
-        activeLandmarkerRef.current = null;
-      }
-      if (activeBlobUrlRef.current) {
-        URL.revokeObjectURL(activeBlobUrlRef.current);
-        activeBlobUrlRef.current = null;
-      }
+      cleanupActiveRuntimeResources();
     };
-  }, []);
+  }, [cleanupActiveRuntimeResources]);
 
   const fetchPlanExercises = useCallback(async () => {
     try {
@@ -1235,78 +1272,70 @@ export function App() {
     [unlockedByPlan, isSubscriptionExpired]
   );
 
-  const cleanupActiveRuntimeResources = () => {
-    if (activeLandmarkerRef.current) {
-      try { activeLandmarkerRef.current.close(); } catch {}
-      activeLandmarkerRef.current = null;
-    }
-    if (activeBlobUrlRef.current) {
-      URL.revokeObjectURL(activeBlobUrlRef.current);
-      activeBlobUrlRef.current = null;
-    }
-  };
+  const resetAnalysisSession = useCallback(
+    (options?: { preserveExerciseAndWeight?: boolean }) => {
+      cleanupActiveRuntimeResources();
+      if (!options?.preserveExerciseAndWeight) {
+        setSelectedExercise(defaultFirstExerciseId);
+        selectedExerciseRef.current = defaultFirstExerciseId;
+        setWeightKg(20);
+      }
+      setStatusCode('idle');
+      setIsProcessing(false);
+      setProgressPercent(0);
+      setLiveAngleDeg(null);
+      setRomQuality(0);
+      setPowerScore(0);
+      setPeakPowerScore(0);
+      setAngularSpeedDegSec(0);
+      setLeftAngleDeg(null);
+      setRightAngleDeg(null);
+      setSymmetryDiffDeg(null);
+      setTorsoTiltDeg(null);
+      setShowTechnicalDetails(false);
+      setAnalysisResult(null);
+      setBiomechSummary(null);
+      setIsAnalysisOpen(false);
+      setLastUploadedFile(null);
+      setIsReplayPlaying(false);
+      setReplayCurrentTime(0);
+      setReplayDuration(0);
+      setReplaySpeed(1);
+      setAiFeedback('');
+      setAiStatusCode('idle');
+      setAiStatusMessage('In attesa di dati geometrici...');
 
-  const resetAnalysisSession = (options?: { preserveExerciseAndWeight?: boolean }) => {
-    cleanupActiveRuntimeResources();
-    if (!options?.preserveExerciseAndWeight) {
-      setSelectedExercise(defaultFirstExerciseId);
-      selectedExerciseRef.current = defaultFirstExerciseId;
-      setWeightKg(20);
-    }
-    setStatusCode('idle');
-    setIsProcessing(false);
-    setProgressPercent(0);
-    setLiveAngleDeg(null);
-    setRomQuality(0);
-    setPowerScore(0);
-    setPeakPowerScore(0);
-    setAngularSpeedDegSec(0);
-    setLeftAngleDeg(null);
-    setRightAngleDeg(null);
-    setSymmetryDiffDeg(null);
-    setTorsoTiltDeg(null);
-    setShowTechnicalDetails(false);
-    setAnalysisResult(null);
-    setBiomechSummary(null);
-    setIsAnalysisOpen(false);
-    setLastUploadedFile(null);
-    setIsReplayPlaying(false);
-    setReplayCurrentTime(0);
-    setReplayDuration(0);
-    setReplaySpeed(1);
-    setAiFeedback('');
-    setAiStatusCode('idle');
-    setAiStatusMessage('In attesa di dati geometrici...');
+      landmarksBufferRef.current = [];
+      timedLandmarksRef.current = [];
+      timedTelemetryRef.current = [];
+      lastGeomResultRef.current = null;
+      telemetrySamplesRef.current = {
+        angles: [],
+        roms: [],
+        powers: [],
+        speeds: [],
+        asymmetries: [],
+        torsos: [],
+      };
 
-    landmarksBufferRef.current = [];
-    timedLandmarksRef.current = [];
-    timedTelemetryRef.current = [];
-    lastGeomResultRef.current = null;
-    telemetrySamplesRef.current = {
-      angles: [],
-      roms: [],
-      powers: [],
-      speeds: [],
-      asymmetries: [],
-      torsos: [],
-    };
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.playbackRate = 1;
+        videoRef.current.removeAttribute('src');
+        videoRef.current.load();
+      }
 
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.playbackRate = 1;
-      videoRef.current.removeAttribute('src');
-      videoRef.current.load();
-    }
-
-    if (canvasRef.current) {
-      const ctx = canvasRef.current.getContext('2d');
-      ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-    }
-  };
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+    },
+    [cleanupActiveRuntimeResources, defaultFirstExerciseId]
+  );
 
   useEffect(() => {
     const hasRecoveryHash =
@@ -1383,7 +1412,7 @@ export function App() {
         isProgrammaticScrollRef.current = false;
       }, 150);
     }
-  }, [user?.id, defaultFirstExerciseId]);
+  }, [user?.id, defaultFirstExerciseId, resetAnalysisSession]);
 
   useEffect(() => {
     if (isGuidesOpen || isAnglesGuideOpen || !carouselRef.current) return;
@@ -1420,6 +1449,8 @@ export function App() {
     let rafId: number | null = null;
     let lastUiSyncMs = 0;
     let lastDrawnTime = -1;
+    let lastDrawnStickOnly = stickOnlyModeRef.current;
+    let lastDrawnShowAngles = showAnglesOverlayRef.current;
 
     const syncDuration = () => {
       if (video.duration && isFinite(video.duration)) {
@@ -1453,9 +1484,12 @@ export function App() {
 
       const currentVideoTime = video.currentTime || 0;
       const exId = selectedExerciseRef.current;
-      const withAngles = showAnglesOverlay;
+      const isStickOnly = stickOnlyModeRef.current;
+      const withAngles = showAnglesOverlayRef.current;
+      const overlayChanged =
+        isStickOnly !== lastDrawnStickOnly || withAngles !== lastDrawnShowAngles;
 
-      if (stickOnlyMode) {
+      if (isStickOnly) {
         const nearestLandmarks = interpolateTimedFrames(timedLandmarksRef.current, currentVideoTime);
         if (nearestLandmarks) {
           drawStickmanOverlay(ctx, exId, nearestLandmarks, w, h, true, withAngles);
@@ -1463,9 +1497,19 @@ export function App() {
           ctx.fillStyle = '#000000';
           ctx.fillRect(0, 0, w, h);
         }
+        lastDrawnTime = currentVideoTime;
+        lastDrawnStickOnly = isStickOnly;
+        lastDrawnShowAngles = withAngles;
       } else if (video.readyState >= 2) {
-        if (Math.abs(currentVideoTime - lastDrawnTime) > 0.0005 || forceSyncUi || video.paused) {
+        if (
+          Math.abs(currentVideoTime - lastDrawnTime) > 0.0005 ||
+          forceSyncUi ||
+          video.paused ||
+          overlayChanged
+        ) {
           lastDrawnTime = currentVideoTime;
+          lastDrawnStickOnly = isStickOnly;
+          lastDrawnShowAngles = withAngles;
           ctx.drawImage(video, 0, 0, w, h);
           const nearestLandmarks = interpolateTimedFrames(timedLandmarksRef.current, currentVideoTime);
           if (nearestLandmarks) {
@@ -1474,7 +1518,7 @@ export function App() {
         }
       }
 
-      syncUiAndTelemetryAtTime(currentVideoTime, forceSyncUi);
+      syncUiAndTelemetryAtTime(currentVideoTime, forceSyncUi || overlayChanged);
     };
 
     const tick = () => {
@@ -1538,54 +1582,90 @@ export function App() {
       video.removeEventListener('ended', handlePauseOrEnded);
       video.removeEventListener('seeked', handleSeeked);
     };
-  }, [statusCode, stickOnlyMode, replaySpeed, showAnglesOverlay]);
+  }, [statusCode, replaySpeed]);
 
-  const fetchUserSubscription = async (userId: string) => {
-    setSubLoading(true);
-    setPlanError(null);
-    try {
-      await fetchPlanExercises();
+  useEffect(() => {
+    if (statusCode !== 'success') return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .select('plan_type, status, end_date, is_tester')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    const w = canvas.width || video.videoWidth || 480;
+    const h = canvas.height || video.videoHeight || 360;
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
 
-      if (error) throw error;
+    const currentVideoTime = video.currentTime || 0;
+    const exId = selectedExerciseRef.current;
 
-      if (!data) {
-        setCurrentPlan('none');
-        setDaysRemaining(0);
-        setIsSubscriptionExpired(false);
-        setIsTester(false);
-        return;
+    if (stickOnlyMode) {
+      const nearestLandmarks = interpolateTimedFrames(timedLandmarksRef.current, currentVideoTime);
+      if (nearestLandmarks) {
+        drawStickmanOverlay(ctx, exId, nearestLandmarks, w, h, true, showAnglesOverlay);
+      } else {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, w, h);
       }
-
-      const endDate = new Date(data.end_date);
-      const now = new Date();
-      const diffMs = endDate.getTime() - now.getTime();
-      const diffDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-      const expired = diffMs <= 0 || data.status === 'expired';
-
-      setCurrentPlan(data.plan_type as PlanType);
-      setDaysRemaining(diffDays);
-      setIsSubscriptionExpired(expired);
-      setIsTester(Boolean(data.is_tester) && !expired && data.status === 'active');
-    } catch (err: any) {
-      console.error('Errore lettura abbonamento:', err);
-      setPlanError(err?.message || 'Impossibile verificare lo stato dell’abbonamento.');
-      setIsTester(false);
-    } finally {
-      setSubLoading(false);
+    } else if (video.readyState >= 2) {
+      ctx.drawImage(video, 0, 0, w, h);
+      const nearestLandmarks = interpolateTimedFrames(timedLandmarksRef.current, currentVideoTime);
+      if (nearestLandmarks) {
+        drawStickmanOverlay(ctx, exId, nearestLandmarks, w, h, false, showAnglesOverlay);
+      }
     }
-  };
+  }, [statusCode, stickOnlyMode, showAnglesOverlay]);
+
+  const fetchUserSubscription = useCallback(
+    async (userId: string) => {
+      setSubLoading(true);
+      setPlanError(null);
+      try {
+        await fetchPlanExercises();
+
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .select('plan_type, status, end_date, is_tester')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (!data) {
+          setCurrentPlan('none');
+          setDaysRemaining(0);
+          setIsSubscriptionExpired(false);
+          setIsTester(false);
+          return;
+        }
+
+        const endDate = new Date(data.end_date);
+        const now = new Date();
+        const diffMs = endDate.getTime() - now.getTime();
+        const diffDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        const expired = diffMs <= 0 || data.status === 'expired';
+
+        setCurrentPlan(data.plan_type as PlanType);
+        setDaysRemaining(diffDays);
+        setIsSubscriptionExpired(expired);
+        setIsTester(Boolean(data.is_tester) && !expired && data.status === 'active');
+      } catch (err: any) {
+        console.error('Errore lettura abbonamento:', err);
+        setPlanError(err?.message || 'Impossibile verificare lo stato dell’abbonamento.');
+        setIsTester(false);
+      } finally {
+        setSubLoading(false);
+      }
+    },
+    [fetchPlanExercises]
+  );
 
   useEffect(() => {
     if (user?.id) {
-      fetchUserSubscription(user.id);
+      void fetchUserSubscription(user.id);
     } else {
       setCurrentPlan('none');
       setDaysRemaining(0);
@@ -1593,7 +1673,7 @@ export function App() {
       setIsTester(false);
       setUnlockedByPlan({});
     }
-  }, [user?.id]);
+  }, [user?.id, fetchUserSubscription]);
 
   useEffect(() => {
     if (!user?.id || typeof window === 'undefined') return;
@@ -1628,7 +1708,7 @@ export function App() {
 
       return () => window.clearTimeout(retryTimer);
     }
-  }, [user?.id]);
+  }, [user?.id, fetchUserSubscription]);
 
   const handleActivateTrial = async () => {
     if (!user) return;
@@ -1769,7 +1849,8 @@ export function App() {
     0,
     sortedExercises.findIndex((ex) => ex.id === selectedExercise)
   );
-  const selectedExerciseObj: ExerciseConfig = sortedExercises[selectedExerciseIndex] || sortedExercises[0];
+  const selectedExerciseObj: ExerciseConfig =
+    sortedExercises[selectedExerciseIndex] ?? sortedExercises[0] ?? FALLBACK_EXERCISE_CONFIG;
   const isExerciseLocked = !isExerciseUnlockedForPlan(
     currentPlan,
     selectedExerciseObj.id,
@@ -1784,7 +1865,7 @@ export function App() {
     !isProcessing && statusCode === 'success' && aiStatusCode === 'success';
 
   const scrollCarousel = (direction: 'left' | 'right') => {
-    if (!carouselRef.current || areExerciseAndWeightLocked) return;
+    if (!carouselRef.current || areExerciseAndWeightLocked || !sortedExercises.length) return;
     const delta = direction === 'left' ? -1 : 1;
     const targetIndex = Math.max(0, Math.min(sortedExercises.length - 1, selectedExerciseIndex + delta));
     setSelectedExercise(sortedExercises[targetIndex].id);
@@ -1800,7 +1881,12 @@ export function App() {
   };
 
   const handleCarouselScroll = () => {
-    if (isProgrammaticScrollRef.current || areExerciseAndWeightLocked || !carouselRef.current) {
+    if (
+      isProgrammaticScrollRef.current ||
+      areExerciseAndWeightLocked ||
+      !carouselRef.current ||
+      !sortedExercises.length
+    ) {
       return;
     }
     if (scrollSyncTimeoutRef.current !== null) {
@@ -1890,7 +1976,7 @@ export function App() {
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isExerciseLocked) {
       e.target.value = '';
-      alert('Questo esercizio è riservato agli abbonati. Passa a un piano completo per sbloccarlo!');
+      setPlanError('Questo esercizio è riservato agli abbonati. Passa a un piano completo per sbloccarlo!');
       return;
     }
 
@@ -1930,7 +2016,6 @@ export function App() {
 
     resetAnalysisSession({ preserveExerciseAndWeight: true });
     setLastUploadedFile(persistentMemoryFile);
-
     setIsProcessing(true);
     setStatusCode('processing');
 
@@ -1941,9 +2026,9 @@ export function App() {
 
       const landmarker = await loadPoseLandmarkerWithRetry(3);
       if (analysisSessionIdRef.current !== currentSessionId) {
-        try { landmarker.close(); } catch {}
+        closeLandmarkerSafely(landmarker);
         if (activeBlobUrlRef.current === localVideoUrl) {
-          URL.revokeObjectURL(localVideoUrl);
+          revokeBlobUrlSafely(localVideoUrl);
           activeBlobUrlRef.current = null;
         }
         return;
@@ -1968,11 +2053,12 @@ export function App() {
       let targetHeight = 480;
       let rafId: number | null = null;
       let hasFinished = false;
+      let metadataTimeoutId: number | null = null;
 
-      let angleHistory: number[] = [];
-      let powerHistory: number[] = [];
-      let speedHistory: number[] = [];
-      let asymHistory: number[] = [];
+      const angleHistory: number[] = [];
+      const powerHistory: number[] = [];
+      const speedHistory: number[] = [];
+      const asymHistory: number[] = [];
       let hasStarted = false;
       let latestKnownLandmarks: any[] | null = null;
       let prev2KnownLandmarks: any[] | null = null;
@@ -1985,6 +2071,10 @@ export function App() {
       const finalizeAnalysis = () => {
         if (hasFinished || analysisSessionIdRef.current !== currentSessionId) return;
         hasFinished = true;
+        if (metadataTimeoutId !== null) {
+          window.clearTimeout(metadataTimeoutId);
+          metadataTimeoutId = null;
+        }
         if (rafId !== null) {
           cancelAnimationFrame(rafId);
           rafId = null;
@@ -2025,6 +2115,7 @@ export function App() {
         const avgPow = avgOf(samples.powers) ?? 0;
         const maxAsym = maxOf(samples.asymmetries);
 
+        setPeakPowerScore(peakPow);
         setBiomechSummary({
           minAngle: minAng,
           maxAngle: maxAng,
@@ -2055,8 +2146,8 @@ export function App() {
         });
 
         if (activeLandmarkerRef.current === landmarker) {
-          try { landmarker.close(); } catch {}
           activeLandmarkerRef.current = null;
+          closeLandmarkerSafely(landmarker);
         }
       };
 
@@ -2070,7 +2161,7 @@ export function App() {
         const originalHeight = video.videoHeight || 0;
 
         if (originalWidth === 0 || originalHeight === 0) {
-          window.setTimeout(startProcessingWhenReady, 100);
+          metadataTimeoutId = window.setTimeout(startProcessingWhenReady, 100);
           return;
         }
 
@@ -2294,6 +2385,10 @@ export function App() {
 
           rafId = requestAnimationFrame(processFrame);
         }).catch(() => {
+          if (metadataTimeoutId !== null) {
+            window.clearTimeout(metadataTimeoutId);
+            metadataTimeoutId = null;
+          }
           if (analysisSessionIdRef.current !== currentSessionId) return;
           cleanupActiveRuntimeResources();
           setIsProcessing(false);
@@ -2303,7 +2398,7 @@ export function App() {
 
       video.onloadedmetadata = startProcessingWhenReady;
       video.oncanplay = startProcessingWhenReady;
-      window.setTimeout(startProcessingWhenReady, 500);
+      metadataTimeoutId = window.setTimeout(startProcessingWhenReady, 500);
     } catch {
       cleanupActiveRuntimeResources();
       if (analysisSessionIdRef.current !== currentSessionId) return;
@@ -2479,6 +2574,7 @@ export function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <span style={{ fontSize: 12, color: '#94a3b8' }}>{user.email}</span>
               <button
+                type="button"
                 onClick={handleLogout}
                 disabled={isRedirecting}
                 style={{ background: 'transparent', border: '1px solid #334155', color: '#cbd5e1', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: isRedirecting ? 'not-allowed' : 'pointer' }}
@@ -2526,6 +2622,7 @@ export function App() {
                   Accesso agli esercizi inclusi nel piano Trial. Analisi video illimitate per 7 giorni.
                 </p>
                 <button
+                  type="button"
                   onClick={handleActivateTrial}
                   disabled={isRedirecting}
                   style={{ width: '100%', padding: 10, background: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: '1px solid #38bdf8', borderRadius: 8, fontWeight: 'bold', cursor: isRedirecting ? 'not-allowed' : 'pointer', opacity: isRedirecting ? 0.6 : 1 }}
@@ -2544,6 +2641,7 @@ export function App() {
                 Tutti i 40 esercizi sbloccati. Video illimitati con rinnovo mensile.
               </p>
               <button
+                type="button"
                 onClick={() => handleSelectPaidPlan('monthly')}
                 disabled={isRedirecting}
                 style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: isRedirecting ? 'not-allowed' : 'pointer', opacity: isRedirecting && checkoutLoadingPlan !== 'monthly' ? 0.6 : 1 }}
@@ -2561,6 +2659,7 @@ export function App() {
                 Tutti i 40 esercizi sbloccati. Video illimitati per 3 mesi.
               </p>
               <button
+                type="button"
                 onClick={() => handleSelectPaidPlan('quarterly')}
                 disabled={isRedirecting}
                 style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: isRedirecting ? 'not-allowed' : 'pointer', opacity: isRedirecting && checkoutLoadingPlan !== 'quarterly' ? 0.6 : 1 }}
@@ -2578,6 +2677,7 @@ export function App() {
                 Tutti i 40 esercizi sbloccati. Video illimitati per 6 mesi.
               </p>
               <button
+                type="button"
                 onClick={() => handleSelectPaidPlan('semiannual')}
                 disabled={isRedirecting}
                 style={{ width: '100%', padding: 10, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: isRedirecting ? 'not-allowed' : 'pointer', opacity: isRedirecting && checkoutLoadingPlan !== 'semiannual' ? 0.6 : 1 }}
@@ -2595,6 +2695,7 @@ export function App() {
                 Tutti i 40 esercizi sbloccati. Video illimitati per 12 mesi.
               </p>
               <button
+                type="button"
                 onClick={() => handleSelectPaidPlan('annual')}
                 disabled={isRedirecting}
                 style={{ width: '100%', padding: 10, background: '#22c55e', color: '#0f172a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: isRedirecting ? 'not-allowed' : 'pointer', opacity: isRedirecting && checkoutLoadingPlan !== 'annual' ? 0.6 : 1 }}
@@ -2727,13 +2828,47 @@ export function App() {
             fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           }}
         >
+          {planError && (
+            <div
+              style={{
+                padding: 12,
+                marginBottom: 14,
+                borderRadius: 8,
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid #ef4444',
+                color: '#fca5a5',
+                fontSize: 13,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span>{planError}</span>
+              <button
+                type="button"
+                onClick={() => setPlanError(null)}
+                aria-label="Chiudi avviso"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#fca5a5',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* 1. SELEZIONA L'ESERCIZIO */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <label htmlFor="exercise-select-dropdown" style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
               1. Seleziona l'esercizio
             </label>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
-              {selectedExerciseIndex + 1} / {sortedExercises.length}
+              {sortedExercises.length ? `${selectedExerciseIndex + 1} / ${sortedExercises.length}` : '0 / 0'}
             </span>
           </div>
 
@@ -2849,7 +2984,11 @@ export function App() {
                       src={ex.imagePath}
                       alt={ex.label}
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = '/images/logo_icon.png';
+                        const img = e.currentTarget as HTMLImageElement;
+                        if (!img.dataset.fallbackApplied) {
+                          img.dataset.fallbackApplied = '1';
+                          img.src = '/images/logo_icon.png';
+                        }
                       }}
                       style={{ width: 110, height: 110, objectFit: 'contain', borderRadius: 8 }}
                     />
@@ -2901,7 +3040,9 @@ export function App() {
             }}
           >
             <div>
-              <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>Carico utilizzato</span>
+              <label htmlFor="weight-kg-input" style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0', display: 'block' }}>
+                Carico utilizzato
+              </label>
               <span style={{ fontSize: 11, color: '#94a3b8' }}>
                 {selectedExerciseObj.isDumbbell ? 'Peso del singolo manubrio (kg)' : 'Peso totale (kg)'}
               </span>
@@ -2911,11 +3052,13 @@ export function App() {
                 type="button"
                 onClick={() => handleWeightChange(-5)}
                 disabled={areExerciseAndWeightLocked}
+                aria-label="Riduci carico di 5 kg"
                 style={{ width: 32, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 16, fontWeight: 'bold', cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer' }}
               >
                 -
               </button>
               <input
+                id="weight-kg-input"
                 type="number"
                 value={weightKg}
                 onChange={handleWeightInputChange}
@@ -2938,6 +3081,7 @@ export function App() {
                 type="button"
                 onClick={() => handleWeightChange(5)}
                 disabled={areExerciseAndWeightLocked}
+                aria-label="Aumenta carico di 5 kg"
                 style={{ width: 32, height: 36, borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#38bdf8', fontSize: 16, fontWeight: 'bold', cursor: areExerciseAndWeightLocked ? 'not-allowed' : 'pointer' }}
               >
                 +
@@ -2945,13 +3089,13 @@ export function App() {
             </div>
           </div>
 
-          {/* 2. CARICA VIDEO (CON HELP FORMATI, SEMAFORO SENZA LABEL E SENZA LABEL FORMATI INLINE) */}
+          {/* 2. CARICA VIDEO */}
           <div style={{ marginTop: 22 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <label style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
+                <span style={{ fontWeight: 700, fontSize: 14, color: '#e2e8f0' }}>
                   2. Carica video
-                </label>
+                </span>
                 <button
                   type="button"
                   aria-label="Informazioni formati video supportati"
@@ -2998,8 +3142,14 @@ export function App() {
               onChange={handleVideoUpload}
               style={{ display: 'none' }}
             />
-            <div
-              onClick={() => !hasActiveOrCompletedSession && !isExerciseLocked && fileInputRef.current?.click()}
+            <button
+              type="button"
+              disabled={hasActiveOrCompletedSession || isExerciseLocked}
+              onClick={() => {
+                if (!hasActiveOrCompletedSession && !isExerciseLocked) {
+                  fileInputRef.current?.click();
+                }
+              }}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
@@ -3028,7 +3178,7 @@ export function App() {
                   ? 'Usa "Nuova analisi" per caricare un altro video'
                   : 'Seleziona file video'}
               </span>
-            </div>
+            </button>
 
             {isProcessing && (
               <div style={{ marginTop: 14, padding: 14, background: '#1e293b', borderRadius: 10, border: '1px solid #334155', color: '#fff' }}>
@@ -3043,7 +3193,7 @@ export function App() {
             )}
           </div>
 
-          {/* 3. TASTO INTERROMPI ANALISI (SEMPRE VISIBILE, ABILITATO SOLO DURANTE L'ANALISI) */}
+          {/* 3. TASTO INTERROMPI ANALISI */}
           <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
             <button
               type="button"
@@ -3066,7 +3216,7 @@ export function App() {
             </button>
           </div>
 
-          {/* 4. CONTROLLI PLAYER (HELPER + ANGOLI / VIDEO + HS / SOLO HS SU UNA RIGA) */}
+          {/* 4. CONTROLLI PLAYER */}
           <div
             style={{
               marginTop: 16,
@@ -3462,7 +3612,7 @@ export function App() {
             )}
           </div>
 
-          {/* 6. LETTURA RAPIDA MOVIMENTO (SUBITO SOTTO IL VIDEO) */}
+          {/* 6. LETTURA RAPIDA MOVIMENTO */}
           <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3881,9 +4031,13 @@ export function App() {
           {/* 8. RIEPILOGO BIOMECCANICO DI SESSIONE */}
           {analysisResult && (
             <div style={{ marginTop: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-              <div
+              <button
+                type="button"
                 onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
+                aria-expanded={isAnalysisOpen}
                 style={{
+                  width: '100%',
+                  border: 'none',
                   padding: '16px 18px',
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -3893,13 +4047,13 @@ export function App() {
                   userSelect: 'none',
                 }}
               >
-                <h3 style={{ margin: 0, color: '#38bdf8', fontSize: 16, fontWeight: 800 }}>
+                <span style={{ margin: 0, color: '#38bdf8', fontSize: 16, fontWeight: 800 }}>
                   📊 Riepilogo Biomeccanico di Sessione
-                </h3>
+                </span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
                   {isAnalysisOpen ? '▲ Chiudi' : '▼ Espandi'}
                 </span>
-              </div>
+              </button>
 
               {isAnalysisOpen && (
                 <div style={{ padding: '0 18px 18px 18px', borderTop: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 14 }}>

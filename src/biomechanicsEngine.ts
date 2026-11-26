@@ -699,6 +699,13 @@ export function getTripletAngleSafe(
   return null;
 }
 
+const SINGLE_LEG_DOMINANT_EXERCISES = new Set<ExerciseId>([
+  'affondi',
+  'bulgarian_squat',
+  'affondi_laterali',
+  'step_up',
+]);
+
 export function extractExerciseAngleValue(
   exercise: ExerciseId,
   landmarks: JointPoint[],
@@ -708,27 +715,14 @@ export function extractExerciseAngleValue(
   const cfg = getExerciseConfig(exercise);
   const { left, right } = cfg.primaryTriplet;
 
-  const effectiveVis =
-    exercise === 'affondi' ||
-    exercise === 'bulgarian_squat' ||
-    exercise === 'affondi_laterali' ||
-    exercise === 'step_up'
-      ? Math.min(minVis, 0.4)
-      : minVis;
+  const isSingleLeg = SINGLE_LEG_DOMINANT_EXERCISES.has(exercise);
+  const effectiveVis = isSingleLeg ? Math.min(minVis, 0.4) : minVis;
 
   const lAng = getTripletAngleSafe(landmarks, left, effectiveVis);
   const rAng = getTripletAngleSafe(landmarks, right, effectiveVis);
 
   if (lAng !== null && rAng !== null) {
-    if (
-      exercise === 'affondi' ||
-      exercise === 'bulgarian_squat' ||
-      exercise === 'affondi_laterali' ||
-      exercise === 'step_up'
-    ) {
-      return Math.min(lAng, rAng);
-    }
-    return Math.round((lAng + rAng) / 2);
+    return isSingleLeg ? Math.min(lAng, rAng) : Math.round((lAng + rAng) / 2);
   }
   if (lAng !== null) return lAng;
   if (rAng !== null) return rAng;
