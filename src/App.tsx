@@ -1074,6 +1074,8 @@ export function App() {
   const [isAnglesGuideOpen, setIsAnglesGuideOpen] = useState<boolean>(false);
 
   const [isFormatsModalOpen, setIsFormatsModalOpen] = useState<boolean>(false);
+  const [isPlayerHelpModalOpen, setIsPlayerHelpModalOpen] = useState<boolean>(false);
+  const [isQuickReadHelpModalOpen, setIsQuickReadHelpModalOpen] = useState<boolean>(false);
 
   const [legalTab, setLegalTab] = useState<LegalDocTab | null>(null);
   const [cookieForceOpenKey, setCookieForceOpenKey] = useState<number>(0);
@@ -1693,6 +1695,8 @@ export function App() {
     setIsGuidesOpen(false);
     setIsAnglesGuideOpen(false);
     setIsFormatsModalOpen(false);
+    setIsPlayerHelpModalOpen(false);
+    setIsQuickReadHelpModalOpen(false);
     setLegalTab(null);
     setIsTester(false);
     setIsPasswordRecovery(false);
@@ -3062,39 +3066,65 @@ export function App() {
             </button>
           </div>
 
-          {/* 4. VISTA PLAYER (ANGOLI / VIDEO + HS / SOLO HS) */}
+          {/* 4. CONTROLLI PLAYER (HELPER + ANGOLI / VIDEO + HS / SOLO HS SU UNA RIGA) */}
           <div
             style={{
               marginTop: 16,
-              padding: '10px 12px',
+              padding: '8px 10px',
               background: '#1e293b',
               borderRadius: 10,
               border: '1px solid #334155',
               display: 'flex',
-              flexWrap: 'wrap',
+              flexWrap: 'nowrap',
               justifyContent: 'space-between',
               alignItems: 'center',
-              gap: 8,
+              gap: 6,
+              overflowX: 'auto',
+              scrollbarWidth: 'none',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>
-                Vista player:
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <button
+                type="button"
+                aria-label="Spiegazione controlli player: Angoli, Video + Hs e Solo Hs"
+                onClick={() => setIsPlayerHelpModalOpen(true)}
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  border: '1px solid #38bdf8',
+                  background: 'rgba(56, 189, 248, 0.14)',
+                  color: '#38bdf8',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  padding: 0,
+                  flexShrink: 0,
+                }}
+              >
+                ?
+              </button>
+
               <label
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 5,
-                  padding: '4px 8px',
+                  gap: 4,
+                  padding: '4px 7px',
                   borderRadius: 6,
                   background: showAnglesOverlay ? 'rgba(250, 204, 21, 0.14)' : '#0f172a',
                   border: showAnglesOverlay ? '1px solid rgba(250, 204, 21, 0.55)' : '1px solid #334155',
                   color: showAnglesOverlay ? '#fde047' : '#94a3b8',
-                  fontSize: 11,
+                  fontSize: 10.5,
                   fontWeight: 800,
                   cursor: 'pointer',
                   userSelect: 'none',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
                 }}
               >
                 <input
@@ -3112,24 +3142,26 @@ export function App() {
                 display: 'inline-flex',
                 background: '#0f172a',
                 borderRadius: 8,
-                padding: 3,
+                padding: 2,
                 border: '1px solid #334155',
-                gap: 4,
+                gap: 3,
+                flexShrink: 0,
               }}
             >
               <button
                 type="button"
                 onClick={() => setStickOnlyMode(false)}
                 style={{
-                  padding: '5px 10px',
+                  padding: '5px 8px',
                   borderRadius: 6,
                   border: 'none',
                   background: !stickOnlyMode ? '#38bdf8' : 'transparent',
                   color: !stickOnlyMode ? '#0f172a' : '#94a3b8',
-                  fontSize: 11,
+                  fontSize: 10.5,
                   fontWeight: 800,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 🎥 Video + Hs
@@ -3138,15 +3170,16 @@ export function App() {
                 type="button"
                 onClick={() => setStickOnlyMode(true)}
                 style={{
-                  padding: '5px 10px',
+                  padding: '5px 8px',
                   borderRadius: 6,
                   border: 'none',
                   background: stickOnlyMode ? '#38bdf8' : 'transparent',
                   color: stickOnlyMode ? '#0f172a' : '#94a3b8',
-                  fontSize: 11,
+                  fontSize: 10.5,
                   fontWeight: 800,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 🦴 Solo Hs
@@ -3431,10 +3464,36 @@ export function App() {
 
           {/* 6. LETTURA RAPIDA MOVIMENTO (SUBITO SOTTO IL VIDEO) */}
           <div style={{ marginTop: 16, padding: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
-                Lettura Rapida Movimento
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
+                  Lettura Rapida Movimento
+                </span>
+                <button
+                  type="button"
+                  aria-label="Significato dati Lettura Rapida Movimento e Dettagli tecnici"
+                  onClick={() => setIsQuickReadHelpModalOpen(true)}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    border: '1px solid #38bdf8',
+                    background: 'rgba(56, 189, 248, 0.14)',
+                    color: '#38bdf8',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    lineHeight: 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    padding: 0,
+                    flexShrink: 0,
+                  }}
+                >
+                  ?
+                </button>
+              </div>
               {statusCode === 'success' && (
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
                   Sincronizzato al video
@@ -4104,6 +4163,215 @@ export function App() {
             <p style={{ margin: 0, fontSize: 13, color: '#e2e8f0', lineHeight: 1.5 }}>
               Formati supportati: MP4, MOV, WebM (max 50 MB)
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE HELPER CONTROLLI PLAYER */}
+      {isPlayerHelpModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Spiegazione controlli player"
+          onClick={() => setIsPlayerHelpModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            background: 'rgba(2, 6, 23, 0.78)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 420,
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              background: '#1e293b',
+              color: '#f8fafc',
+              borderRadius: 12,
+              border: '1px solid #38bdf8',
+              padding: 18,
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#38bdf8' }}>
+                A cosa servono i controlli del player
+              </h3>
+              <button
+                type="button"
+                aria-label="Chiudi modale controlli player"
+                onClick={() => setIsPlayerHelpModalOpen(false)}
+                style={{
+                  background: '#0f172a',
+                  border: '1px solid #334155',
+                  color: '#cbd5e1',
+                  borderRadius: 6,
+                  padding: '3px 8px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13, color: '#e2e8f0', lineHeight: 1.45 }}>
+              <div style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <strong style={{ color: '#fde047', display: 'block', marginBottom: 3 }}>
+                  📐 Angoli
+                </strong>
+                Mostra o nasconde sul canvas i settori e i gradi dell'angolo articolare principale (SX / DX) durante l'analisi e il replay.
+              </div>
+
+              <div style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <strong style={{ color: '#38bdf8', display: 'block', marginBottom: 3 }}>
+                  🎥 Video + Hs
+                </strong>
+                Sovrappone lo scheletro (Human Stick) e gli eventuali angoli direttamente sopra il video originale per verificare l'allineamento con il movimento reale.
+              </div>
+
+              <div style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <strong style={{ color: '#38bdf8', display: 'block', marginBottom: 3 }}>
+                  🦴 Solo Hs
+                </strong>
+                Nasconde il video di sfondo e mostra solo lo scheletro su sfondo nero, utile per isolare la traiettoria articolare senza distrazioni visive.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE HELPER LETTURA RAPIDA MOVIMENTO E DETTAGLI TECNICI */}
+      {isQuickReadHelpModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Significato dati Lettura Rapida Movimento e Dettagli tecnici"
+          onClick={() => setIsQuickReadHelpModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            background: 'rgba(2, 6, 23, 0.78)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 440,
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              background: '#1e293b',
+              color: '#f8fafc',
+              borderRadius: 12,
+              border: '1px solid #38bdf8',
+              padding: 18,
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#38bdf8' }}>
+                Significato dei dati · Lettura Rapida & Dettagli
+              </h3>
+              <button
+                type="button"
+                aria-label="Chiudi modale significato dati"
+                onClick={() => setIsQuickReadHelpModalOpen(false)}
+                style={{
+                  background: '#0f172a',
+                  border: '1px solid #334155',
+                  color: '#cbd5e1',
+                  borderRadius: 6,
+                  padding: '3px 8px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12.5, color: '#e2e8f0', lineHeight: 1.45 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Lettura Rapida Movimento
+              </div>
+
+              <div style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <strong style={{ color: '#f8fafc', display: 'block', marginBottom: 2 }}>
+                  Ampiezza del movimento (ROM %)
+                </strong>
+                Percentuale di escursione articolare raggiunta rispetto al range di riferimento dell'esercizio (85%+ completa, 65%–84% parziale, sotto il 65% ridotta).
+              </div>
+
+              <div style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <strong style={{ color: '#f8fafc', display: 'block', marginBottom: 2 }}>
+                  Ritmo esecuzione
+                </strong>
+                Valuta la velocità angolare del movimento: segnala se l'esecuzione è in pausa, controllata/fluida o troppo veloce rispetto alla soglia di controllo.
+              </div>
+
+              <div style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <strong style={{ color: '#f8fafc', display: 'block', marginBottom: 2 }}>
+                  Assetto / Equilibrio
+                </strong>
+                Indica il bilanciamento tra lato sinistro e destro (quando entrambi i lati sono ben visibili) oppure l'inclinazione del busto rispetto alla verticale.
+              </div>
+
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 4 }}>
+                Dettagli tecnici
+              </div>
+
+              <div style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <strong style={{ color: '#38bdf8', display: 'block', marginBottom: 2 }}>
+                  Angolo articolare (°)
+                </strong>
+                Valore istantaneo in gradi dell'articolazione chiave per l'esercizio selezionato nel fotogramma corrente.
+              </div>
+
+              <div style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <strong style={{ color: '#f43f5e', display: 'block', marginBottom: 2 }}>
+                  Potenza istantanea, Picco e Andamento potenza (W)
+                </strong>
+                Stima della potenza espressa in watt calcolata a partire dal carico impostato (raddoppiato se l'esercizio usa due manubri) e dalla variazione angolare nel tempo; <em>Picco</em> è il valore massimo registrato nella sessione.
+              </div>
+
+              <div style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <strong style={{ color: '#f8fafc', display: 'block', marginBottom: 2 }}>
+                  Velocità angolare / Ritmo (°/s)
+                </strong>
+                Velocità con cui cambia l'angolo articolare al secondo: aiuta a distinguere fasi concentriche/eccentriche controllate da movimenti bruschi.
+              </div>
+
+              <div style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <strong style={{ color: '#f8fafc', display: 'block', marginBottom: 2 }}>
+                  Simmetria SX / DX (ROM e Asimmetria Δ)
+                </strong>
+                Confronta ROM e angolo del lato sinistro (SX) e destro (DX); <em>Asimmetria Δ</em> mostra la differenza in gradi tra i due lati quando entrambi sono rilevati con buona affidabilità.
+              </div>
+
+              <div style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                <strong style={{ color: '#f8fafc', display: 'block', marginBottom: 2 }}>
+                  Inclinazione busto (vs verticale)
+                </strong>
+                Angolo in gradi del tronco (linea spalle-anche) rispetto alla verticale (0° = perfettamente eretto, valori più alti = busto più inclinato in avanti).
+              </div>
+            </div>
           </div>
         </div>
       )}
