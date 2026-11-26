@@ -1,3 +1,5 @@
+import { DEFAULT_MISMATCH_MESSAGE } from './biomechanicsEngine';
+
 export interface CoachTelemetryContext {
   weightKg?: number;
   isDumbbell?: boolean;
@@ -16,6 +18,10 @@ export interface CoachFeedbackResponse {
   isExerciseMatch: boolean;
   detectedSubject?: string;
   mismatchReason?: string;
+}
+
+function normalizeLabel(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 export async function requestGeminiCoachAnalysis(
@@ -49,25 +55,46 @@ export async function requestGeminiCoachAnalysis(
 
     const data = await response.json();
 
-    if (data && data.isExerciseMatch === false) {
+    const detectedSubject =
+      typeof data?.detectedSubject === 'string' && data.detectedSubject.trim()
+        ? data.detectedSubject.trim()
+        : typeof data?.detectedActivity === 'string' && data.detectedActivity.trim()
+        ? data.detectedActivity.trim()
+        : undefined;
+
+    const explicitMismatch =
+      data?.isExerciseMatch === false || data?.isMatchingExercise === false;
+
+    const detectedMismatchByActivity =
+      detectedSubject &&
+      normalizeLabel(detectedSubject) !== 'unknown' &&
+      normalizeLabel(detectedSubject) !== 'none' &&
+      normalizeLabel(detectedSubject) !== normalizeLabel(exercise) &&
+      (typeof data?.confidence !== 'number' || data.confidence >= 0.65);
+
+    if (explicitMismatch || detectedMismatchByActivity) {
       return {
         feedback: '',
         isExerciseMatch: false,
-        detectedSubject:
-          typeof data.detectedSubject === 'string' && data.detectedSubject.trim()
-            ? data.detectedSubject.trim()
-            : 'Contenuto non corrispondente',
-        mismatchReason:
-          typeof data.mismatchReason === 'string' && data.mismatchReason.trim()
-            ? data.mismatchReason.trim()
-            : `Il video caricato non sembra mostrare l'esercizio "${exercise}".`,
+        detectedSubject: detectedSubject || 'Attività non corrispondente',
+        mismatchReason: DEFAULT_MISMATCH_MESSAGE,
+      };
+    }
+
+    const feedbackText = typeof data?.feedback === 'string' ? data.feedback.trim() : '';
+    if (!feedbackText) {
+      return {
+        feedback: '',
+        isExerciseMatch: false,
+        detectedSubject: detectedSubject || 'Risposta incompleta',
+        mismatchReason: DEFAULT_MISMATCH_MESSAGE,
       };
     }
 
     return {
-      feedback: typeof data?.feedback === 'string' ? data.feedback : '',
+      feedback: feedbackText,
       isExerciseMatch: true,
-      detectedSubject: typeof data?.detectedSubject === 'string' ? data.detectedSubject : undefined,
+      detectedSubject,
     };
   } catch (err) {
     throw new Error(`Errore di comunicazione con il coach IA: ${(err as Error).message}`);
@@ -89,9 +116,7 @@ export async function getGeminiFeedback(
     telemetry
   );
   if (!res.isExerciseMatch) {
-    throw new Error(
-      res.mismatchReason || `Il video non corrisponde all'esercizio selezionato (${exercise}).`
-    );
+    throw new Error(res.mismatchReason || DEFAULT_MISMATCH_MESSAGE);
   }
   return res.feedback;
 }

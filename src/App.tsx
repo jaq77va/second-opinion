@@ -10,6 +10,7 @@ import { LegalDocsModal, type LegalDocTab } from './components/LegalDocsModal';
 import { TesterFeedbackPanel } from './components/TesterFeedbackPanel';
 import {
   EXERCISES,
+  DEFAULT_MISMATCH_MESSAGE,
   getExerciseConfig,
   hasVisibleJoints,
   getTripletAngleSafe,
@@ -1854,6 +1855,25 @@ export function App() {
     scrollCarouselToStart();
   };
 
+  const markAnalysisFailed = useCallback(
+    (exerciseLabel: string, detectedSubject?: string) => {
+      setIsProcessing(false);
+      setAnalysisResult(null);
+      setBiomechSummary(null);
+      setIsAnalysisOpen(false);
+      setStatusCode('error');
+      setVideoMismatchAlert({
+        title: `Analisi non completata · ${exerciseLabel}`,
+        message: DEFAULT_MISMATCH_MESSAGE,
+        detectedSubject,
+      });
+      setAiFeedback(DEFAULT_MISMATCH_MESSAGE);
+      setAiStatusCode('error');
+      setAiStatusMessage(DEFAULT_MISMATCH_MESSAGE);
+    },
+    []
+  );
+
   const handleOpenCookiePreferences = () => {
     try {
       localStorage.removeItem('cookie_consent_v1');
@@ -1898,8 +1918,7 @@ export function App() {
     isProcessing || statusCode === 'success' || statusCode === 'error' || Boolean(analysisResult);
   const areExerciseAndWeightLocked = isProcessing || hasActiveOrCompletedSession;
 
-  const isNewAnalysisEnabled =
-    !isProcessing && statusCode === 'success' && aiStatusCode === 'success';
+  const isNewAnalysisEnabled = !isProcessing;
 
   const scrollCarousel = (direction: 'left' | 'right') => {
     if (!carouselRef.current || areExerciseAndWeightLocked || !sortedExercises.length) return;
@@ -1993,20 +2012,7 @@ export function App() {
         }
 
         if (!res.isExerciseMatch) {
-          const reasonMsg =
-            res.mismatchReason ||
-            `Il video caricato non corrisponde all'esercizio selezionato (${exerciseLabel}).`;
-          setVideoMismatchAlert({
-            title: `Video non coerente con "${exerciseLabel}"`,
-            message: reasonMsg,
-            detectedSubject: res.detectedSubject,
-          });
-          setAnalysisResult(null);
-          setBiomechSummary(null);
-          setStatusCode('error');
-          setAiFeedback(reasonMsg);
-          setAiStatusCode('error');
-          setAiStatusMessage('Video non coerente con l’esercizio selezionato');
+          markAnalysisFailed(exerciseLabel, res.detectedSubject);
           return;
         }
 
@@ -2020,14 +2026,11 @@ export function App() {
           aiResponse: res.feedback,
         });
       })
-      .catch((err) => {
+      .catch(() => {
         if (sessionIdAtStart !== undefined && analysisSessionIdRef.current !== sessionIdAtStart) {
           return;
         }
-        const errMsg = err instanceof Error ? err.message : String(err ?? 'errore sconosciuto');
-        setAiFeedback(`Errore AI: ${errMsg}`);
-        setAiStatusCode('error');
-        setAiStatusMessage(`Errore IA: ${errMsg}`);
+        markAnalysisFailed(exerciseLabel, 'Verifica IA non riuscita');
       });
   };
 
@@ -2041,18 +2044,19 @@ export function App() {
     const file = e.target.files?.[0];
     if (!file || !videoRef.current || !canvasRef.current) return;
 
+    const sessionExerciseConfig = selectedExerciseObj;
+    const sessionExerciseId = sessionExerciseConfig.id;
+
     if (file.size > MAX_VIDEO_SIZE_BYTES) {
       analysisSessionIdRef.current += 1;
       resetAnalysisSession({ preserveExerciseAndWeight: true });
-      setStatusCode('error');
+      markAnalysisFailed(sessionExerciseConfig.label, 'File troppo grande');
       e.target.value = '';
       return;
     }
 
     analysisSessionIdRef.current += 1;
     const currentSessionId = analysisSessionIdRef.current;
-    const sessionExerciseConfig = selectedExerciseObj;
-    const sessionExerciseId = sessionExerciseConfig.id;
     const sessionWeightKg = weightKg;
 
     let fileBuffer: ArrayBuffer;
@@ -2061,7 +2065,7 @@ export function App() {
     } catch {
       if (analysisSessionIdRef.current !== currentSessionId) return;
       resetAnalysisSession({ preserveExerciseAndWeight: true });
-      setStatusCode('error');
+      markAnalysisFailed(sessionExerciseConfig.label, 'Errore lettura file');
       return;
     }
 
@@ -2169,19 +2173,15 @@ export function App() {
           closeLandmarkerSafely(landmarker);
         }
 
-        setIsProcessing(false);
         setProgressPercent(100);
 
-        if (!validation.isValid) {
-          setVideoMismatchAlert({
-            title: `Video non coerente con "${sessionExerciseConfig.label}"`,
-            message: validation.reason,
-            detectedSubject: validation.detectedSubject,
-          });
-          setStatusCode('error');
-          setAiStatusCode('error');
-          setAiStatusMessage('Video non coerente con l’esercizio selezionato');
-          setAiFeedback(validation.reason);
+        const samples = telemetrySamplesRef.current;
+        const hasMeaningfulMetrics =
+          samples.angles.length >= 3 &&
+          Math.max(...samples.angles) - Math.min(...samples.angles) >= 14;
+
+        if (!validation.isValid || !hasMeaningfulMetrics) {
+          markAnalysisFailed(sessionExerciseConfig.label, validation.detectedSubject);
           return;
         }
 
@@ -2235,13 +2235,10 @@ export function App() {
           }
         }
 
-        setStatusCode('success');
-
         const geomResult = analyzeExerciseGeometry(sessionExerciseId, landmarksBufferRef.current);
         setAnalysisResult(geomResult);
         lastGeomResultRef.current = { exercise: sessionExerciseId, result: geomResult };
 
-        const samples = telemetrySamplesRef.current;
         const avgOf = (arr: number[]) =>
           arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : null;
         const maxOf = (arr: number[]) => (arr.length ? Math.max(...arr) : null);
@@ -2280,6 +2277,9 @@ export function App() {
           torsoOscillationDeg: torsoOsc,
           sampleCount: samples.angles.length,
         });
+
+        setIsProcessing(false);
+        setStatusCode('success');
 
         triggerAiCoach(geomResult, sessionExerciseId, currentSessionId, {
           weightKg: sessionWeightKg,
@@ -2549,8 +2549,7 @@ export function App() {
           }
           if (analysisSessionIdRef.current !== currentSessionId) return;
           cleanupActiveRuntimeResources();
-          setIsProcessing(false);
-          setStatusCode('error');
+          markAnalysisFailed(sessionExerciseConfig.label, 'Errore riproduzione video');
         });
       };
 
@@ -2560,8 +2559,7 @@ export function App() {
     } catch {
       cleanupActiveRuntimeResources();
       if (analysisSessionIdRef.current !== currentSessionId) return;
-      setIsProcessing(false);
-      setStatusCode('error');
+      markAnalysisFailed(sessionExerciseConfig.label, 'Errore inizializzazione analisi');
     }
   };
 
@@ -2931,7 +2929,8 @@ export function App() {
     user.email ||
     '';
 
-  const hasTelemetryActivity = hasActiveOrCompletedSession && (liveAngleDeg !== null || romQuality > 0);
+  const hasTelemetryActivity =
+    statusCode === 'success' && (liveAngleDeg !== null || romQuality > 0);
   const romColor = getRomColor(romQuality);
   const romLabel = getRomLabel(romQuality, hasTelemetryActivity);
   const rhythmBadge = getRhythmBadge(angularSpeedDegSec, hasTelemetryActivity);
@@ -3033,13 +3032,7 @@ export function App() {
               <div>
                 <button
                   type="button"
-                  onClick={() => {
-                    analysisSessionIdRef.current += 1;
-                    resetAnalysisSession({ preserveExerciseAndWeight: true });
-                    window.setTimeout(() => {
-                      fileInputRef.current?.click();
-                    }, 50);
-                  }}
+                  onClick={handleStartNewAnalysis}
                   style={{
                     padding: '7px 12px',
                     borderRadius: 7,
@@ -3051,7 +3044,7 @@ export function App() {
                     cursor: 'pointer',
                   }}
                 >
-                  📤 Carica un altro video
+                  🔁 Nuova analisi
                 </button>
               </div>
             </div>
@@ -4216,51 +4209,16 @@ export function App() {
             {aiStatusCode === 'error' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ padding: 14, background: '#0f172a', borderRadius: 10, borderLeft: '4px solid #ef4444', border: '1px solid #334155' }}>
-                  <p style={{ margin: 0, fontSize: 14, color: '#f43f5e' }}>{aiFeedback}</p>
+                  <p style={{ margin: 0, fontSize: 14, color: '#f43f5e' }}>
+                    {aiFeedback || DEFAULT_MISMATCH_MESSAGE}
+                  </p>
                 </div>
-                {!videoMismatchAlert && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (lastGeomResultRef.current) {
-                        triggerAiCoach(
-                          lastGeomResultRef.current.result,
-                          lastGeomResultRef.current.exercise,
-                          analysisSessionIdRef.current,
-                          {
-                            weightKg,
-                            isDumbbell: selectedExerciseObj.isDumbbell,
-                            peakRomPercent: biomechSummary?.peakRomPercent ?? 0,
-                            avgRomPercent: biomechSummary?.avgRomPercent ?? 0,
-                            peakPowerW: biomechSummary?.peakPowerW ?? 0,
-                            avgPowerW: biomechSummary?.avgPowerW ?? 0,
-                            maxAsymmetryDeg: biomechSummary?.maxAsymmetryDeg ?? null,
-                            torsoOscillationDeg: biomechSummary?.torsoOscillationDeg ?? null,
-                          }
-                        );
-                      }
-                    }}
-                    style={{
-                      padding: '10px 16px',
-                      background: '#ef4444',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 8,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      alignSelf: 'flex-start',
-                      boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.3)',
-                    }}
-                  >
-                    🔄 Riprova IA
-                  </button>
-                )}
               </div>
             )}
           </div>
 
           {/* 8. RIEPILOGO BIOMECCANICO DI SESSIONE */}
-          {analysisResult && (
+          {analysisResult && statusCode === 'success' && (
             <div style={{ marginTop: 16, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
               <button
                 type="button"

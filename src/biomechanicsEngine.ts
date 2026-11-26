@@ -80,7 +80,11 @@ export interface AnalysisResult {
   trendSummary: string;
 }
 
-export type VideoMismatchCode = 'no_person' | 'no_joint_movement' | 'missing_key_joints';
+export type VideoMismatchCode =
+  | 'no_person'
+  | 'no_joint_movement'
+  | 'missing_key_joints'
+  | 'pattern_mismatch';
 
 export interface ExerciseVideoValidationResult {
   isValid: boolean;
@@ -89,6 +93,9 @@ export interface ExerciseVideoValidationResult {
   reason: string;
   realPoseRatio: number;
 }
+
+export const DEFAULT_MISMATCH_MESSAGE =
+  "Sembra che il video caricato non corrisponda all'esercizio selezionato.";
 
 export const EXERCISES: ExerciseConfig[] = [
   // --- 20 ESERCIZI BASE ---
@@ -756,6 +763,52 @@ export function computeRomPercent(exercise: ExerciseId, angleDeg: number | null)
   return Math.max(0, Math.min(100, Math.round(rom)));
 }
 
+function getExcursionFromTriplet(
+  framesLandmarks: JointPoint[][],
+  leftTriplet: [number, number, number],
+  rightTriplet: [number, number, number],
+  minVis = 0.42
+): number {
+  const vals: number[] = [];
+  for (const lm of framesLandmarks) {
+    if (!lm || !lm.length) continue;
+    const l = getTripletAngleSafe(lm, leftTriplet, minVis);
+    const r = getTripletAngleSafe(lm, rightTriplet, minVis);
+    if (l !== null && r !== null) {
+      vals.push(Math.round((l + r) / 2));
+    } else if (l !== null) {
+      vals.push(l);
+    } else if (r !== null) {
+      vals.push(r);
+    }
+  }
+  if (vals.length < 2) return 0;
+  return Math.max(...vals) - Math.min(...vals);
+}
+
+function getAnkleSpreadExcursion(framesLandmarks: JointPoint[][]): number {
+  const spreads: number[] = [];
+  for (const lm of framesLandmarks) {
+    if (!lm || !lm.length) continue;
+    const lAnkle = lm[27];
+    const rAnkle = lm[28];
+    if (
+      lAnkle &&
+      rAnkle &&
+      isFinite(lAnkle.x) &&
+      isFinite(lAnkle.y) &&
+      isFinite(rAnkle.x) &&
+      isFinite(rAnkle.y) &&
+      (lAnkle.visibility ?? 1) >= 0.35 &&
+      (rAnkle.visibility ?? 1) >= 0.35
+    ) {
+      spreads.push(Math.hypot(lAnkle.x - rAnkle.x, lAnkle.y - rAnkle.y));
+    }
+  }
+  if (spreads.length < 2) return 0;
+  return Math.max(...spreads) - Math.min(...spreads);
+}
+
 export function validateExerciseMotionAndPose(
   exercise: ExerciseId,
   framesLandmarks: JointPoint[][],
@@ -766,12 +819,12 @@ export function validateExerciseMotionAndPose(
   const totalSamples = Math.max(sampledFramesCount, framesLandmarks.length, 1);
   const realPoseRatio = Math.max(0, Math.min(1, rawDetectedFramesCount / totalSamples));
 
-  if (rawDetectedFramesCount === 0 || realPoseRatio < 0.22) {
+  if (rawDetectedFramesCount === 0 || realPoseRatio < 0.35) {
     return {
       isValid: false,
       code: 'no_person',
-      detectedSubject: 'Soggetto non umano o persona non rilevata',
-      reason: `Nel video non è stata rilevata una figura umana coerente con l'esercizio "${cfg.label}". Assicurati di caricare un filmato in cui la persona sia ben visibile.`,
+      detectedSubject: 'Soggetto non umano o persona non rilevata con continuità',
+      reason: DEFAULT_MISMATCH_MESSAGE,
       realPoseRatio,
     };
   }
@@ -782,25 +835,82 @@ export function validateExerciseMotionAndPose(
     if (val !== null) angles.push(val);
   }
 
-  if (angles.length < 2) {
+  if (angles.length < 3) {
     return {
       isValid: false,
       code: 'missing_key_joints',
       detectedSubject: 'Articolazioni chiave non visibili',
-      reason: `Le articolazioni principali per "${cfg.label}" non sono risultate visibili in modo affidabile nel video (${cfg.viewHint.toLowerCase()}).`,
+      reason: DEFAULT_MISMATCH_MESSAGE,
       realPoseRatio,
     };
   }
 
   const excursion = Math.max(...angles) - Math.min(...angles);
-  if (excursion < 10) {
+  if (excursion < 14) {
     return {
       isValid: false,
       code: 'no_joint_movement',
-      detectedSubject: 'Movimento articolare assente o non coerente',
-      reason: `Non è stata rilevata un'escursione articolare significativa per "${cfg.label}" (escursione di soli ${excursion}°). Verifica che il video mostri davvero l'esecuzione dell'esercizio selezionato.`,
+      detectedSubject: 'Escursione articolare insufficiente o statica',
+      reason: DEFAULT_MISMATCH_MESSAGE,
       realPoseRatio,
     };
+  }
+
+  const shoulderAbductionExcursion = getExcursionFromTriplet(
+    framesLandmarks,
+    [23, 11, 13],
+    [24, 12, 14],
+    0.42
+  );
+  const kneeFlexionExcursion = getExcursionFromTriplet(
+    framesLandmarks,
+    [23, 25, 27],
+    [24, 26, 28],
+    0.42
+  );
+  const ankleSpreadExcursion = getAnkleSpreadExcursion(framesLandmarks);
+
+  if (exercise === 'alzate_laterali') {
+    if (shoulderAbductionExcursion < 18 || kneeFlexionExcursion > shoulderAbductionExcursion * 1.45) {
+      return {
+        isValid: false,
+        code: 'pattern_mismatch',
+        detectedSubject:
+          kneeFlexionExcursion > shoulderAbductionExcursion
+            ? 'Movimento dominante delle gambe (non alzate laterali)'
+            : 'Abduzione delle braccia non sufficiente',
+        reason: DEFAULT_MISMATCH_MESSAGE,
+        realPoseRatio,
+      };
+    }
+  }
+
+  if (exercise === 'squat') {
+    if (kneeFlexionExcursion < 20 || shoulderAbductionExcursion > kneeFlexionExcursion * 1.5) {
+      return {
+        isValid: false,
+        code: 'pattern_mismatch',
+        detectedSubject:
+          shoulderAbductionExcursion > kneeFlexionExcursion
+            ? 'Movimento dominante delle braccia (non squat)'
+            : 'Flessione delle gambe non sufficiente per lo squat',
+        reason: DEFAULT_MISMATCH_MESSAGE,
+        realPoseRatio,
+      };
+    }
+  }
+
+  if (exercise === 'affondi') {
+    const hasLegOrStepPattern = kneeFlexionExcursion >= 18 || ankleSpreadExcursion >= 0.08;
+    if (!hasLegOrStepPattern || shoulderAbductionExcursion > Math.max(kneeFlexionExcursion, 20) * 1.5) {
+      return {
+        isValid: false,
+        code: 'pattern_mismatch',
+        detectedSubject: 'Pattern del movimento non coerente con gli affondi',
+        reason: DEFAULT_MISMATCH_MESSAGE,
+        realPoseRatio,
+      };
+    }
   }
 
   return {
