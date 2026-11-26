@@ -80,23 +80,6 @@ export interface AnalysisResult {
   trendSummary: string;
 }
 
-export type VideoMismatchCode =
-  | 'no_person'
-  | 'no_joint_movement'
-  | 'missing_key_joints'
-  | 'pattern_mismatch';
-
-export interface ExerciseVideoValidationResult {
-  isValid: boolean;
-  code?: VideoMismatchCode;
-  detectedSubject: string;
-  reason: string;
-  realPoseRatio: number;
-}
-
-export const DEFAULT_MISMATCH_MESSAGE =
-  "Sembra che il video caricato non corrisponda all'esercizio selezionato.";
-
 export const EXERCISES: ExerciseConfig[] = [
   // --- 20 ESERCIZI BASE ---
   {
@@ -705,6 +688,7 @@ export function getTripletAngleSafe(
   if (hasVisibleJoints(landmarks, triplet, minVis, rejectInferred)) {
     return computeAngle(landmarks[triplet[0]], landmarks[triplet[1]], landmarks[triplet[2]]);
   }
+  // Fallback su tallone/piede per caviglia (31/32 -> 29/30)
   if (triplet[2] === 31 || triplet[2] === 32) {
     const altIdx = triplet[2] === 31 ? 29 : 30;
     const altTriplet: [number, number, number] = [triplet[0], triplet[1], altIdx];
@@ -761,164 +745,6 @@ export function computeRomPercent(exercise: ExerciseId, angleDeg: number | null)
   }
 
   return Math.max(0, Math.min(100, Math.round(rom)));
-}
-
-function getExcursionFromTriplet(
-  framesLandmarks: JointPoint[][],
-  leftTriplet: [number, number, number],
-  rightTriplet: [number, number, number],
-  minVis = 0.42
-): number {
-  const vals: number[] = [];
-  for (const lm of framesLandmarks) {
-    if (!lm || !lm.length) continue;
-    const l = getTripletAngleSafe(lm, leftTriplet, minVis);
-    const r = getTripletAngleSafe(lm, rightTriplet, minVis);
-    if (l !== null && r !== null) {
-      vals.push(Math.round((l + r) / 2));
-    } else if (l !== null) {
-      vals.push(l);
-    } else if (r !== null) {
-      vals.push(r);
-    }
-  }
-  if (vals.length < 2) return 0;
-  return Math.max(...vals) - Math.min(...vals);
-}
-
-function getAnkleSpreadExcursion(framesLandmarks: JointPoint[][]): number {
-  const spreads: number[] = [];
-  for (const lm of framesLandmarks) {
-    if (!lm || !lm.length) continue;
-    const lAnkle = lm[27];
-    const rAnkle = lm[28];
-    if (
-      lAnkle &&
-      rAnkle &&
-      isFinite(lAnkle.x) &&
-      isFinite(lAnkle.y) &&
-      isFinite(rAnkle.x) &&
-      isFinite(rAnkle.y) &&
-      (lAnkle.visibility ?? 1) >= 0.35 &&
-      (rAnkle.visibility ?? 1) >= 0.35
-    ) {
-      spreads.push(Math.hypot(lAnkle.x - rAnkle.x, lAnkle.y - rAnkle.y));
-    }
-  }
-  if (spreads.length < 2) return 0;
-  return Math.max(...spreads) - Math.min(...spreads);
-}
-
-export function validateExerciseMotionAndPose(
-  exercise: ExerciseId,
-  framesLandmarks: JointPoint[][],
-  sampledFramesCount: number,
-  rawDetectedFramesCount: number
-): ExerciseVideoValidationResult {
-  const cfg = getExerciseConfig(exercise);
-  const totalSamples = Math.max(sampledFramesCount, framesLandmarks.length, 1);
-  const realPoseRatio = Math.max(0, Math.min(1, rawDetectedFramesCount / totalSamples));
-
-  if (rawDetectedFramesCount === 0 || realPoseRatio < 0.35) {
-    return {
-      isValid: false,
-      code: 'no_person',
-      detectedSubject: 'Soggetto non umano o persona non rilevata con continuità',
-      reason: DEFAULT_MISMATCH_MESSAGE,
-      realPoseRatio,
-    };
-  }
-
-  const angles: number[] = [];
-  for (const lm of framesLandmarks) {
-    const val = extractExerciseAngleValue(exercise, lm, 0.45);
-    if (val !== null) angles.push(val);
-  }
-
-  if (angles.length < 3) {
-    return {
-      isValid: false,
-      code: 'missing_key_joints',
-      detectedSubject: 'Articolazioni chiave non visibili',
-      reason: DEFAULT_MISMATCH_MESSAGE,
-      realPoseRatio,
-    };
-  }
-
-  const excursion = Math.max(...angles) - Math.min(...angles);
-  if (excursion < 14) {
-    return {
-      isValid: false,
-      code: 'no_joint_movement',
-      detectedSubject: 'Escursione articolare insufficiente o statica',
-      reason: DEFAULT_MISMATCH_MESSAGE,
-      realPoseRatio,
-    };
-  }
-
-  const shoulderAbductionExcursion = getExcursionFromTriplet(
-    framesLandmarks,
-    [23, 11, 13],
-    [24, 12, 14],
-    0.42
-  );
-  const kneeFlexionExcursion = getExcursionFromTriplet(
-    framesLandmarks,
-    [23, 25, 27],
-    [24, 26, 28],
-    0.42
-  );
-  const ankleSpreadExcursion = getAnkleSpreadExcursion(framesLandmarks);
-
-  if (exercise === 'alzate_laterali') {
-    if (shoulderAbductionExcursion < 18 || kneeFlexionExcursion > shoulderAbductionExcursion * 1.45) {
-      return {
-        isValid: false,
-        code: 'pattern_mismatch',
-        detectedSubject:
-          kneeFlexionExcursion > shoulderAbductionExcursion
-            ? 'Movimento dominante delle gambe (non alzate laterali)'
-            : 'Abduzione delle braccia non sufficiente',
-        reason: DEFAULT_MISMATCH_MESSAGE,
-        realPoseRatio,
-      };
-    }
-  }
-
-  if (exercise === 'squat') {
-    if (kneeFlexionExcursion < 20 || shoulderAbductionExcursion > kneeFlexionExcursion * 1.5) {
-      return {
-        isValid: false,
-        code: 'pattern_mismatch',
-        detectedSubject:
-          shoulderAbductionExcursion > kneeFlexionExcursion
-            ? 'Movimento dominante delle braccia (non squat)'
-            : 'Flessione delle gambe non sufficiente per lo squat',
-        reason: DEFAULT_MISMATCH_MESSAGE,
-        realPoseRatio,
-      };
-    }
-  }
-
-  if (exercise === 'affondi') {
-    const hasLegOrStepPattern = kneeFlexionExcursion >= 18 || ankleSpreadExcursion >= 0.08;
-    if (!hasLegOrStepPattern || shoulderAbductionExcursion > Math.max(kneeFlexionExcursion, 20) * 1.5) {
-      return {
-        isValid: false,
-        code: 'pattern_mismatch',
-        detectedSubject: 'Pattern del movimento non coerente con gli affondi',
-        reason: DEFAULT_MISMATCH_MESSAGE,
-        realPoseRatio,
-      };
-    }
-  }
-
-  return {
-    isValid: true,
-    detectedSubject: cfg.label,
-    reason: 'Rilevazione scheletrica e movimento coerenti.',
-    realPoseRatio,
-  };
 }
 
 export function analyzeExerciseGeometry(
