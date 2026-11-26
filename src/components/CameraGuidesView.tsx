@@ -709,72 +709,79 @@ export function CameraGuidesView({
   onSelectExercise,
   onClose,
 }: CameraGuidesViewProps) {
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedExerciseId, setSelectedExerciseId] = useState<GuideExerciseId | undefined>(
-    initialExerciseId
-  );
+  const resolveIndex = (id?: GuideExerciseId) => {
+    const idx = EXERCISE_GUIDES.findIndex((item) => item.id === id);
+    return idx >= 0 ? idx : 0;
+  };
+
+  const [selectedIndex, setSelectedIndex] = useState<number>(() => resolveIndex(initialExerciseId));
   const [showGeneralRules, setShowGeneralRules] = useState<boolean>(true);
   const [fallbackIds, setFallbackIds] = useState<Partial<Record<GuideExerciseId, boolean>>>({});
 
   useEffect(() => {
-    setSelectedExerciseId(initialExerciseId);
+    setSelectedIndex(resolveIndex(initialExerciseId));
   }, [initialExerciseId]);
 
-  const filteredGuides = EXERCISE_GUIDES.filter((item) => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      item.label.toLowerCase().includes(q) ||
-      item.cameraAngleBadge.toLowerCase().includes(q)
-    );
-  });
+  const currentGuide = EXERCISE_GUIDES[selectedIndex] ?? EXERCISE_GUIDES[0];
+  const hasImageError = Boolean(fallbackIds[currentGuide.id]);
+  const isChosen = !readOnlySelection && initialExerciseId === currentGuide.id;
 
-  const handleChooseGuide = (exerciseId: GuideExerciseId) => {
-    if (readOnlySelection) return;
-    setSelectedExerciseId(exerciseId);
-    onSelectExercise?.(exerciseId);
+  const handleChooseIndex = (idx: number) => {
+    const clamped = Math.max(0, Math.min(EXERCISE_GUIDES.length - 1, idx));
+    setSelectedIndex(clamped);
+    if (!readOnlySelection) {
+      onSelectExercise?.(EXERCISE_GUIDES[clamped].id);
+    }
   };
 
   return (
     <div
       style={{
-        minHeight: '100vh',
+        minHeight: 'calc(100vh - 107px)',
         background: 'linear-gradient(135deg, #090d16 0%, #1e293b 100%)',
         color: '#f8fafc',
         paddingBottom: 40,
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
-      <div style={{ maxWidth: 540, margin: '0 auto', padding: 20 }}>
+      <div style={{ maxWidth: 520, margin: '0 auto', padding: 20 }}>
         {/* HEADER */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 14,
+          }}
+        >
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#38bdf8' }}>
+              📷 Linee Guida Riprese
+            </h2>
+            <p style={{ margin: '3px 0 0 0', fontSize: 12, color: '#94a3b8' }}>
+              Posiziona la fotocamera per ciascuno dei {EXERCISE_GUIDES.length} esercizi
+            </p>
+          </div>
+
           <button
             type="button"
-            onClick={() => onClose(readOnlySelection ? undefined : (selectedExerciseId ?? initialExerciseId))}
+            onClick={() => onClose(readOnlySelection ? undefined : currentGuide.id)}
             style={{
               padding: '8px 12px',
               borderRadius: 8,
-              border: '1px solid #334155',
-              background: '#1e293b',
+              border: '1px solid #38bdf8',
+              background: 'rgba(56, 189, 248, 0.14)',
               color: '#38bdf8',
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 700,
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
           >
-            ← Torna all'analisi
+            ← Torna all’app
           </button>
-          <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>
-            {EXERCISE_GUIDES.length} Esercizi
-          </span>
         </div>
-
-        <h1 style={{ margin: '0 0 6px 0', fontSize: 24, fontWeight: 800, color: '#38bdf8' }}>
-          Linee Guida Riprese
-        </h1>
-        <p style={{ margin: '0 0 16px 0', fontSize: 13, color: '#94a3b8' }}>
-          Posiziona correttamente la fotocamera per ottenere conteggio ripetizioni e ROM precisi.
-        </p>
 
         {/* REGOLE D'ORO COLLASSABILI */}
         <div
@@ -783,7 +790,7 @@ export function CameraGuidesView({
             border: '1px solid #334155',
             borderRadius: 12,
             padding: 14,
-            marginBottom: 16,
+            marginBottom: 14,
           }}
         >
           <button
@@ -801,217 +808,323 @@ export function CameraGuidesView({
               cursor: 'pointer',
             }}
           >
-            <strong style={{ fontSize: 13, color: '#22c55e', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            <strong
+              style={{
+                fontSize: 12,
+                color: '#22c55e',
+                textTransform: 'uppercase',
+                letterSpacing: '0.4px',
+              }}
+            >
               3 Regole d'oro per tutti i video
             </strong>
             <span style={{ fontSize: 12, color: '#94a3b8' }}>{showGeneralRules ? '▲' : '▼'}</span>
           </button>
 
           {showGeneralRules && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10, fontSize: 13, color: '#cbd5e1' }}>
-              <div>• <strong>Camera ferma:</strong> appoggia il telefono su un supporto stabile, evita riprese a mano libera.</div>
-              <div>• <strong>Niente specchi dietro:</strong> i riflessi possono disturbare il tracciamento dello scheletro.</div>
-              <div>• <strong>Articolazione libera:</strong> evita che dischi, panche o montanti coprano l'articolazione chiave.</div>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                marginTop: 10,
+                fontSize: 12.5,
+                color: '#cbd5e1',
+              }}
+            >
+              <div>
+                • <strong>Camera ferma:</strong> appoggia il telefono su un supporto stabile, evita riprese a mano libera.
+              </div>
+              <div>
+                • <strong>Niente specchi dietro:</strong> i riflessi possono disturbare il tracciamento dello scheletro.
+              </div>
+              <div>
+                • <strong>Articolazione libera:</strong> evita che dischi, panche o montanti coprano l'articolazione chiave.
+              </div>
             </div>
           )}
         </div>
 
-        {/* BARRA RICERCA */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cerca esercizio (es. Squat, Hip thrust, Bulgarian...)"
+        {/* BARRA FRECCE ORIZZONTALI + LISTA DI SELEZIONE */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '10px 12px',
+            borderRadius: 12,
+            background: '#1e293b',
+            border: '1px solid #334155',
+            marginBottom: 14,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() =>
+              handleChooseIndex((selectedIndex - 1 + EXERCISE_GUIDES.length) % EXERCISE_GUIDES.length)
+            }
+            aria-label="Esercizio precedente"
             style={{
-              flex: 1,
-              padding: '10px 12px',
+              width: 36,
+              height: 36,
               borderRadius: 8,
               border: '1px solid #334155',
               background: '#0f172a',
               color: '#f8fafc',
-              fontSize: 13,
+              fontSize: 15,
+              fontWeight: 800,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            ◀
+          </button>
+
+          <select
+            aria-label="Seleziona esercizio per vedere le linee guida di ripresa"
+            value={currentGuide.id}
+            onChange={(e) => {
+              const idx = EXERCISE_GUIDES.findIndex((it) => it.id === e.target.value);
+              if (idx >= 0) handleChooseIndex(idx);
+            }}
+            style={{
+              flex: 1,
+              height: 36,
+              borderRadius: 8,
+              border: '1px solid #475569',
+              background: '#0f172a',
+              color: '#f8fafc',
+              fontSize: 14,
+              fontWeight: 700,
+              padding: '0 10px',
               outline: 'none',
             }}
-          />
-          {searchQuery.trim() !== '' && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              style={{
-                padding: '0 12px',
-                borderRadius: 8,
-                border: '1px solid #38bdf8',
-                background: 'rgba(56,189,248,0.1)',
-                color: '#38bdf8',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Mostra tutti
-            </button>
-          )}
+          >
+            {EXERCISE_GUIDES.map((item, idx) => (
+              <option key={item.id} value={item.id}>
+                {idx + 1}. {item.label}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={() => handleChooseIndex((selectedIndex + 1) % EXERCISE_GUIDES.length)}
+            aria-label="Esercizio successivo"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              border: '1px solid #334155',
+              background: '#0f172a',
+              color: '#f8fafc',
+              fontSize: 15,
+              fontWeight: 800,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            ▶
+          </button>
         </div>
 
-        {/* LISTA CARD GUIDE */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {filteredGuides.map((guide) => {
-            const hasImageError = Boolean(fallbackIds[guide.id]);
-            const isChosen = !readOnlySelection && selectedExerciseId === guide.id;
-            return (
-              <div
-                key={guide.id}
-                onClick={() => handleChooseGuide(guide.id)}
-                style={{
-                  background: '#1e293b',
-                  border: isChosen ? '2px solid #38bdf8' : '1px solid #334155',
-                  borderRadius: 14,
-                  overflow: 'hidden',
-                  boxShadow: '0 8px 16px -4px rgba(0,0,0,0.3)',
-                  cursor: readOnlySelection ? 'default' : 'pointer',
-                }}
-              >
-                <div
+        {/* CARD SINGOLA DELL'ESERCIZIO SELEZIONATO */}
+        <div
+          style={{
+            background: '#1e293b',
+            border: isChosen ? '2px solid #38bdf8' : '1px solid #334155',
+            borderRadius: 14,
+            overflow: 'hidden',
+            boxShadow: '0 10px 20px -5px rgba(0, 0, 0, 0.35)',
+          }}
+        >
+          <div
+            style={{
+              padding: '12px 16px',
+              borderBottom: '1px solid #334155',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#38bdf8' }}>
+                {currentGuide.label}
+              </h3>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
+                {selectedIndex + 1} / {EXERCISE_GUIDES.length}
+              </span>
+            </div>
+
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                color: '#38bdf8',
+                background: 'rgba(56,189,248,0.12)',
+                border: '1px solid rgba(56,189,248,0.3)',
+                padding: '4px 8px',
+                borderRadius: 6,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              📷 {currentGuide.cameraAngleBadge}
+            </span>
+          </div>
+
+          <div style={{ padding: 16 }}>
+            <div
+              style={{
+                background: '#0f172a',
+                borderRadius: 10,
+                border: '1px solid #334155',
+                padding: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                marginBottom: 12,
+              }}
+            >
+              {!hasImageError ? (
+                <img
+                  src={currentGuide.guideImagePath}
+                  onError={() =>
+                    setFallbackIds((prev) => ({ ...prev, [currentGuide.id]: true }))
+                  }
+                  alt={`Inquadratura ${currentGuide.label}`}
                   style={{
-                    padding: '12px 16px',
-                    borderBottom: '1px solid #334155',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 8,
+                    width: 112,
+                    height: 112,
+                    objectFit: 'contain',
+                    borderRadius: 8,
+                    flexShrink: 0,
+                    background: '#020617',
                   }}
-                >
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#f8fafc' }}>{guide.label}</h3>
+                />
+              ) : (
+                <StickmanAngleIllustration guide={currentGuide} />
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                <div>
                   <span
                     style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#38bdf8',
-                      background: 'rgba(56,189,248,0.12)',
-                      border: '1px solid rgba(56,189,248,0.3)',
-                      padding: '4px 8px',
-                      borderRadius: 6,
-                      whiteSpace: 'nowrap',
+                      color: '#94a3b8',
+                      display: 'block',
+                      fontSize: 10,
+                      textTransform: 'uppercase',
                     }}
                   >
-                    📷 {guide.cameraAngleBadge}
+                    Angolo consigliato
                   </span>
+                  <strong style={{ color: '#38bdf8' }}>{currentGuide.cameraAngleBadge}</strong>
                 </div>
-
-                <div style={{ padding: 16 }}>
-                  <div
+                <div>
+                  <span
                     style={{
-                      background: '#0f172a',
-                      borderRadius: 10,
-                      border: '1px solid #334155',
-                      padding: 12,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 14,
-                      marginBottom: 12,
+                      color: '#94a3b8',
+                      display: 'block',
+                      fontSize: 10,
+                      textTransform: 'uppercase',
                     }}
                   >
-                    {!hasImageError ? (
-                      <img
-                        src={guide.guideImagePath}
-                        onError={() =>
-                          setFallbackIds((prev) => ({ ...prev, [guide.id]: true }))
-                        }
-                        alt={`Inquadratura ${guide.label}`}
-                        style={{
-                          width: 112,
-                          height: 112,
-                          objectFit: 'contain',
-                          borderRadius: 8,
-                          flexShrink: 0,
-                          background: '#020617',
-                        }}
-                      />
-                    ) : (
-                      <StickmanAngleIllustration guide={guide} />
-                    )}
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
-                      <div>
-                        <span style={{ color: '#94a3b8', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>
-                          Angolo consigliato
-                        </span>
-                        <strong style={{ color: '#38bdf8' }}>{guide.cameraAngleBadge}</strong>
-                      </div>
-                      <div>
-                        <span style={{ color: '#94a3b8', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>
-                          Altezza camera
-                        </span>
-                        <strong style={{ color: '#e2e8f0' }}>{guide.cameraHeight}</strong>
-                      </div>
-                      <div>
-                        <span style={{ color: '#94a3b8', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>
-                          Distanza consigliata
-                        </span>
-                        <strong style={{ color: '#e2e8f0' }}>{guide.cameraDistance}</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div
-                      style={{
-                        background: 'rgba(34, 197, 94, 0.08)',
-                        border: '1px solid rgba(34, 197, 94, 0.25)',
-                        borderRadius: 8,
-                        padding: 10,
-                      }}
-                    >
-                      <span style={{ fontSize: 11, fontWeight: 800, color: '#22c55e', display: 'block', marginBottom: 4 }}>
-                        ✓ Cosa fare
-                      </span>
-                      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: '#cbd5e1' }}>{guide.doTips}</p>
-                    </div>
-
-                    <div
-                      style={{
-                        background: 'rgba(239, 68, 68, 0.08)',
-                        border: '1px solid rgba(239, 68, 68, 0.25)',
-                        borderRadius: 8,
-                        padding: 10,
-                      }}
-                    >
-                      <span style={{ fontSize: 11, fontWeight: 800, color: '#f43f5e', display: 'block', marginBottom: 4 }}>
-                        ✕ Cosa evitare
-                      </span>
-                      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: '#cbd5e1' }}>{guide.avoidTips}</p>
-                    </div>
-                  </div>
-
-                  {!readOnlySelection && (
-                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleChooseGuide(guide.id);
-                          onClose(guide.id);
-                        }}
-                        style={{
-                          padding: '7px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #38bdf8',
-                          background: isChosen ? '#38bdf8' : 'rgba(56,189,248,0.12)',
-                          color: isChosen ? '#0f172a' : '#38bdf8',
-                          fontSize: 12,
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {isChosen ? '✓ Selezionato per l’analisi' : 'Usa questo esercizio'}
-                      </button>
-                    </div>
-                  )}
+                    Altezza camera
+                  </span>
+                  <strong style={{ color: '#e2e8f0' }}>{currentGuide.cameraHeight}</strong>
+                </div>
+                <div>
+                  <span
+                    style={{
+                      color: '#94a3b8',
+                      display: 'block',
+                      fontSize: 10,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Distanza consigliata
+                  </span>
+                  <strong style={{ color: '#e2e8f0' }}>{currentGuide.cameraDistance}</strong>
                 </div>
               </div>
-            );
-          })}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div
+                style={{
+                  background: 'rgba(34, 197, 94, 0.08)',
+                  border: '1px solid rgba(34, 197, 94, 0.25)',
+                  borderRadius: 8,
+                  padding: 10,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: '#22c55e',
+                    display: 'block',
+                    marginBottom: 4,
+                  }}
+                >
+                  ✓ Cosa fare
+                </span>
+                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: '#cbd5e1' }}>
+                  {currentGuide.doTips}
+                </p>
+              </div>
+
+              <div
+                style={{
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  borderRadius: 8,
+                  padding: 10,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: '#f43f5e',
+                    display: 'block',
+                    marginBottom: 4,
+                  }}
+                >
+                  ✕ Cosa evitare
+                </span>
+                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: '#cbd5e1' }}>
+                  {currentGuide.avoidTips}
+                </p>
+              </div>
+            </div>
+
+            {!readOnlySelection && (
+              <div style={{ marginTop: 14 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectExercise?.(currentGuide.id);
+                    onClose(currentGuide.id);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: '#38bdf8',
+                    color: '#0f172a',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Usa "{currentGuide.label}" nell'analisi
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
