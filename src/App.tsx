@@ -2582,6 +2582,16 @@ export function App() {
     }
   };
 
+  const getVideoStatusLabel = (
+    code: 'idle' | 'processing' | 'success' | 'error',
+    processingFlag: boolean
+  ) => {
+    if (processingFlag || code === 'processing') return 'Analisi in corso...';
+    if (code === 'success') return 'Analisi completata';
+    if (code === 'error') return 'Errore analisi';
+    return 'In attesa video';
+  };
+
   if (!authReady) {
     return (
       <>
@@ -2853,6 +2863,8 @@ export function App() {
   const sideBarColor = symmetryDiffDeg === null ? '#475569' : asymColor;
 
   const trafficLightColor = getTrafficLightColor(statusCode);
+  const videoStatusLabel = getVideoStatusLabel(statusCode, isProcessing);
+  const aiTrafficLightColor = getTrafficLightColor(aiStatusCode);
 
   return (
     <>
@@ -3180,18 +3192,23 @@ export function App() {
                 </button>
               </div>
 
-              <span
-                aria-label="Semaforo analisi video"
-                style={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: '50%',
-                  backgroundColor: trafficLightColor,
-                  boxShadow: `0 0 8px ${trafficLightColor}`,
-                  flexShrink: 0,
-                  display: 'inline-block',
-                }}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 13, color: '#94a3b8' }}>
+                  {videoStatusLabel}
+                </span>
+                <span
+                  aria-label="Semaforo analisi video"
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    backgroundColor: trafficLightColor,
+                    boxShadow: `0 0 8px ${trafficLightColor}`,
+                    flexShrink: 0,
+                    display: 'inline-block',
+                  }}
+                />
+              </div>
             </div>
 
             <input
@@ -4002,27 +4019,28 @@ export function App() {
 
           {/* 7. AI COACH */}
           <div style={{ marginTop: 16, padding: 18, background: '#1e293b', color: '#fff', borderRadius: 12, border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <h4 style={{ margin: 0, color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>AI Coach</h4>
+
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 13, color: '#94a3b8' }}>
+                  {aiStatusCode === 'idle' && isProcessing
+                    ? 'In attesa del completamento analisi video...'
+                    : aiStatusMessage}
+                </span>
                 <span
+                  aria-label="Semaforo AI Coach"
                   style={{
-                    width: 12,
-                    height: 12,
+                    width: 14,
+                    height: 14,
                     borderRadius: '50%',
-                    backgroundColor: getTrafficLightColor(aiStatusCode),
-                    boxShadow: `0 0 8px ${getTrafficLightColor(aiStatusCode)}`,
+                    backgroundColor: aiTrafficLightColor,
+                    boxShadow: `0 0 8px ${aiTrafficLightColor}`,
                     display: 'inline-block',
                     flexShrink: 0,
                   }}
                 />
-                <h4 style={{ margin: 0, color: '#f43f5e', fontSize: 16, fontWeight: 800 }}>AI Coach</h4>
               </div>
-
-              <span style={{ fontSize: 13, color: '#94a3b8' }}>
-                {aiStatusCode === 'idle' && isProcessing
-                  ? 'In attesa del completamento analisi video...'
-                  : aiStatusMessage}
-              </span>
             </div>
 
             {aiStatusCode === 'idle' && (
