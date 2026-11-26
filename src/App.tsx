@@ -1207,6 +1207,7 @@ export function App() {
 
   useEffect(() => {
     if (videoRef.current) {
+      videoRef.current.muted = true;
       videoRef.current.playbackRate = statusCode === 'success' ? replaySpeed : 1;
     }
   }, [replaySpeed, statusCode]);
@@ -1324,6 +1325,7 @@ export function App() {
 
       if (videoRef.current) {
         videoRef.current.pause();
+        videoRef.current.muted = true;
         videoRef.current.playbackRate = 1;
         videoRef.current.removeAttribute('src');
         videoRef.current.load();
@@ -1445,6 +1447,7 @@ export function App() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    video.muted = true;
     video.playbackRate = replaySpeed;
     let rafId: number | null = null;
     let lastUiSyncMs = 0;
@@ -1538,6 +1541,7 @@ export function App() {
     };
 
     const handlePlay = () => {
+      video.muted = true;
       video.playbackRate = replaySpeed;
       setIsReplayPlaying(true);
       syncDuration();
@@ -2081,13 +2085,68 @@ export function App() {
         }
 
         video.pause();
-        video.playbackRate = 1;
         video.muted = true;
+        video.playbackRate = 1;
+        video.currentTime = 0;
+
+        setIsReplayPlaying(false);
+        setReplayCurrentTime(0);
+        if (video.duration && isFinite(video.duration)) {
+          setReplayDuration(video.duration);
+        }
+
+        const startTelemetry = interpolateTimedTelemetry(timedTelemetryRef.current, 0);
+        if (startTelemetry) {
+          setLiveAngleDeg(startTelemetry.angleDeg);
+          setRomQuality(startTelemetry.romQuality);
+          setPowerScore(startTelemetry.powerScore);
+          setAngularSpeedDegSec(startTelemetry.angularSpeedDegSec);
+          setLeftAngleDeg(startTelemetry.leftAngleDeg);
+          setRightAngleDeg(startTelemetry.rightAngleDeg);
+          setSymmetryDiffDeg(startTelemetry.symmetryDiffDeg);
+          setTorsoTiltDeg(startTelemetry.torsoTiltDeg);
+        } else {
+          setPowerScore(0);
+          setAngularSpeedDegSec(0);
+        }
+
+        if (ctx) {
+          const w = canvas.width || targetWidth;
+          const h = canvas.height || targetHeight;
+          const startLandmarks = interpolateTimedFrames(timedLandmarksRef.current, 0);
+          if (stickOnlyModeRef.current) {
+            if (startLandmarks) {
+              drawStickmanOverlay(
+                ctx,
+                sessionExerciseId,
+                startLandmarks,
+                w,
+                h,
+                true,
+                showAnglesOverlayRef.current
+              );
+            } else {
+              ctx.fillStyle = '#000000';
+              ctx.fillRect(0, 0, w, h);
+            }
+          } else if (video.readyState >= 2) {
+            ctx.drawImage(video, 0, 0, w, h);
+            if (startLandmarks) {
+              drawStickmanOverlay(
+                ctx,
+                sessionExerciseId,
+                startLandmarks,
+                w,
+                h,
+                false,
+                showAnglesOverlayRef.current
+              );
+            }
+          }
+        }
 
         setIsProcessing(false);
         setProgressPercent(100);
-        setPowerScore(0);
-        setAngularSpeedDegSec(0);
         setStatusCode('success');
 
         const geomResult = analyzeExerciseGeometry(sessionExerciseId, landmarksBufferRef.current);
@@ -3458,7 +3517,7 @@ export function App() {
                   height: 'auto',
                   background: '#000',
                 }}
-                muted={statusCode !== 'success'}
+                muted
                 playsInline
                 preload="auto"
               />
@@ -3492,8 +3551,8 @@ export function App() {
                         if (vid.ended) {
                           vid.currentTime = 0;
                         }
+                        vid.muted = true;
                         vid.playbackRate = replaySpeed;
-                        vid.muted = false;
                         void vid.play();
                       } else {
                         vid.pause();
